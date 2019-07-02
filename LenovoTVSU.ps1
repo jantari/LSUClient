@@ -21,8 +21,8 @@
 [CmdletBinding()]
 Param (
     [string]$DownloadPath = "$env:TEMP\LenovoDrivers",
-    [ValidateSet('All', 'Critical', 'Critical+Recommended', 'Recommended', 'Recommended+Optional', 'Optional')]
-    [string]$Filter = 'Critical+Recommended',
+    [ValidateSet('Critical', 'Recommended', 'Optional')]
+    [string[]]$Filter = @('Critical', 'Recommended', 'Optional'),
     [string]$Proxy,
     [switch]$Unattended = -not [System.Environment]::UserInteractive
 )
@@ -30,21 +30,56 @@ Param (
 # StrictMode 2.0 is possible but makes the creation of the LenovoPackage objects a lot uglier with no real benefit
 Set-StrictMode -Version 1.0
 
+enum Severity {
+    Critical    = 1
+    Recommended = 2
+    Optional    = 3
+}
+
+enum PkgInstallType {
+    INF
+    CMD
+}
+
 class LenovoPackage {
     [string]$ID
     [string]$Title
     [version]$Version
     [string]$Vendor
-    [int]$Severity
+    [Severity]$Severity
     [int]$RebootType
     [string]$OriginURL
-    [string]$ExtractCommand
-    [string]$Installer
-    [string]$InstallerSize
-    [string]$InstallerSHA
-    [string]$InstallCommand
-    [int64[]]$InstallSuccess
+    [PackageExtractInfo]$Extracter
+    [PackageInstallInfo]$Installer
     [string[]]$ForDevices
+}
+
+class PackageExtractInfo {
+    [string]$Command
+    [string]$FileName
+    [int64]$FileSize
+    [string]$FileSHA
+
+    PackageExtractInfo ([System.Xml.XmlElement]$PackageXML) {
+        $this.Command  = $PackageXML.ExtractCommand
+        $this.FileName = $PackageXML.Files.Installer.File.Name
+        $this.FileSize = $PackageXML.Files.Installer.File.Size
+        $this.FileSHA  = $PackageXML.Files.Installer.File.CRC
+    }
+}
+
+class PackageInstallInfo {
+    [PkgInstallType]$InstallType
+    [int64[]]$SuccessCodes
+    [string]$InfFile
+    [string]$InstallCommand
+
+    PackageInstallInfo ([System.Xml.XmlElement]$PackageXML) {
+        $this.InstallType    = $PackageXML.Install.type
+        $this.SuccessCodes   = $PackageXML.Install.rc -split ','
+        $this.InfFile        = $PackageXML.Install.INFCmd.INFfile
+        $this.InstallCommand = $PackageXML.Install.Cmdline.'#text'
+    }
 }
 
 function Download-LenovoPackage {
@@ -60,12 +95,12 @@ function Download-LenovoPackage {
         $null = New-Item -Path $Destination -Force -ItemType Directory
     }
 
-    $PackageURL      = $Package.OriginURL -replace "[^/]*$"
-    $PackageURL      = [String]::Concat($PackageURL, $Package.Installer)
-    $FileDestination = Join-Path -Path $Destination -ChildPath $Package.Installer
+    $PackageDownload = $Package.OriginURL -replace "[^/]*$"
+    $PackageDownload = [String]::Concat($PackageDownload, $Package.Extracter.FileName)
+    $DownloadPath    = Join-Path -Path $Destination -ChildPath $Package.Extracter.FileName
 
-    if (Test-Path -Path $FileDestination -PathType Leaf) {
-        if ((Get-FileHash -Path $FileDestination -Algorithm SHA256).Hash -eq $Package.InstallerSHA) {
+    if (Test-Path -Path $DownloadPath -PathType Leaf) {
+        if ((Get-FileHash -Path $DownloadPath -Algorithm SHA256).Hash -eq $Package.Extracter.FileSHA) {
             Write-Host "This package was already downloaded, skipping redownload.`r`n"
             return;
         }
@@ -73,14 +108,14 @@ function Download-LenovoPackage {
 
     try {
         if ($Proxy) {
-            Invoke-WebRequest -Uri $PackageURL -OutFile $FileDestination -UseBasicParsing -ErrorAction Stop -Proxy $Proxy
+            Invoke-WebRequest -Uri $PackageDownload -OutFile $DownloadPath -UseBasicParsing -ErrorAction Stop -Proxy $Proxy
         } else {
-            Invoke-WebRequest -Uri $PackageURL -OutFile $FileDestination -UseBasicParsing -ErrorAction Stop
+            Invoke-WebRequest -Uri $PackageDownload -OutFile $DownloadPath -UseBasicParsing -ErrorAction Stop
         }
         Write-Host "Download successful.`r`n"
     }
     catch {
-        Write-Error "Could not download the package '$($Package.id)' from '$PackageURL':"
+        Write-Error "Could not download the package '$($Package.id)' from '$PackageDownload':"
         Write-Error $_.Exception.Message
         Write-Error ($_.Exception.Response | Format-List * | Out-String)
     }
@@ -95,11 +130,11 @@ function Expand-LenovoPackage {
         [string]$Destination
     )
 
-    $ExtractCMD  = $Package.ExtractCommand -replace "%PACKAGEPATH%", ('"{0}"' -f $Destination)
-    $ExtractARGS = $ExtractCMD -replace "^$($Package.Installer)"
+    $ExtractCMD  = $Package.Extracter.Command -replace "%PACKAGEPATH%", ('"{0}"' -f $Destination)
+    $ExtractARGS = $ExtractCMD -replace "^$($Package.Extracter.FileName)"
 
     if (Get-ChildItem -Path $Destination -File) {
-        Start-Process -FilePath $Package.Installer -Verb RunAs -WorkingDirectory $Destination -Wait -ArgumentList $ExtractARGS
+        Start-Process -FilePath $Package.Extracter.FileName -Verb RunAs -WorkingDirectory $Destination -Wait -ArgumentList $ExtractARGS
     } else {
         Write-Warning "This package was not downloaded or deleted (empty folder), skipping extraction ...`r`n"
     }
@@ -114,14 +149,27 @@ function Install-LenovoPackage {
         [string]$Path
     )
 
-    $InstallCMD = $Package.InstallCommand -replace "%PACKAGEPATH%", $Path
-    # Correct typo from Lenovo ... yes really...
-    $InstallCMD = $InstallCMD -replace '-overwirte', '-overwrite'
-
     if (Get-ChildItem -Path $Path -File) {
-        $installProcess = Start-Process -FilePath cmd.exe -Wait -Verb RunAs -WorkingDirectory $Path -PassThru -ArgumentList '/c', "$InstallCMD"
-        if ($installProcess.ExitCode -notin $Package.InstallSuccess) {
-            Write-Warning "Installation of package '$($Package.id) - $($Package.Title)' FAILED with return code $($installProcess.ExitCode)!`r`n"
+        switch ($Package.Installer.InstallType) {
+            'CMD' {
+                $InstallCMD = $Package.Installer.InstallCommand -replace "%PACKAGEPATH%", $Path
+                # Correct typo from Lenovo ... yes really...
+                $InstallCMD = $InstallCMD -replace '-overwirte', '-overwrite'
+        
+                $installProcess = Start-Process -FilePath cmd.exe -Wait -Verb RunAs -WorkingDirectory $Path -PassThru -ArgumentList '/c', "$InstallCMD"
+                if ($installProcess.ExitCode -notin $Package.Installer.SuccessCodes) {
+                    Write-Warning "Installation of package '$($Package.id) - $($Package.Title)' FAILED with return code $($installProcess.ExitCode)!`r`n"
+                }
+            }
+            'INF' {
+                $installProcess = Start-Process -FilePath pnputil.exe -Wait -Verb RunAs -WorkingDirectory $Path -PassThru -ArgumentList "/add-driver $($Package.Installer.InfFile) /install"
+                if ($installProcess.ExitCode -notin $Package.Installer.SuccessCodes -and $installProcess.ExitCode -notin 0, 3010) {
+                    Write-Warning "Installation of package '$($Package.id) - $($Package.Title)' FAILED with return code $($installProcess.ExitCode)!`r`n"
+                }
+            }
+            default {
+                Write-Warning "Unsupported Package installer method, skipping installation ...`r`n"
+            }
         }
     } else {
         Write-Warning "This package was not downloaded or deleted (empty folder), skipping installation ..`r`n."
@@ -148,7 +196,7 @@ if ($MODELNO.Success -ne $true) {
 Write-Host "Lenovo Model is: $($MODELNO.Value)`r`n"
 
 if ($Proxy) {
-    $COMPUTERXML = Invoke-WebRequest -Uri ("https://download.lenovo.com/catalog/{0}_Win10.xml" -f $MODELNO.Value) -UseBasicParsing -ErrorAction Stop -Proxy $Proxy
+    $COMPUTERXML = Invoke-WebRequest -Uri ("https://download.lenovo.com/catalog/{0}_Win10.xml" -f $MODELNO.Value) -UseBasicParsing -Proxy $Proxy -ErrorAction Stop
 } else {
     $COMPUTERXML = Invoke-WebRequest -Uri ("https://download.lenovo.com/catalog/{0}_Win10.xml" -f $MODELNO.Value) -UseBasicParsing -ErrorAction Stop
 }
@@ -169,48 +217,27 @@ Write-Host "A total of $($PARSEDXML.packages.count) driver packages are availabl
     [xml]$packageXML = $packageXMLOrig.Content -replace "^$UTF8ByteOrderMark"
 
     [LenovoPackage]@{
-        'ID'             = $packageXML.Package.id
-        'Title'          = $packageXML.Package.Title.Desc.'#text'
-        'Version'        = if ([Version]::TryParse($packageXML.Package.version, [ref]$null)) { $packageXML.Package.version } else { '0.0.0.0' }
-        'Vendor'         = $packageXML.Package.Vendor
-        'Severity'       = $packageXML.Package.Severity.type
-        'RebootType'     = $packageXML.Package.Reboot.type
-        'OriginURL'      = $packageURL
-        'ExtractCommand' = $packageXML.Package.ExtractCommand
-        'Installer'      = $packageXML.Package.Files.Installer.File.Name
-        'InstallerSize'  = $packageXML.Package.Files.Installer.File.Size
-        'InstallerSHA'   = $packageXML.Package.Files.Installer.File.CRC
-        'InstallCommand' = $packageXML.Package.Install.Cmdline.'#text'
-        'InstallSuccess' = $packageXML.Package.Install.rc -split ','
-        'ForDevices'     = $packageXML.Package.Dependencies.GetElementsByTagName('_PnPID').'#cdata-section'
+        'ID'          = $packageXML.Package.id
+        'Title'       = $packageXML.Package.Title.Desc.'#text'
+        'Version'     = if ([Version]::TryParse($packageXML.Package.version, [ref]$null)) { $packageXML.Package.version } else { '0.0.0.0' }
+        'Vendor'      = $packageXML.Package.Vendor
+        'Severity'    = $packageXML.Package.Severity.type
+        'RebootType'  = $packageXML.Package.Reboot.type
+        'OriginURL'   = $packageURL
+        'Extracter'   = $packageXML.Package
+        'Installer'   = $packageXML.Package
+        'ForDevices'  = $packageXML.Package.Dependencies.GetElementsByTagName('_PnPID').'#cdata-section'
     }
 }
 
-$packagesCollection | Select-Object -Property id, Title, Severity, RebootType | Out-Host
+$packagesCollection | Format-Table -Property id, Title, Severity, RebootType | Out-Host
+
+$packagesCollection
 
 # Filtering out unneeded or unwanted drivers from the comprehensive list of all possibly applicable ones
-switch ($Filter) {
-    # Severity levels:
-    # 1 - Critical
-    # 2 - Recommended
-    # 3 - Optional
-    'Critical' {
-        $packagesCollection = $packagesCollection.Where{ $_.Severity -eq 1 }
-    }
-    'Recommended' {
-        $packagesCollection = $packagesCollection.Where{ $_.Severity -eq 2 }
-    }
-    'Critical+Recommended' {
-        $packagesCollection = $packagesCollection.Where{ $_.Severity -in 1, 2 }
-    }
-    'Optional' {
-        $packagesCollection = $packagesCollection.Where{ $_.Severity -eq 3 }
-    }
-    'Recommended+Optional' {
-        $packagesCollection = $packagesCollection.Where{ $_.Severity -in 2, 3 }
-    }
-    default {}
-}
+$packagesCollection = $packagesCollection.Where{ $_.Severity -in $Filter }
+
+$packagesCollection | Format-Table -Property id, Title, Severity | Out-Host
 
 if ($Unattended) {
     Write-Host "Skipping the following packages because of Reboot-Types that are incompatible with unattended mode:`r`n"
@@ -258,5 +285,3 @@ foreach ($driver in $neededDriverPkgs) {
     Write-Host "Installing $($driver.id) - $($driver.Title) ...`r`n"
     Install-LenovoPackage -Package $driver -Path (Join-Path -Path $DownloadPath -ChildPath $driver.id)
 }
-
-Write-Host "`r`n[$(Get-Date -Format 'dd.MM.yyyy - HH:mm')] DONE !`r`n"
