@@ -149,7 +149,7 @@ function Install-LenovoPackage {
         [string]$Path
     )
 
-    if (Get-ChildItem -Path $Path -File) {
+    if (Get-ChildItem -LiteralPath $Path -File) {
         switch ($Package.Installer.InstallType) {
             'CMD' {
                 $InstallCMD = $Package.Installer.InstallCommand -replace "%PACKAGEPATH%", $Path
@@ -230,22 +230,18 @@ Write-Host "A total of $($PARSEDXML.packages.count) driver packages are availabl
     }
 }
 
-$packagesCollection | Format-Table -Property id, Title, Severity, RebootType | Out-Host
-
-$packagesCollection
+$packagesCollection | Format-List -Property id, Title, Severity, RebootType
 
 # Filtering out unneeded or unwanted drivers from the comprehensive list of all possibly applicable ones
 $packagesCollection = $packagesCollection.Where{ $_.Severity -in $Filter }
 
-$packagesCollection | Format-Table -Property id, Title, Severity | Out-Host
-
 if ($Unattended) {
     Write-Host "Skipping the following packages because of Reboot-Types that are incompatible with unattended mode:`r`n"
-    $packagesCollection.Where{ $_.RebootType -ne '3' } | Format-Table -Property id, Title, version, RebootType | Out-Host
     $packagesCollection = $packagesCollection.Where{ $_.RebootType -eq 3 }
+    $packagesCollection | Format-Table -Property id, Title, RebootType
 }
 
-[array]$devices = Get-PnpDevice | Select-Object -Property DeviceID, Name
+[array]$devices = Get-PnpDevice
 
 Write-Host "$($devices.Count) devices in this computer.`r`n"
 
@@ -259,8 +255,9 @@ $neededDriverPkgs = [System.Collections.Generic.List[LenovoPackage]]::new()
             if ($presentPnPDevice.DeviceID -like "*$compatiblePnPDevice*") {
                 # Match found available driver <--> installed hardware
                 Write-Host "Found Hardware match on DeviceID: $($compatiblePnPDevice), will be installing '$($package.Title)'`r`n"
-                $currentDrvVer = $presentPnPDevice | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion' | Select-Object -ExpandProperty Data
-                Write-Host "Current driver version is: $currentDrvVer"
+                $currentDrvVer  = (Get-PnpDeviceProperty -InputObject $presentPnPDevice -KeyName 'DEVPKEY_Device_DriverVersion').Data
+                $currentDrvRank = "0x{0:X8}" -f (Get-PnpDeviceProperty -InputObject $presentPnPDevice -KeyName 'DEVPKEY_Device_DriverRank').Data
+                Write-Host "Current driver version is: $currentDrvVer with DriverRank: $currentDrvRank"
                 $neededDriverPkgs.Add($package)
                 # Skip to the next driver package to avoid multiple matching
                 continue NEXTPACKAGE;
@@ -285,3 +282,7 @@ foreach ($driver in $neededDriverPkgs) {
     Write-Host "Installing $($driver.id) - $($driver.Title) ...`r`n"
     Install-LenovoPackage -Package $driver -Path (Join-Path -Path $DownloadPath -ChildPath $driver.id)
 }
+
+Get-PnpDevice -Status ERROR | Format-Table FriendlyName, DeviceID, Problem, @{'n' = 'ProblemCode'; 'e' = { $_.Problem.value__ }}
+
+Write-Host "`r`nDONE!"
