@@ -101,7 +101,6 @@ function Download-LenovoPackage {
 
     if (Test-Path -Path $DownloadPath -PathType Leaf) {
         if ((Get-FileHash -Path $DownloadPath -Algorithm SHA256).Hash -eq $Package.Extracter.FileSHA) {
-            Write-Host "This package was already downloaded, skipping redownload.`r`n"
             return;
         }
     }
@@ -112,11 +111,9 @@ function Download-LenovoPackage {
         } else {
             Invoke-WebRequest -Uri $PackageDownload -OutFile $DownloadPath -UseBasicParsing -ErrorAction Stop
         }
-        Write-Host "Download successful.`r`n"
     }
     catch {
-        Write-Error "Could not download the package '$($Package.id)' from '$PackageDownload':"
-        Write-Error $_.Exception.Message
+        Write-Error "Could not download the package '$($Package.id)' from '$PackageDownload':`r`n$($_.Exception.Message)"
         Write-Error ($_.Exception.Response | Format-List * | Out-String)
     }
 }
@@ -283,6 +280,6 @@ foreach ($driver in $neededDriverPkgs) {
     Install-LenovoPackage -Package $driver -Path (Join-Path -Path $DownloadPath -ChildPath $driver.id)
 }
 
-Get-PnpDevice -Status ERROR | Format-Table FriendlyName, DeviceID, Problem, @{'n' = 'ProblemCode'; 'e' = { $_.Problem.value__ }}
+Get-PnpDevice -Status ERROR -ErrorAction Ignore | Format-Table FriendlyName, DeviceID, Problem, @{'n' = 'ProblemCode'; 'e' = { $_.Problem.value__ }}
 
 Write-Host "`r`nDONE!"
