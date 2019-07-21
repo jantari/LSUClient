@@ -29,7 +29,6 @@ $DependencyHardwareTable = @{
     #'_EmbeddedControllerVersion' = [Regex]::Match((Get-CimInstance -ClassName Win32_BIOS).SMBIOSBIOSVersion, "(?<=\()[\d\.]+")
 }
 
-[DependencyParserState]$ParserState = 0
 [int]$XMLTreeDepth = 0
 
 class LenovoPackage {
@@ -74,7 +73,7 @@ class PackageInstallInfo {
         $this.InfFile        = $PackageXML.Install.INFCmd.INFfile
         $this.InstallCommand = $PackageXML.Install.Cmdline.'#text'
         if (($PackageXML.Reboot.type -eq 3) -or
-            ($Category -eq 'BIOS UEFI' -and $PackageXML.ExtractCommand -like "*winuptp.exe*") -or
+            ($Category -eq 'BIOS UEFI' -and $PackageXML.Install.Cmdline.'#text' -like "*winuptp.exe*") -or
             ($PackageXML.Install.type -eq 'INF'))
         {
             $this.Unattended = $true
@@ -82,6 +81,11 @@ class PackageInstallInfo {
             $this.Unattended = $false
         }
     }
+}
+
+function Test-RunningAsAdmin {
+	$Identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+	return [bool]$Identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
 function Show-DownloadProgress {
@@ -92,7 +96,7 @@ function Show-DownloadProgress {
     )
 	
     [char]$ESC  = 0x1b
-    [int]$j = $Transfers.Count
+    [int]$j     = $Transfers.Count
 	$cursorYpos = $host.UI.RawUI.CursorPosition.Y
 	[console]::CursorVisible = $false
 	[console]::Write("[ {0}   ]  Downloading packages ...`r[ " -f (' ' * ($j.ToString().Length * 2 + 3)))
@@ -119,8 +123,7 @@ function Show-DownloadProgress {
 function Test-MachineSatisfiesDependency {
     Param (
         [string]$DependencyKey,
-        [string]$DependencyValue,
-        [DependencyParserState]$State
+        [string]$DependencyValue
     )
 
     # Return values:
@@ -129,35 +132,35 @@ function Test-MachineSatisfiesDependency {
     # -2 Unknown dependency kind - status uncertain
 
     if ($DependencyKey -notin $DependencyHardwareTable.Keys) {
-        Write-Warning "Unsupported dependency '$DependencyKey' encountered!"
         return -2;
     }
 
-    $RESULT = foreach ($Value in $DependencyHardwareTable["$DependencyKey"]) {
-        # The first part of this expression returns a boolean if we have a dependency match,
-        # the bxor inverts the boolean if we were supposed to NOT have a match
-        ($Value -like "$DependencyValue*") -bxor $State
+    foreach ($Value in $DependencyHardwareTable["$DependencyKey"]) {
+        # This expression returns a boolean true if we have a dependency match,
+        # the case of a NOT node is handled later outside this function
+        if ($Value -like "$DependencyValue*") {
+			# Dependency is met
+			return 0
+		}
         # TODO: Implement an alternative REGEX matching algorithm
     }
     
-    if ($RESULT -contains $true) {
-        # Dependency is met
-        return 0;
-    } else {
-        # Machine does not satisfy this dependency
-        return -1;
-    }
+	# Machine does not satisfy this dependency
+	return -1;
 }
 
 function Resolve-XMLDependencies {
     Param (
+        [string]$PackageID,
         [Parameter ( Mandatory = $true )]
         [ValidateNotNullOrEmpty()]
         $XMLIN,
-        [switch]$TreatUnknownAsFailed
+        [switch]$FailUnknownDependencies,
+        [switch]$SuperVerboseDebug
     )
     
     $XMLTreeDepth++
+    [DependencyParserState]$ParserState = 0
     
     foreach ($XMLTREE in $XMLIN) {
         switch -Regex ($XMLTREE.Name) {
@@ -166,35 +169,42 @@ function Resolve-XMLDependencies {
             }
             'Not' {
                 $ParserState = $ParserState -bxor 1
+                Write-Verbose "Switched state to: $ParserState`r`n"
             }
         }
         
         $Results = if ($XMLTREE.HasChildNodes -and $XMLTREE.ChildNodes) {
-            Write-Verbose ("{0}$($XMLTREE.Name) --> $($XMLTREE.ChildNodes)" -f ('- ' * $XMLTreeDepth))
+            if ($SuperVerboseDebug) {
+                Write-Verbose "$('- ' * $XMLTreeDepth)$($XMLTREE.Name) has more children --> $($XMLTREE.ChildNodes)"
+            }
             $subtreeresults = if ($XMLTREE.Name -eq '_ExternalDetection') {
-                $executable = Split-Path $XMLTREE.'#text' -Leaf
-                $externalDetection = Start-Process -FilePath cmd.exe -WorkingDirectory "$env:Temp" -ArgumentList '/C', "$executable >nul" -PassThru -Wait -NoNewWindow
-                if ($externalDetection.ExitCode -in ($XMLTREE.rc -split ',')) {
-                    $true
-                } else {
-                    $false
-                }
+                $extCommand = [Regex]::Match($XMLTREE.'#text', '[^\\]*$').Value
+				$externalDetection = Start-Process -FilePath cmd.exe -WorkingDirectory "$env:Temp" -ArgumentList '/C', "$extCommand >nul" -PassThru -Wait -NoNewWindow
+				if ($externalDetection.ExitCode -in ($XMLTREE.rc -split ',')) {
+					$true
+				} else {
+					$false
+				}
             } else {
                 Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes
             }
-            Write-Verbose ("{0}Cleared $($XMLTREE.Name) with results: $subtreeresults" -f ('- ' * $XMLTreeDepth))
+            #Write-Verbose "$PackageID : $('- ' * $XMLTreeDepth)Cleared $($XMLTREE.Name) with results: $subtreeresults`r`n"
             switch ($XMLTREE.Name) {
                 'And' {
-                    Write-Verbose ("{0}Tree was AND: Results: $subtreeresults" -f ('- ' * $XMLTreeDepth))
+                    if ($SuperVerboseDebug) {
+                        Write-Verbose "$('- ' * $XMLTreeDepth)Tree was AND: Results: $subtreeresults"
+                    }
                     if ($subtreeresults -contains $false) { $false } else { $true  }
                 }
                 default {
-                    Write-Verbose ("{0}Tree was OR: Results: $subtreeresults" -f ('- ' * $XMLTreeDepth))
+                    if ($SuperVerboseDebug) {
+                        Write-Verbose "$('- ' * $XMLTreeDepth)Tree was OR: Results: $subtreeresults"
+                    }
                     if ($subtreeresults -contains $true ) { $true  } else { $false }
                 }
             }
         } else {
-            switch (Test-MachineSatisfiesDependency -DependencyKey $ITEM -DependencyValue $XMLTREE.innerText -State $ParserState) {
+            switch (Test-MachineSatisfiesDependency -DependencyKey $ITEM -DependencyValue $XMLTREE.innerText) {
                 0 {
                     $true
                 }
@@ -202,14 +212,20 @@ function Resolve-XMLDependencies {
                     $false
                 }
                 -2 {
-                    if ($TreatUnknownAsFailed) { $false } else { $true }
+                    if ($FailUnknownDependencies) { $false } else { $true }
                 }
             }
-            Write-Verbose ("{0}$ITEM  :  $($XMLTREE.innerText)" -f ('- ' * $XMLTreeDepth))
+            if ($SuperVerboseDebug) {
+                Write-Verbose "$('- ' * $XMLTreeDepth)$ITEM  :  $($XMLTREE.innerText)"
+            }
         }
-        $Results
+        if ($SuperVerboseDebug) {
+            Write-Verbose "Returning $($Results -bxor $ParserState) from node $($XMLTREE.Name)`r`n"
+        }
+        $Results -bxor $ParserState
     }
 
+    $ParserState = 0 # DO_HAVE
     $XMLTreeDepth--
 }
 
@@ -228,15 +244,26 @@ function Get-LenovoUpdate {
         .PARAMETER All
         Return all updates, regardless of whether they are applicable to this specific machine or whether they are already installed.
         E.g. this will retrieve LTE-Modem drivers even for machines that do not have the optional LTE-Modem installed. Installation of such drivers will likely still fail.
+		
+		.PARAMETER FailUnknownDependencies
+		Lenovo has different kinds of dependencies they specify for each package. This script makes a best effort to parse, understand and check these.
+		However, new kinds of dependencies may be added at any point and some currently in use are not supported yet either. By default, any unknown
+		dependency will be treated as met/OK. Specify this switch to fail all dependencies we can't actually check. Typically, an update installation
+		will simply fail if there really was a dependency missing.
     #>
 
     [CmdletBinding()]
     Param (
         [ValidatePattern('^\w{4}$')]
         [string]$Model,
-        [string]$Proxy,
-        [switch]$All
+        [Uri]$Proxy,
+        [switch]$All,
+		[switch]$FailUnknownDependencies
     )
+	
+	if (-not (Test-RunningAsAdmin)) {
+		Write-Warning "Unfortunately, this command produces most accurate results when run as an Administrator`r`nbecause some of the commands Lenovo uses to detect your computers hardware have to run as admin :("
+	}
 
     $COMPUTERINFO = Get-CimInstance -ClassName CIM_ComputerSystem | Select-Object Manufacturer, Model
 
@@ -248,7 +275,7 @@ function Get-LenovoUpdate {
         $Model = $MODELRGX.Value
     }
     
-    Write-Verbose "Lenovo Model is: $Model)"
+    Write-Verbose "Lenovo Model is: $Model)`r`n"
 
     $webClient = [System.Net.WebClient]::new()
     if ($Proxy) {
@@ -260,7 +287,7 @@ function Get-LenovoUpdate {
     }
     catch {
         if ($_.Exception.innerException.Response.StatusCode -eq [System.Net.HttpStatusCode]::NotFound) {
-            throw "No information was found on this model of computer (not supported by Lenovo?)"
+            throw "No information was found on this model of computer (invalid model number or not supported by Lenovo?)"
         } else {
             throw "An error occured when contacting download.lenovo.com:`r`n$($_.Exception.Message)"
         }
@@ -284,7 +311,7 @@ function Get-LenovoUpdate {
             }
         }
 
-        Write-Verbose "Parsing dependencies for package: $($packageXML.Package.id)"
+        Write-Verbose "Parsing dependencies for package: $($packageXML.Package.id)`r`n"
         [LenovoPackage]@{
             'ID'           = $packageXML.Package.id
             'Category'     = $packageURL.category
@@ -296,7 +323,7 @@ function Get-LenovoUpdate {
             'URL'          = $packageURL.location
             'Extracter'    = $packageXML.Package
             'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $packageURL.category)
-            'IsApplicable' = Resolve-XMLDependencies -XML $packageXML.Package.Dependencies
+            'IsApplicable' = Resolve-XMLDependencies -PackageID $packageXML.Package.id -XML $packageXML.Package.Dependencies -FailUnknownDependencies:$FailUnknownDependencies
         }
     }
     
@@ -310,6 +337,7 @@ function Get-LenovoUpdate {
 }
 
 function Save-LenovoUpdate {
+	[CmdletBinding()]
     Param (
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
         [pscustomobject]$Package,
@@ -376,7 +404,7 @@ function Save-LenovoUpdate {
 
 function Expand-LenovoUpdate {
     Param (
-        [Parameter( Mandatory = $true )]
+        [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
         [LenovoPackage]$Package,
         [Parameter( Mandatory = $true )]
         [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
@@ -394,6 +422,7 @@ function Expand-LenovoUpdate {
 }
 
 function Install-LenovoUpdate {
+	[CmdletBinding()]
     Param (
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
         [pscustomobject]$Package,
@@ -410,8 +439,10 @@ function Install-LenovoUpdate {
             }
 
             Expand-LenovoUpdate -Package $PackageToProcess -Path $PackageDirectory
+			
+			Write-Verbose "Installing package $($PackageToProcess.ID) ...`r`n"
 
-            if ($PackageToProcess.Category -eq 'BIOS UEFI' -and $UnattendedBIOS) {
+            if ($PackageToProcess.Category -eq 'BIOS UEFI') {
                 # We are dealing with a BIOS Update
                 if (Test-Path -LiteralPath "$PackageDirectory\winuptp.exe") {
                     if (Test-Path -LiteralPath "$PackageDirectory\winuptp.log" -PathType Leaf) {
@@ -423,7 +454,7 @@ function Install-LenovoUpdate {
                         $LenovoBIOSUpdateLog = (Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -Raw).Trim()
                         Write-Warning "Unattended BIOS/UEFI Update FAILED with return code $($installProcess.ExitCode)!`r`nThe following log was created:`r`n$LenovoBIOSUpdateLog`r`n"
                     } else {
-                        Write-Host 'An immediate full power cycle / reboot is strongly recommended to allow the BIOS Update to complete!'
+                        Write-Host 'BIOS UPDATE SUCCESS: An immediate full power cycle / reboot is strongly recommended to allow the BIOS update to complete!'
                     }
                 } else {
                     Write-Warning "Either this is not a BIOS Update or it's an unsupported installer for one, skipping installation ...`r`n"
