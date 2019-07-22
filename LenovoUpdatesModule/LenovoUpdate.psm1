@@ -178,6 +178,7 @@ function Resolve-XMLDependencies {
                 Write-Verbose "$('- ' * $XMLTreeDepth)$($XMLTREE.Name) has more children --> $($XMLTREE.ChildNodes)"
             }
             $subtreeresults = if ($XMLTREE.Name -eq '_ExternalDetection') {
+                Write-Verbose "External command is RAW: $($XMLTREE.'#text')"
                 $extCommand = [Regex]::Match($XMLTREE.'#text', '[^\\]*$').Value
 				$externalDetection = Start-Process -FilePath cmd.exe -WorkingDirectory "$env:Temp" -ArgumentList '/C', "$extCommand >nul" -PassThru -Wait -NoNewWindow
 				if ($externalDetection.ExitCode -in ($XMLTREE.rc -split ',')) {
@@ -186,7 +187,7 @@ function Resolve-XMLDependencies {
 					$false
 				}
             } else {
-                Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes
+                Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -FailUnknownDependencies:$FailUnknownDependencies -SuperVerboseDebug:$SuperVerboseDebug
             }
             #Write-Verbose "$PackageID : $('- ' * $XMLTreeDepth)Cleared $($XMLTREE.Name) with results: $subtreeresults`r`n"
             switch ($XMLTREE.Name) {
@@ -222,10 +223,11 @@ function Resolve-XMLDependencies {
         if ($SuperVerboseDebug) {
             Write-Verbose "Returning $($Results -bxor $ParserState) from node $($XMLTREE.Name)`r`n"
         }
+
         $Results -bxor $ParserState
+        $ParserState = 0 # DO_HAVE
     }
 
-    $ParserState = 0 # DO_HAVE
     $XMLTreeDepth--
 }
 
