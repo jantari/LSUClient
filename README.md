@@ -31,6 +31,13 @@ $updates | Save-LSUpdate -ShowProgress
 $updates | Install-LSUpdate -Verbose
 ```
 
+To install only packages that can be installed silently and unattended (e.g. for non-interactive, autoamted runs):
+```powershell
+$updates = Get-LSUpdate | Where { $_.Installer.Unattended }
+$updates | Save-LSUpdate -Verbose
+$updates | Install-LSUpdate -Verbose
+```
+
 By default, `Get-LSUpdate` will filter out packages that aren't applicable to your computer.  
 If you want to manually inspect all available packages and disable this behavior use:
 ```powershell
