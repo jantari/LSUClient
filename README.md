@@ -31,7 +31,7 @@ $updates | Save-LSUpdate -ShowProgress
 $updates | Install-LSUpdate -Verbose
 ```
 
-To install only packages that can be installed silently and unattended (e.g. for non-interactive, autoamted runs):
+To install only packages that can be installed silently and non-interactively (e.g. for unattended, automated runs):
 ```powershell
 $updates = Get-LSUpdate | Where { $_.Installer.Unattended }
 $updates | Save-LSUpdate -Verbose
