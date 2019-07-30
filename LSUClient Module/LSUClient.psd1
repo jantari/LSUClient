@@ -1,9 +1,9 @@
 @{
     # Script module or binary module file associated with this manifest.
-    RootModule = 'LenovoUpdate.psm1'
+    RootModule = 'LSUClient.psm1'
      
-    # Version number of this module.
-    ModuleVersion = '1.0'
+    # Version number of this module, following semver 2.0.0
+    ModuleVersion = '1.0.0'
      
     # ID used to uniquely identify this module
     GUID = 'bcfb7105-352c-4c41-b099-e587e451a732'
@@ -12,7 +12,7 @@
     Author = 'jantari'
      
     # Copyright statement for this module
-    Copyright = '(c) 2019 jantari'
+    Copyright = 'See https://www.github.com/jantari/LSUClient'
      
     # Description of the functionality provided by this module
     Description = 'Find and install driver and firmware updates for Lenovo computers'
@@ -30,10 +30,10 @@
     # TypesToProcess = @()
      
     # Format files (.ps1xml) to be loaded when importing this module
-    FormatsToProcess = @('LenovoUpdate.Format.ps1xml')
+    FormatsToProcess = @('LSUClient.Format.ps1xml')
 
     # Functions to export from this module
-    FunctionsToExport = @('Get-LenovoUpdate', 'Save-LenovoUpdate', 'Install-LenovoUpdate')
+    FunctionsToExport = @('Get-LSUpdate', 'Save-LSUpdate', 'Install-LSUpdate')
 
     # Cmdlets to export from this module
     CmdletsToExport = @()
@@ -51,7 +51,7 @@
     # PrivateData = ''
      
     # HelpInfo URI of this module
-    # HelpInfoURI = 'https://www.github.com/jantari/LenovoUpdate'
+    HelpInfoURI = 'https://www.github.com/jantari/LSUClient'
      
     # Default prefix for commands exported from this module. Override the default prefix using Import-Module -Prefix.
     # DefaultCommandPrefix = ''
