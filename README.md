@@ -2,7 +2,7 @@
 
 # LSU Client
 
-A PowerShell module that partially reimplements the "Lenovo System Update" program for convenient,  
+A PowerShell module that partially reimplements the "Lenovo System Update" program for convenient,
 automatable and worry-free driver and system updates for Lenovo computers.
 
 ```powershell
@@ -28,7 +28,7 @@ Typical use for ones own computer:
 ```powershell
 $updates = Get-LSUpdate
 $updates | Save-LSUpdate -ShowProgress
-$updates | Install-LSupdate -Verbose
+$updates | Install-LSUpdate -Verbose
 ```
 
 By default, `Get-LSUpdate` will filter out packages that aren't applicable to your computer.  
