@@ -158,9 +158,9 @@ function Resolve-XMLDependencies {
     [DependencyParserState]$ParserState = 0
     
     foreach ($XMLTREE in $XMLIN) {
-        switch -Regex ($XMLTREE.Name) {
+        switch -Regex ($XMLTREE.SchemaInfo.Name) {
             '^_' {
-                $ITEM = $XMLTREE.Name
+                $ITEM = $XMLTREE.SchemaInfo.Name
             }
             'Not' {
                 $ParserState = $ParserState -bxor 1
@@ -170,9 +170,9 @@ function Resolve-XMLDependencies {
         
         $Results = if ($XMLTREE.HasChildNodes -and $XMLTREE.ChildNodes) {
             if ($SuperVerboseDebug) {
-                Write-Verbose "$('- ' * $XMLTreeDepth)$($XMLTREE.Name) has more children --> $($XMLTREE.ChildNodes)"
+                Write-Verbose "$('- ' * $XMLTreeDepth)$($XMLTREE.SchemaInfo.Name) has more children --> $($XMLTREE.ChildNodes)"
             }
-            $subtreeresults = if ($XMLTREE.Name -eq '_ExternalDetection') {
+            $subtreeresults = if ($XMLTREE.SchemaInfo.Name -eq '_ExternalDetection') {
                 Write-Verbose "External command is RAW: $($XMLTREE.'#text')`r`n"
                 $extCommand = $XMLTREE.'#text' -replace '^%PACKAGEPATH%\\?'
 				$externalDetection = Start-Process -FilePath cmd.exe -WorkingDirectory "$env:Temp" -ArgumentList '/C', "$extCommand >nul" -PassThru -Wait -NoNewWindow
@@ -184,8 +184,8 @@ function Resolve-XMLDependencies {
             } else {
                 Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -FailUnsupportedDependencies:$FailUnsupportedDependencies -SuperVerboseDebug:$SuperVerboseDebug
             }
-            #Write-Verbose "$PackageID : $('- ' * $XMLTreeDepth)Cleared $($XMLTREE.Name) with results: $subtreeresults`r`n"
-            switch ($XMLTREE.Name) {
+            #Write-Verbose "$PackageID : $('- ' * $XMLTreeDepth)Cleared $($XMLTREE.SchemaInfo.Name) with results: $subtreeresults`r`n"
+            switch ($XMLTREE.SchemaInfo.Name) {
                 'And' {
                     if ($SuperVerboseDebug) {
                         Write-Verbose "$('- ' * $XMLTreeDepth)Tree was AND: Results: $subtreeresults"
@@ -217,7 +217,7 @@ function Resolve-XMLDependencies {
             }
         }
         if ($SuperVerboseDebug) {
-            Write-Verbose "Returning $($Results -bxor $ParserState) from node $($XMLTREE.Name)`r`n"
+            Write-Verbose "Returning $($Results -bxor $ParserState) from node $($XMLTREE.SchemaInfo.Name)`r`n"
         }
 
         $Results -bxor $ParserState

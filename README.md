@@ -1,6 +1,9 @@
-<img align="left" src="logo_220px.png" alt="LSUClient PowerShell Module PNG Logo" style="padding-right: 40px">
+<div>
+<img align="left" src="logo_220px.png" alt="LSUClient PowerShell Module PNG Logo" style="padding-right: 40px"/>
 
 # LSU Client
+
+![PowerShell Gallery](https://img.shields.io/powershellgallery/dt/LSUClient?label=PowerShell%20Gallery&logo=Powershell&logoColor=FFFFFF&style=flat)
 
 A PowerShell module that partially reimplements the "Lenovo System Update" program for convenient,
 automatable and worry-free driver and system updates for Lenovo computers.
@@ -8,7 +11,8 @@ automatable and worry-free driver and system updates for Lenovo computers.
 ```powershell
 Install-Module -Name 'LSUClient'
 ```
-<br>
+</div>
+
 <br>
 
 ## Highlight features
