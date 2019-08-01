@@ -88,7 +88,7 @@
             # Tags = @()
 
             # A URL to the license for this module.
-            # LicenseUri = ''
+            LicenseUri = 'https://raw.githubusercontent.com/jantari/LSUClient/master/LICENSE'
 
             # A URL to the main website for this project.
             ProjectUri = 'https://www.github.com/jantari/LSUClient'
