@@ -84,8 +84,8 @@ class PackageInstallInfo {
 }
 
 function Test-RunningAsAdmin {
-	$Identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-	return [bool]$Identity.IsInRole( [Security.Principal.WindowsBuiltInRole]::Administrator )
+    $Identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+    return [bool]$Identity.IsInRole( [Security.Principal.WindowsBuiltInRole]::Administrator )
 }
 
 function Show-DownloadProgress {
@@ -94,15 +94,15 @@ function Show-DownloadProgress {
         [ValidateNotNullOrEmpty()]
         [array]$Transfers
     )
-	
+
     [char]$ESC               = 0x1b
     [int]$TotalTransfers     = $Transfers.Count
-	[int]$InitialCursorYPos  = $host.UI.RawUI.CursorPosition.Y
-	[console]::CursorVisible = $false
-	[console]::Write("[ {0}   ]  Downloading packages ...`r[ " -f (' ' * ($TotalTransfers.ToString().Length * 2 + 3)))
-	while ($Transfers.IsCompleted -contains $false) {
+    [int]$InitialCursorYPos  = $host.UI.RawUI.CursorPosition.Y
+    [console]::CursorVisible = $false
+    [console]::Write("[ {0}   ]  Downloading packages ...`r[ " -f (' ' * ($TotalTransfers.ToString().Length * 2 + 3)))
+    while ($Transfers.IsCompleted -contains $false) {
         $i = $Transfers.Where{ $_.IsCompleted }.Count
-		[console]::Write("`r[ {0,2} / $TotalTransfers /" -f $i)
+        [console]::Write("`r[ {0,2} / $TotalTransfers /" -f $i)
         Start-Sleep -Milliseconds 75
         [console]::Write("`r[ {0,2} / $TotalTransfers $ESC(0q$ESC(B" -f $i)
         Start-Sleep -Milliseconds 75
@@ -110,14 +110,14 @@ function Show-DownloadProgress {
         Start-Sleep -Milliseconds 65
         [console]::Write("`r[ {0,2} / $TotalTransfers |" -f $i)
         Start-Sleep -Milliseconds 65
-	}
-	[console]::SetCursorPosition(1, $InitialCursorYPos)
-	if ($Transfers.Status -contains "Faulted" -or $Transfers.Status -contains "Canceled") {
+    }
+    [console]::SetCursorPosition(1, $InitialCursorYPos)
+    if ($Transfers.Status -contains "Faulted" -or $Transfers.Status -contains "Canceled") {
         Write-Host "$ESC[91m    !    $ESC[0m] Downloaded $($Transfers.Where{ $_.Status -notin 'Faulted', 'Canceled'}.Count) / $($Transfers.Count) packages"
-	} else {
-		Write-Host "$ESC[92m    $([char]8730)    $ESC[0m] Downloaded all packages    "
-	}
-	[console]::CursorVisible = $true
+    } else {
+        Write-Host "$ESC[92m    $([char]8730)    $ESC[0m] Downloaded all packages    "
+    }
+    [console]::CursorVisible = $true
 }
 
 function Test-MachineSatisfiesDependency {
@@ -137,11 +137,11 @@ function Test-MachineSatisfiesDependency {
 
     foreach ($Value in $DependencyHardwareTable["$DependencyKey"]) {
         if ($Value -like "$DependencyValue*") {
-			return 0
-		}
+            return 0
+        }
     }
 
-	return -1;
+    return -1;
 }
 
 function Resolve-XMLDependencies {
@@ -151,7 +151,7 @@ function Resolve-XMLDependencies {
         [ValidateNotNullOrEmpty()]
         $XMLIN,
         [switch]$FailUnsupportedDependencies,
-        [switch]$SuperVerboseDebug
+        [string]$DebugLogFile
     )
     
     $XMLTreeDepth++
@@ -164,37 +164,42 @@ function Resolve-XMLDependencies {
             }
             'Not' {
                 $ParserState = $ParserState -bxor 1
-                Write-Verbose "Switched state to: $ParserState`r`n"
+                if ($DebugLogFile) {
+                    Add-Content -LiteralPath $DebugLogFile -Value "Switched state to: $ParserState"
+                }
             }
         }
         
         $Results = if ($XMLTREE.HasChildNodes -and $XMLTREE.ChildNodes) {
-            if ($SuperVerboseDebug) {
-                Write-Verbose "$('- ' * $XMLTreeDepth)$($XMLTREE.SchemaInfo.Name) has more children --> $($XMLTREE.ChildNodes)"
+            if ($DebugLogFile) {
+                Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth)$($XMLTREE.SchemaInfo.Name) has more children --> $($XMLTREE.ChildNodes)"
             }
             $subtreeresults = if ($XMLTREE.SchemaInfo.Name -eq '_ExternalDetection') {
-                Write-Verbose "External command is RAW: $($XMLTREE.'#text')`r`n"
-                $extCommand = $XMLTREE.'#text' -replace '^%PACKAGEPATH%\\?'
-				$externalDetection = Start-Process -FilePath cmd.exe -WorkingDirectory "$env:Temp" -ArgumentList '/C', "$extCommand >nul" -PassThru -Wait -NoNewWindow
-				if ($externalDetection.ExitCode -in ($XMLTREE.rc -split ',')) {
-					$true
-				} else {
-					$false
-				}
+                if ($DebugLogFile) {
+                    Add-Content -LiteralPath $DebugLogFile -Value "External command is RAW: $($XMLTREE.'#text')"
+                }
+                # Some commands Lenovo specifies include an unescaped & sign so we have to escape it
+                $extCommand = $XMLTREE.'#text' -replace '^%PACKAGEPATH%\\?' -replace '&', '^&'
+                $externalDetection = Start-Process -FilePath cmd.exe -WorkingDirectory "$env:Temp" -ArgumentList '/C', "$extCommand >nul" -PassThru -Wait -NoNewWindow
+                if ($externalDetection.ExitCode -in ($XMLTREE.rc -split ',')) {
+                    $true
+                } else {
+                    $false
+                }
             } else {
-                Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -FailUnsupportedDependencies:$FailUnsupportedDependencies -SuperVerboseDebug:$SuperVerboseDebug
+                Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile:$DebugLogFile
             }
             #Write-Verbose "$PackageID : $('- ' * $XMLTreeDepth)Cleared $($XMLTREE.SchemaInfo.Name) with results: $subtreeresults`r`n"
             switch ($XMLTREE.SchemaInfo.Name) {
                 'And' {
-                    if ($SuperVerboseDebug) {
-                        Write-Verbose "$('- ' * $XMLTreeDepth)Tree was AND: Results: $subtreeresults"
+                    if ($DebugLogFile) {
+                        Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth)Tree was AND: Results: $subtreeresults" 
                     }
                     if ($subtreeresults -contains $false) { $false } else { $true  }
                 }
                 default {
-                    if ($SuperVerboseDebug) {
-                        Write-Verbose "$('- ' * $XMLTreeDepth)Tree was OR: Results: $subtreeresults"
+                    if ($DebugLogFile) {
+                        Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth)Tree was OR: Results: $subtreeresults"
                     }
                     if ($subtreeresults -contains $true ) { $true  } else { $false }
                 }
@@ -208,16 +213,16 @@ function Resolve-XMLDependencies {
                     $false
                 }
                 -2 {
-                    Write-Verbose "Unknown dependency encountered: $ITEM`r`n"
+                    Write-Verbose "Unsupported dependency encountered: $ITEM`r`n"
                     if ($FailUnsupportedDependencies) { $false } else { $true }
                 }
             }
-            if ($SuperVerboseDebug) {
-                Write-Verbose "$('- ' * $XMLTreeDepth)$ITEM  :  $($XMLTREE.innerText)"
+            if ($DebugLogFile) {
+                Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth)$ITEM  :  $($XMLTREE.innerText)"
             }
         }
-        if ($SuperVerboseDebug) {
-            Write-Verbose "Returning $($Results -bxor $ParserState) from node $($XMLTREE.SchemaInfo.Name)`r`n"
+        if ($DebugLogFile) {
+            Add-Content -LiteralPath $DebugLogFile -Value "Returning $($Results -bxor $ParserState) from node $($XMLTREE.SchemaInfo.Name)"
         }
 
         $Results -bxor $ParserState
@@ -242,12 +247,12 @@ function Get-LSUpdate {
         .PARAMETER All
         Return all updates, regardless of whether they are applicable to this specific machine or whether they are already installed.
         E.g. this will retrieve LTE-Modem drivers even for machines that do not have the optional LTE-Modem installed. Installation of such drivers will likely still fail.
-		
-		.PARAMETER FailUnsupportedDependencies
-		Lenovo has different kinds of dependencies they specify for each package. This script makes a best effort to parse, understand and check these.
-		However, new kinds of dependencies may be added at any point and some currently in use are not supported yet either. By default, any unknown
-		dependency will be treated as met/OK. This switch will fail all dependencies we can't actually check. Typically, an update installation
-		will simply fail if there really was a dependency missing.
+        
+        .PARAMETER FailUnsupportedDependencies
+        Lenovo has different kinds of dependencies they specify for each package. This script makes a best effort to parse, understand and check these.
+        However, new kinds of dependencies may be added at any point and some currently in use are not supported yet either. By default, any unknown
+        dependency will be treated as met/OK. This switch will fail all dependencies we can't actually check. Typically, an update installation
+        will simply fail if there really was a dependency missing.
     #>
 
     [CmdletBinding()]
@@ -256,12 +261,14 @@ function Get-LSUpdate {
         [string]$Model,
         [Uri]$Proxy,
         [switch]$All,
-        [switch]$FailUnsupportedDependencies
+        [switch]$FailUnsupportedDependencies,
+        [ValidateScript({ try { [System.IO.File]::Create("$_").Dispose(); $true} catch { $false } })]
+        [string]$DebugLogFile
     )
-	
-	if (-not (Test-RunningAsAdmin)) {
-		Write-Warning "Unfortunately, this command produces most accurate results when run as an Administrator`r`nbecause some of the commands Lenovo uses to detect your computers hardware have to run as admin :("
-	}
+
+    if (-not (Test-RunningAsAdmin)) {
+        Write-Warning "Unfortunately, this command produces most accurate results when run as an Administrator`r`nbecause some of the commands Lenovo uses to detect your computers hardware have to run as admin :("
+    }
 
     $COMPUTERINFO = Get-CimInstance -ClassName CIM_ComputerSystem | Select-Object Manufacturer, Model
 
@@ -273,7 +280,10 @@ function Get-LSUpdate {
         $Model = $MODELRGX.Value
     }
     
-    Write-Verbose "Lenovo Model is: $Model)`r`n"
+    Write-Verbose "Lenovo Model is: $Model`r`n"
+    if ($DebugLogFile) {
+        Add-Content -LiteralPath $DebugLogFile -Value "Lenovo Model is: $Model"
+    }
 
     $webClient = [System.Net.WebClient]::new()
     if ($Proxy) {
@@ -299,8 +309,7 @@ function Get-LSUpdate {
     Write-Verbose "A total of $($PARSEDXML.packages.count) driver packages are available for this computer model."
 
     [LenovoPackage[]]$packagesCollection = foreach ($packageURL in $PARSEDXML.packages.package) {
-        $packageXMLOrig = $webClient.DownloadString($packageURL.location)
-
+        $packageXMLOrig  = $webClient.DownloadString($packageURL.location)
         [xml]$packageXML = $packageXMLOrig -replace "^$UTF8ByteOrderMark"
         
         if ($packageXML.Package.Files.External) {
@@ -309,7 +318,9 @@ function Get-LSUpdate {
             }
         }
 
-        Write-Verbose "Parsing dependencies for package: $($packageXML.Package.id)`r`n"
+        if ($DebugLogFile) {
+            Add-Content -LiteralPath $DebugLogFile -Value "Parsing dependencies for package: $($packageXML.Package.id)`r`n"
+        }
         [LenovoPackage]@{
             'ID'           = $packageXML.Package.id
             'Category'     = $packageURL.category
@@ -321,7 +332,7 @@ function Get-LSUpdate {
             'URL'          = $packageURL.location
             'Extracter'    = $packageXML.Package
             'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $packageURL.category)
-            'IsApplicable' = Resolve-XMLDependencies -PackageID $packageXML.Package.id -XML $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies
+            'IsApplicable' = Resolve-XMLDependencies -PackageID $packageXML.Package.id -XML $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
         }
     }
     
@@ -470,8 +481,8 @@ function Install-LSUpdate {
             }
 
             Expand-LSUpdate -Package $PackageToProcess -Path $PackageDirectory
-			
-			Write-Verbose "Installing package $($PackageToProcess.ID) ...`r`n"
+            
+            Write-Verbose "Installing package $($PackageToProcess.ID) ...`r`n"
 
             if ($PackageToProcess.Category -eq 'BIOS UEFI') {
                 # We are dealing with a BIOS Update
