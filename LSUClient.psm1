@@ -65,13 +65,13 @@ class PackageInstallInfo {
     [string]$InstallType
     [int64[]]$SuccessCodes
     [string]$InfFile
-    [string]$InstallCommand
+    [string]$Command
     
     PackageInstallInfo ([System.Xml.XmlElement]$PackageXML, [string]$Category) {
         $this.InstallType    = $PackageXML.Install.type
         $this.SuccessCodes   = $PackageXML.Install.rc -split ','
         $this.InfFile        = $PackageXML.Install.INFCmd.INFfile
-        $this.InstallCommand = $PackageXML.Install.Cmdline.'#text'
+        $this.Command        = $PackageXML.Install.Cmdline.'#text'
         if (($PackageXML.Reboot.type -eq 3) -or
             ($Category -eq 'BIOS UEFI' -and $PackageXML.Install.Cmdline.'#text' -like "*winuptp.exe*") -or
             ($PackageXML.Install.type -eq 'INF'))
@@ -550,7 +550,7 @@ function Install-LSUpdate {
                 switch ($PackageToProcess.Installer.InstallType) {
                     'CMD' {
                         # Correct typo from Lenovo ... yes really...
-                        $InstallCMD     = $PackageToProcess.Installer.InstallCommand -replace '-overwirte', '-overwrite'
+                        $InstallCMD     = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
                         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
                         if ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
                             Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with return code $($installProcess.ExitCode)!`r`n"

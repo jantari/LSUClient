@@ -18,10 +18,10 @@ Install-Module -Name 'LSUClient'
 ## Highlight features
 
 - Does driver, BIOS/UEFI and firmware updates
-- Run locally or through PowerShell Remoting on another machine
+- Run locally or through PowerShell remoting on another machine
 - Allows for fully silent and unattended updates
-- Supports not only business computers but consumer (e.g. IdeaPad) lines too
-- Web-Proxy support (Use `-Proxy` parameter)
+- Supports not only business computers but consumer lines too (e.g. IdeaPad)
+- Full Web-Proxy support
 - Ability to download updates in parallel
 - Accounts for and works around some bugs and mistakes in the official tool
 - Free and Open-source
@@ -42,10 +42,10 @@ $updates | Save-LSUpdate -Verbose
 $updates | Install-LSUpdate -Verbose
 ```
 
-By default, `Get-LSUpdate` will filter out packages that aren't applicable to your computer.  
+By default, `Get-LSUpdate` will filter out packages that aren't applicable to the computer it's being run on.  
 If you want to manually inspect all available packages and disable this behavior use:
 ```powershell
-Get-LSUpdate -All | Format-List -Property *
+Get-LSUpdate -All
 ```
 
 You will still get to see which packages were determined applicable and which ones weren't by the value of the `IsApplicable` boolean property on each package.
