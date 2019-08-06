@@ -121,6 +121,32 @@ function Show-DownloadProgress {
     [console]::CursorVisible = $true
 }
 
+function New-WebClient {
+    Param (
+        [Uri]$Proxy,
+        [pscredential]$ProxyCredential,
+        [switch]$ProxyUseDefaultCredentials
+    )
+
+    $webClient = [System.Net.WebClient]::new()
+
+    if ($Proxy) {
+        $webProxy = [System.Net.WebProxy]::new($Proxy)
+        $webProxy.BypassProxyOnLocal = $false
+        if ($ProxyCredential) {
+            $webProxy.Credentials = $ProxyCredential.GetNetworkCredential()
+        } elseif ($ProxyUseDefaultCredentials) {
+            # If both ProxyCredential and ProxyUseDefaultCredentials are passed,
+            # UseDefaultCredentials will overwrite the supplied credentials.
+            # This behaviour, comment and code are replicated from Invoke-WebRequest
+            $webproxy.UseDefaultCredentials = $true
+        }
+        $webClient.Proxy = $webProxy
+    }
+
+    return $webClient
+}
+
 function Invoke-PackageCommand {
     Param (
         [ValidateNotNullOrEmpty()]
@@ -135,7 +161,7 @@ function Invoke-PackageCommand {
     $process.StartInfo.FileName               = 'cmd.exe'
     $process.StartInfo.UseShellExecute        = $false
     $process.StartInfo.Arguments              = "/D /C $Command"
-    $process.StartInfo.WorkingDirectory       = $PackagePath
+    $process.StartInfo.WorkingDirectory       = $Path
     $process.StartInfo.RedirectStandardOutput = $true
     $process.StartInfo.RedirectStandardError  = $true
     $process.StartInfo.EnvironmentVariables.Add("PACKAGEPATH", "$Path")
@@ -218,7 +244,6 @@ function Resolve-XMLDependencies {
             } else {
                 Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile:$DebugLogFile
             }
-            #Write-Verbose "$PackageID : $('- ' * $XMLTreeDepth)Cleared $($XMLTREE.SchemaInfo.Name) with results: $subtreeresults`r`n"
             switch ($XMLTREE.SchemaInfo.Name) {
                 'And' {
                     if ($DebugLogFile) {
@@ -289,6 +314,8 @@ function Get-LSUpdate {
         [ValidatePattern('^\w{4}$')]
         [string]$Model,
         [Uri]$Proxy,
+        [pscredential]$ProxyCredential,
+        [switch]$ProxyUseDefaultCredentials,
         [switch]$All,
         [switch]$FailUnsupportedDependencies,
         [ValidateScript({ try { [System.IO.File]::Create("$_").Dispose(); $true} catch { $false } })]
@@ -314,10 +341,7 @@ function Get-LSUpdate {
         Add-Content -LiteralPath $DebugLogFile -Value "Lenovo Model is: $Model"
     }
 
-    $webClient = [System.Net.WebClient]::new()
-    if ($Proxy) {
-        $webClient.Proxy = [System.Net.WebProxy]::new($Proxy)
-    }
+    $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
     
     try {
         $COMPUTERXML = $webClient.DownloadString("https://download.lenovo.com/catalog/${Model}_Win10.xml")
@@ -337,7 +361,7 @@ function Get-LSUpdate {
 
     Write-Verbose "A total of $($PARSEDXML.packages.count) driver packages are available for this computer model."
 
-    [LenovoPackage[]]$packagesCollection = foreach ($packageURL in $PARSEDXML.packages.package) {
+    foreach ($packageURL in $PARSEDXML.packages.package) {
         $packageXMLOrig  = $webClient.DownloadString($packageURL.location)
         [xml]$packageXML = $packageXMLOrig -replace "^$UTF8ByteOrderMark"
         
@@ -350,7 +374,8 @@ function Get-LSUpdate {
         if ($DebugLogFile) {
             Add-Content -LiteralPath $DebugLogFile -Value "Parsing dependencies for package: $($packageXML.Package.id)`r`n"
         }
-        [LenovoPackage]@{
+        
+        $packageObject = [LenovoPackage]@{
             'ID'           = $packageXML.Package.id
             'Category'     = $packageURL.category
             'Title'        = $packageXML.Package.Title.Desc.'#text'
@@ -363,15 +388,13 @@ function Get-LSUpdate {
             'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $packageURL.category)
             'IsApplicable' = Resolve-XMLDependencies -PackageID $packageXML.Package.id -XML $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
         }
+
+        if ($All -or $packageObject.IsApplicable) {
+            $packageObject
+        }
     }
     
     $webClient.Dispose()
-
-    if ($All) {
-        return $packagesCollection
-    } else {
-        return $packagesCollection.Where{ $_.IsApplicable }
-    }
 }
 
 function Save-LSUpdate {
@@ -402,6 +425,8 @@ function Save-LSUpdate {
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
         [pscustomobject]$Package,
         [Uri]$Proxy,
+        [pscredential]$ProxyCredential,
+        [switch]$ProxyUseDefaultCredentials,
         [switch]$ShowProgress,
         [switch]$Force,
         [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages"
@@ -409,9 +434,6 @@ function Save-LSUpdate {
     
     begin {
         $transfers = [System.Collections.Generic.List[System.Threading.Tasks.Task]]::new()
-        if ($Proxy) {
-            $proxyObject = [System.Net.WebProxy]::new($Proxy)
-        }
     }
     
     process {
@@ -430,10 +452,7 @@ function Save-LSUpdate {
             if ($Force -or -not (Test-Path -Path $DownloadPath -PathType Leaf) -or (
                (Get-FileHash -Path $DownloadPath -Algorithm SHA256).Hash -ne $PackageToGet.Extracter.FileSHA)) {
                 # Checking if this package was already downloaded, if yes skipping redownload
-                $webClient = [System.Net.WebClient]::new()
-                if ($Proxy) {
-                    $webClient.Proxy = $proxyObject
-                }
+                $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
                 $transfers.Add( $webClient.DownloadFileTaskAsync($PackageDownload, $DownloadPath) )
             }
         }
