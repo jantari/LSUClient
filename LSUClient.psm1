@@ -90,7 +90,7 @@ function Test-RunningAsAdmin {
 
 function Show-DownloadProgress {
     Param (
-        [Parameter(Mandatory=$true)]
+        [Parameter( Mandatory=$true )]
         [ValidateNotNullOrEmpty()]
         [array]$Transfers
     )
@@ -99,16 +99,17 @@ function Show-DownloadProgress {
     [int]$TotalTransfers     = $Transfers.Count
     [int]$InitialCursorYPos  = $host.UI.RawUI.CursorPosition.Y
     [console]::CursorVisible = $false
-    [console]::Write("[ {0}   ]  Downloading packages ...`r[ " -f (' ' * ($TotalTransfers.ToString().Length * 2 + 3)))
+    [int]$TransferCountChars = $TotalTransfers.ToString().Length
+    [console]::Write("[ {0}   ]  Downloading packages ...`r[ " -f (' ' * ($TransferCountChars * 2 + 3)))
     while ($Transfers.IsCompleted -contains $false) {
         $i = $Transfers.Where{ $_.IsCompleted }.Count
-        [console]::Write("`r[ {0,2} / $TotalTransfers /" -f $i)
+        [console]::Write("`r[ {0,$TransferCountChars} / $TotalTransfers /" -f $i)
         Start-Sleep -Milliseconds 75
-        [console]::Write("`r[ {0,2} / $TotalTransfers $ESC(0q$ESC(B" -f $i)
+        [console]::Write("`r[ {0,$TransferCountChars} / $TotalTransfers $ESC(0q$ESC(B" -f $i)
         Start-Sleep -Milliseconds 75
-        [console]::Write("`r[ {0,2} / $TotalTransfers \" -f $i)
+        [console]::Write("`r[ {0,$TransferCountChars} / $TotalTransfers \" -f $i)
         Start-Sleep -Milliseconds 65
-        [console]::Write("`r[ {0,2} / $TotalTransfers |" -f $i)
+        [console]::Write("`r[ {0,$TransferCountChars} / $TotalTransfers |" -f $i)
         Start-Sleep -Milliseconds 65
     }
     [console]::SetCursorPosition(1, $InitialCursorYPos)
@@ -118,6 +119,34 @@ function Show-DownloadProgress {
         Write-Host "$ESC[92m    $([char]8730)    $ESC[0m] Downloaded all packages    "
     }
     [console]::CursorVisible = $true
+}
+
+function Invoke-PackageCommand {
+    Param (
+        [ValidateNotNullOrEmpty()]
+        [string]$Path,
+        [ValidateNotNullOrEmpty()]
+        [Parameter( Mandatory = $true )]
+        [string]$Command
+    )
+
+    $process                                  = [System.Diagnostics.Process]::new()
+    $process.StartInfo.WindowStyle            = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    $process.StartInfo.FileName               = 'cmd.exe'
+    $process.StartInfo.UseShellExecute        = $false
+    $process.StartInfo.Arguments              = "/D /C $Command"
+    $process.StartInfo.WorkingDirectory       = $PackagePath
+    $process.StartInfo.RedirectStandardOutput = $true
+    $process.StartInfo.RedirectStandardError  = $true
+    $process.StartInfo.EnvironmentVariables.Add("PACKAGEPATH", "$Path")
+    $null = $process.Start()
+    $process.WaitForExit()
+
+    return [PSCustomObject]@{
+        'STDOUT'   = $process.StandardOutput.ReadToEnd()
+        'STDERR'   = $process.StandardError.ReadToEnd()
+        'ExitCode' = $process.ExitCode
+    }
 }
 
 function Test-MachineSatisfiesDependency {
@@ -348,7 +377,7 @@ function Get-LSUpdate {
 function Save-LSUpdate {
     <#
         .SYNOPSIS
-        Downlodas a Lenovo update package to disk
+        Downloads a Lenovo update package to disk
 
         .PARAMETER Package
         The Lenovo package or packages to download
@@ -442,11 +471,8 @@ function Expand-LSUpdate {
         [string]$Path
     )
 
-    $ExtractCMD  = $Package.Extracter.Command -replace "%PACKAGEPATH%", ('"{0}"' -f $Path)
-    $ExtractARGS = $ExtractCMD -replace "^$($Package.Extracter.FileName)"
-
     if (Get-ChildItem -Path $Path -File) {
-        Start-Process -FilePath $Package.Extracter.FileName -Verb RunAs -WorkingDirectory $Path -Wait -ArgumentList $ExtractARGS
+        Invoke-PackageCommand -Path $Path -Command $Package.Extracter.Command
     } else {
         Write-Warning "This package was not downloaded or deleted (empty folder), skipping extraction ...`r`n"
     }
@@ -504,11 +530,9 @@ function Install-LSUpdate {
             } else {
                 switch ($PackageToProcess.Installer.InstallType) {
                     'CMD' {
-                        $InstallCMD = $PackageToProcess.Installer.InstallCommand -replace "%PACKAGEPATH%", $PackageDirectory
                         # Correct typo from Lenovo ... yes really...
-                        $InstallCMD = $InstallCMD -replace '-overwirte', '-overwrite'
-                
-                        $installProcess = Start-Process -FilePath cmd.exe -Wait -Verb RunAs -WorkingDirectory $PackageDirectory -PassThru -ArgumentList '/c', "$InstallCMD"
+                        $InstallCMD     = $PackageToProcess.Installer.InstallCommand -replace '-overwirte', '-overwrite'
+                        $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
                         if ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
                             Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with return code $($installProcess.ExitCode)!`r`n"
                         }
