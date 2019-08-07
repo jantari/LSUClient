@@ -156,6 +156,9 @@ function Invoke-PackageCommand {
         [string]$Command
     )
 
+    # Some commands Lenovo specifies include an unescaped & sign so we have to escape it
+    $Command = $Command -replace '&', '^&'
+
     $process                                  = [System.Diagnostics.Process]::new()
     $process.StartInfo.WindowStyle            = [System.Diagnostics.ProcessWindowStyle]::Hidden
     $process.StartInfo.FileName               = 'cmd.exe'
@@ -234,8 +237,7 @@ function Resolve-XMLDependencies {
                     Add-Content -LiteralPath $DebugLogFile -Value "External command is RAW: $($XMLTREE.'#text')"
                 }
                 # Some commands Lenovo specifies include an unescaped & sign so we have to escape it
-                $extCommand = $XMLTREE.'#text' -replace '^%PACKAGEPATH%\\?' -replace '&', '^&'
-                $externalDetection = Start-Process -FilePath cmd.exe -WorkingDirectory "$env:Temp" -ArgumentList '/C', "$extCommand >nul" -PassThru -Wait -NoNewWindow
+                $externalDetection = Invoke-PackageCommand -Path $env:Temp -Command $XMLTREE.'#text'
                 if ($externalDetection.ExitCode -in ($XMLTREE.rc -split ',')) {
                     $true
                 } else {
