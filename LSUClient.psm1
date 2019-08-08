@@ -298,7 +298,15 @@ function Get-LSUpdate {
         You may want to use this together with '-All' so that packages are not filtered against your local machines configuration.
 
         .PARAMETER Proxy
-        A URL to a web proxy (e.g. 'http://myproxy:3128')
+        Specifies a proxy server for the connection to Lenovo. Enter the URI of a network proxy server.
+
+        .PARAMETER ProxyCredential
+        Specifies a user account that has permission to use the proxy server that is specified by the -Proxy
+        parameter.
+
+        .PARAMETER ProxyUseDefaultCredentials
+        Indicates that the cmdlet uses the credentials of the current user to access the proxy server that is
+        specified by the -Proxy parameter.
 
         .PARAMETER All
         Return all updates, regardless of whether they are applicable to this specific machine or whether they are already installed.
@@ -408,7 +416,15 @@ function Save-LSUpdate {
         The Lenovo package or packages to download
 
         .PARAMETER Proxy
-        A URL to a web proxy (e.g. 'http://myproxy:3128')
+        Specifies a proxy server for the connection to Lenovo. Enter the URI of a network proxy server.
+
+        .PARAMETER ProxyCredential
+        Specifies a user account that has permission to use the proxy server that is specified by the -Proxy
+        parameter.
+
+        .PARAMETER ProxyUseDefaultCredentials
+        Indicates that the cmdlet uses the credentials of the current user to access the proxy server that is
+        specified by the -Proxy parameter.
 
         .PARAMETER ShowProgress
         Shows a progress animation during the downloading process, recommended for interactive use
@@ -493,7 +509,7 @@ function Expand-LSUpdate {
     )
 
     if (Get-ChildItem -Path $Path -File) {
-        Invoke-PackageCommand -Path $Path -Command $Package.Extracter.Command
+        $null = Invoke-PackageCommand -Path $Path -Command $Package.Extracter.Command
     } else {
         Write-Warning "This package was not downloaded or deleted (empty folder), skipping extraction ...`r`n"
     }
