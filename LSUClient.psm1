@@ -571,7 +571,7 @@ function Save-LSUpdate {
 function Expand-LSUpdate {
     Param (
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
-        [LenovoPackage]$Package,
+        [pscustomobject]$Package,
         [Parameter( Mandatory = $true )]
         [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
         [string]$Path
@@ -623,7 +623,7 @@ function Install-LSUpdate {
 
             if ($PackageToProcess.Category -eq 'BIOS UEFI') {
                 # We are dealing with a BIOS Update
-                [BiosUpdateInfo]$BIOSUpdateExit = Install-BiosUpdate -Package $PackageToProcess -PackageDirectory $PackageDirectory
+                [BiosUpdateInfo]$BIOSUpdateExit = Install-BiosUpdate -PackageDirectory $PackageDirectory
                 if ($BIOSUpdateExit.WasRun -eq $true) {
                     if ($BIOSUpdateExit.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
                         Write-Warning "Unattended BIOS/UEFI update FAILED with return code $($BIOSUpdateExit.ExitCode)!`r`n"
