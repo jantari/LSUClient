@@ -83,6 +83,14 @@ class PackageInstallInfo {
     }
 }
 
+class BiosUpdateInfo {
+    [bool]$WasRun
+    [int64]$Timestamp
+    [int64]$ExitCode
+    [string]$LogMessage
+    [string]$ActionNeeded
+}
+
 function Test-RunningAsAdmin {
     $Identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
     return [bool]$Identity.IsInRole( [Security.Principal.WindowsBuiltInRole]::Administrator )
@@ -236,7 +244,6 @@ function Resolve-XMLDependencies {
                 if ($DebugLogFile) {
                     Add-Content -LiteralPath $DebugLogFile -Value "External command is RAW: $($XMLTREE.'#text')"
                 }
-                # Some commands Lenovo specifies include an unescaped & sign so we have to escape it
                 $externalDetection = Invoke-PackageCommand -Path $env:Temp -Command $XMLTREE.'#text'
                 if ($externalDetection.ExitCode -in ($XMLTREE.rc -split ',')) {
                     $true
@@ -286,6 +293,68 @@ function Resolve-XMLDependencies {
     }
 
     $XMLTreeDepth--
+}
+
+function Install-BiosUpdate {
+    [CmdletBinding()]
+    Param (
+        [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
+        [System.IO.DirectoryInfo]$PackageDirectory
+    )
+
+    [array]$BIOSUpdateFiles = Get-ChildItem -LiteralPath $PackageDirectory -File
+    $BitLockerOSDrive = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction SilentlyContinue | Where-Object { $_.ProtectionStatus -eq 'On' }
+    if ($BitLockerOSDrive) {
+        $BitLockerOSDrive | Suspend-BitLocker
+        Write-Verbose "Operating System drive is BitLocker-encrypted, suspending protection for BIOS update. BitLocker will automatically resume after a power cycle.`r`n"
+    }
+
+    if ($BIOSUpdateFiles.Name -contains 'winuptp.exe' ) {
+        # ThinkPad BIOS Update
+        if (Test-Path -LiteralPath "$PackageDirectory\winuptp.log" -PathType Leaf) {
+            Remove-Item -LiteralPath "$PackageDirectory\winuptp.log" -Force
+        }
+
+        $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command 'winuptp.exe -s'
+        return [BiosUpdateInfo]@{
+            'Timestamp'    = [datetime]::Now.ToFileTime()
+            'ExitCode'     = $installProcess.ExitCode
+            'LogMessage'   = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -Raw) { $Log.Trim() } else { [String]::Empty }
+            'WasRun'       = $true
+            'ActionNeeded' = 'REBOOT'
+        }
+    } elseif ($BIOSUpdateFiles.Name -contains 'Flash.cmd' ) {
+        # ThinkCentre or ThinkStation BIOS Update
+        $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command 'Flash.cmd /ign /sccm /quiet'
+        return [BiosUpdateInfo]@{
+            'Timestamp'    = [datetime]::Now.ToFileTime()
+            'ExitCode'     = $installProcess.ExitCode
+            'LogMessage'   = $installProcess.STDOUT
+            'WasRun'       = $true
+            'ActionNeeded' = 'SHUTDOWN'
+        }
+    }
+}
+
+function Set-BIOSUpdateRegistryFlag {
+    Param (
+        [Int64]$Timestamp = [datetime]::Now.ToFileTime(),
+        [ValidateSet('REBOOT', 'SHUTDOWN')]
+        [string]$ActionNeeded,
+        [ValidateNotNullOrEmpty()]
+        [string]$PackageHash
+    )
+
+    try {
+        $HKLM = [Microsoft.Win32.Registry]::LocalMachine
+        $key  = $HKLM.CreateSubKey('SOFTWARE\LSUClient\BIOSUpdate')
+        $key.SetValue('Timestamp',    $Timestamp,      'QWord' )
+        $key.SetValue('ActionNeeded', "$ActionNeeded", 'String')
+        $key.SetValue('PackageHash',  "$PackageHash",  'String')
+    }
+    catch {
+        Write-Warning "The registry values containing information about the pending BIOS update could not be written!"
+    }
 }
 
 function Get-LSUpdate {
@@ -525,6 +594,10 @@ function Install-LSUpdate {
 
         .PARAMETER Path
         If you previously downloaded the Lenovo package to a custom directory, specify its path here so that the package can be found
+
+        .PARAMETER StoreBIOSUpdateInfoInRegistry
+        If a BIOS update is successfully installed, write information about it to 'HKLM\Software\LSUClient\BIOSUpdate'.
+        This is useful in automated deployment scenarios, especially the 'ActionNeeded' key which will tell you whether a shutdown or reboot is required to apply the BIOS update.
     #>
 
 	[CmdletBinding()]
@@ -532,7 +605,8 @@ function Install-LSUpdate {
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
         [pscustomobject]$Package,
         [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
-        [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages"
+        [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages",
+        [switch]$StoreBIOSUpdateInfoInRegistry
     )
     
     process {
@@ -549,20 +623,22 @@ function Install-LSUpdate {
 
             if ($PackageToProcess.Category -eq 'BIOS UEFI') {
                 # We are dealing with a BIOS Update
-                if (Test-Path -LiteralPath "$PackageDirectory\winuptp.exe") {
-                    if (Test-Path -LiteralPath "$PackageDirectory\winuptp.log" -PathType Leaf) {
-                        Remove-Item -LiteralPath "$PackageDirectory\winuptp.log" -Force
-                    }
-                
-                    $installProcess = Start-Process -FilePath "$PackageDirectory\winuptp.exe" -Wait -Verb RunAs -WorkingDirectory $PackageDirectory -PassThru -ArgumentList "-s"
-                    if ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
-                        $LenovoBIOSUpdateLog = (Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -Raw).Trim()
-                        Write-Warning "Unattended BIOS/UEFI Update FAILED with return code $($installProcess.ExitCode)!`r`nThe following log was created:`r`n$LenovoBIOSUpdateLog`r`n"
+                [BiosUpdateInfo]$BIOSUpdateExit = Install-BiosUpdate -Package $PackageToProcess -PackageDirectory $PackageDirectory
+                if ($BIOSUpdateExit.WasRun -eq $true) {
+                    if ($BIOSUpdateExit.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
+                        Write-Warning "Unattended BIOS/UEFI update FAILED with return code $($BIOSUpdateExit.ExitCode)!`r`n"
+                        if ($BIOSUpdateExit.LogMessage) {
+                            Write-Warning "The following information is available:`r`n$($BIOSUpdateExit.LogMessage)`r`n"
+                        }
                     } else {
-                        Write-Host "BIOS UPDATE SUCCESS: An immediate full power cycle / reboot is strongly recommended to allow the BIOS update to complete!`r`n"
+                        # BIOS Update successful
+                        Write-Host "BIOS UPDATE SUCCESS: An immediate full $($BIOSUpdateExit.ActionNeeded) is strongly recommended to allow the BIOS update to complete!`r`n"
+                        if ($StoreBIOSUpdateInfoInRegistry) {
+                            Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path -Path $Path -ChildPath $Package.Extracter.FileName)).Hash
+                        }
                     }
                 } else {
-                    Write-Warning "Either this is not a BIOS Update or it's an unsupported installer for one, skipping installation ...`r`n"
+                    Write-Warning "Either this is not a BIOS Update or it's an unsupported installer for one, skipping installation!`r`n"
                 }
             } else {
                 switch ($PackageToProcess.Installer.InstallType) {
