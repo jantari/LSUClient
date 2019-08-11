@@ -3,7 +3,7 @@
     RootModule = 'LSUClient.psm1'
 
     # Version number of this module.
-    ModuleVersion = '1.0.1'
+    ModuleVersion = '1.0.2'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -21,7 +21,7 @@
     Copyright = 'See https://www.github.com/jantari/LSUClient'
 
     # Description of the functionality provided by this module
-    Description = 'Find and install driver and firmware updates for Lenovo computers'
+    Description = 'Orchestrate driver, BIOS/UEFI and firmware updates for Lenovo computers 👨‍💻'
 
     # Minimum version of the Windows PowerShell engine required by this module
     PowerShellVersion = '5.0'
