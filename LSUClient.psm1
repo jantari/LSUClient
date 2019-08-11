@@ -73,7 +73,7 @@ class PackageInstallInfo {
         $this.InfFile        = $PackageXML.Install.INFCmd.INFfile
         $this.Command        = $PackageXML.Install.Cmdline.'#text'
         if (($PackageXML.Reboot.type -eq 3) -or
-            ($Category -eq 'BIOS UEFI' -and $PackageXML.Install.Cmdline.'#text' -like "*winuptp.exe*") -or
+            ($Category -eq 'BIOS UEFI') -or
             ($PackageXML.Install.type -eq 'INF'))
         {
             $this.Unattended = $true
@@ -84,10 +84,13 @@ class PackageInstallInfo {
 }
 
 class BiosUpdateInfo {
+    [ValidateNotNullOrEmpty()]
     [bool]$WasRun
     [int64]$Timestamp
+    [ValidateNotNullOrEmpty()]
     [int64]$ExitCode
     [string]$LogMessage
+    [ValidateNotNullOrEmpty()]
     [string]$ActionNeeded
 }
 
@@ -310,27 +313,27 @@ function Install-BiosUpdate {
     }
 
     if ($BIOSUpdateFiles.Name -contains 'winuptp.exe' ) {
-        # ThinkPad BIOS Update
+        Write-Verbose "This is a ThinkPad-style BIOS update"
         if (Test-Path -LiteralPath "$PackageDirectory\winuptp.log" -PathType Leaf) {
             Remove-Item -LiteralPath "$PackageDirectory\winuptp.log" -Force
         }
 
         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command 'winuptp.exe -s'
         return [BiosUpdateInfo]@{
+            'WasRun'       = $true
             'Timestamp'    = [datetime]::Now.ToFileTime()
             'ExitCode'     = $installProcess.ExitCode
-            'LogMessage'   = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -Raw) { $Log.Trim() } else { [String]::Empty }
-            'WasRun'       = $true
+            'LogMessage'   = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -Raw -ErrorAction SilentlyContinue) { $Log.Trim() } else { [String]::Empty }
             'ActionNeeded' = 'REBOOT'
         }
     } elseif ($BIOSUpdateFiles.Name -contains 'Flash.cmd' ) {
-        # ThinkCentre or ThinkStation BIOS Update
+        Write-Verbose "This is a ThinkCentre-style BIOS update"
         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command 'Flash.cmd /ign /sccm /quiet'
         return [BiosUpdateInfo]@{
+            'WasRun'       = $true
             'Timestamp'    = [datetime]::Now.ToFileTime()
             'ExitCode'     = $installProcess.ExitCode
             'LogMessage'   = $installProcess.STDOUT
-            'WasRun'       = $true
             'ActionNeeded' = 'SHUTDOWN'
         }
     }
@@ -341,7 +344,6 @@ function Set-BIOSUpdateRegistryFlag {
         [Int64]$Timestamp = [datetime]::Now.ToFileTime(),
         [ValidateSet('REBOOT', 'SHUTDOWN')]
         [string]$ActionNeeded,
-        [ValidateNotNullOrEmpty()]
         [string]$PackageHash
     )
 
@@ -595,9 +597,10 @@ function Install-LSUpdate {
         .PARAMETER Path
         If you previously downloaded the Lenovo package to a custom directory, specify its path here so that the package can be found
 
-        .PARAMETER StoreBIOSUpdateInfoInRegistry
+        .PARAMETER SaveBIOSUpdateInfoToRegistry
         If a BIOS update is successfully installed, write information about it to 'HKLM\Software\LSUClient\BIOSUpdate'.
         This is useful in automated deployment scenarios, especially the 'ActionNeeded' key which will tell you whether a shutdown or reboot is required to apply the BIOS update.
+        The created registry values will not be deleted by this module, only overwritten on the next installed BIOS Update.
     #>
 
 	[CmdletBinding()]
@@ -606,7 +609,7 @@ function Install-LSUpdate {
         [pscustomobject]$Package,
         [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
         [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages",
-        [switch]$StoreBIOSUpdateInfoInRegistry
+        [switch]$SaveBIOSUpdateInfoToRegistry
     )
     
     process {
@@ -628,13 +631,13 @@ function Install-LSUpdate {
                     if ($BIOSUpdateExit.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
                         Write-Warning "Unattended BIOS/UEFI update FAILED with return code $($BIOSUpdateExit.ExitCode)!`r`n"
                         if ($BIOSUpdateExit.LogMessage) {
-                            Write-Warning "The following information is available:`r`n$($BIOSUpdateExit.LogMessage)`r`n"
+                            Write-Warning "The following information was collected:`r`n$($BIOSUpdateExit.LogMessage)`r`n"
                         }
                     } else {
                         # BIOS Update successful
                         Write-Host "BIOS UPDATE SUCCESS: An immediate full $($BIOSUpdateExit.ActionNeeded) is strongly recommended to allow the BIOS update to complete!`r`n"
-                        if ($StoreBIOSUpdateInfoInRegistry) {
-                            Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path -Path $Path -ChildPath $Package.Extracter.FileName)).Hash
+                        if ($SaveBIOSUpdateInfoToRegistry) {
+                            Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $Package.Extracter.FileName)).Hash
                         }
                     }
                 } else {
