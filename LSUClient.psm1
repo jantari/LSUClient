@@ -72,7 +72,7 @@ class PackageInstallInfo {
         $this.SuccessCodes   = $PackageXML.Install.rc -split ','
         $this.InfFile        = $PackageXML.Install.INFCmd.INFfile
         $this.Command        = $PackageXML.Install.Cmdline.'#text'
-        if (($PackageXML.Reboot.type -eq 3) -or
+        if (($PackageXML.Reboot.type -in 0, 3) -or
             ($Category -eq 'BIOS UEFI') -or
             ($PackageXML.Install.type -eq 'INF'))
         {
