@@ -46,7 +46,7 @@ $updates | Install-LSUpdate -Verbose
 ### Dealing with BIOS/UEFI updates
 
 It is important to know that some Lenovo computers require a reboot to apply BIOS updates while other models require a shutdown - the BIOS will then wake the machine from the power-off state, apply the update and boot into Windows.
-So as to not interrupt deployment or someone working, this module will never initiate reboots or shutdowns on its own - however it's made it easy for you:
+So as to not interrupt a deployment or someone working, this module will never initiate reboots or shutdowns on its own - however it's easy for you to:
 
 1. Run `Install-LSUpdate` with the `-SaveBIOSUpdateInfoToRegistry` switch
 2. If any BIOS/UEFI update was successfully installed this switch will write some information to the registry under `HKLM\Software\LSUClient\BIOSUpdate`,
