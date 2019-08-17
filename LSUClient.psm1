@@ -308,12 +308,12 @@ function Install-BiosUpdate {
     [array]$BIOSUpdateFiles = Get-ChildItem -LiteralPath $PackageDirectory -File
     $BitLockerOSDrive = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction SilentlyContinue | Where-Object { $_.ProtectionStatus -eq 'On' }
     if ($BitLockerOSDrive) {
-        $BitLockerOSDrive | Suspend-BitLocker
-        Write-Verbose "Operating System drive is BitLocker-encrypted, suspending protection for BIOS update. BitLocker will automatically resume after a power cycle.`r`n"
+        Write-Verbose "Operating System drive is BitLocker-encrypted, suspending protection for BIOS update. BitLocker will automatically resume after the next bootup.`r`n"
+        $null = $BitLockerOSDrive | Suspend-BitLocker
     }
 
     if ($BIOSUpdateFiles.Name -contains 'winuptp.exe' ) {
-        Write-Verbose "This is a ThinkPad-style BIOS update"
+        Write-Verbose "This is a ThinkPad-style BIOS update`r`n"
         if (Test-Path -LiteralPath "$PackageDirectory\winuptp.log" -PathType Leaf) {
             Remove-Item -LiteralPath "$PackageDirectory\winuptp.log" -Force
         }
@@ -327,7 +327,7 @@ function Install-BiosUpdate {
             'ActionNeeded' = 'REBOOT'
         }
     } elseif ($BIOSUpdateFiles.Name -contains 'Flash.cmd' ) {
-        Write-Verbose "This is a ThinkCentre-style BIOS update"
+        Write-Verbose "This is a ThinkCentre-style BIOS update`r`n"
         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command 'Flash.cmd /ign /sccm /quiet'
         return [BiosUpdateInfo]@{
             'WasRun'       = $true
