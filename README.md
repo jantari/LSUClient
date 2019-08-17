@@ -3,8 +3,7 @@
 
 # LSU Client
 
-![PowerShell Gallery](https://img.shields.io/powershellgallery/dt/LSUClient?label=PowerShell%20Gallery&logo=Powershell&logoColor=FFFFFF&style=flat)
-
+![PowerShell Gallery](https://img.shields.io/powershellgallery/dt/LSUClient?label=PowerShell%20Gallery&logo=Powershell&logoColor=FFFFFF&style=flat)  
 A PowerShell module that partially reimplements the "Lenovo System Update" program for convenient,
 automatable and worry-free driver and system updates for Lenovo computers.
 
@@ -43,7 +42,7 @@ $updates | Save-LSUpdate -Verbose
 $updates | Install-LSUpdate -Verbose
 ```
 
-### Dealing with BIOS/UEFI updates
+### Dealing with BIOS/UEFI updates (Version 1.0.2+ only)
 
 It is important to know that some Lenovo computers require a reboot to apply BIOS updates while other models require a shutdown - the BIOS will then wake the machine from the power-off state, apply the update and boot into Windows.
 So as to not interrupt a deployment or someone working, this module will never initiate reboots or shutdowns on its own - however it's easy for you to:
