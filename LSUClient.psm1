@@ -407,14 +407,12 @@ function Get-LSUpdate {
         Write-Warning "Unfortunately, this command produces most accurate results when run as an Administrator`r`nbecause some of the commands Lenovo uses to detect your computers hardware have to run as admin :("
     }
 
-    $COMPUTERINFO = Get-CimInstance -ClassName CIM_ComputerSystem | Select-Object Manufacturer, Model
-
     if (-not $Model) {
-        $MODELRGX = [regex]::Match($COMPUTERINFO.Model, '^\w{4}')
-        if ($MODELRGX.Success -ne $true) {
-            throw "Could not parse Lenovo Model number. Full string otained was: '$($COMPUTERINFO.Model)', aborting."
+        $MODELREGEX = [regex]::Match((Get-CimInstance -ClassName CIM_ComputerSystem -ErrorAction SilentlyContinue).Model, '^\w{4}')
+        if ($MODELREGEX.Success -ne $true) {
+            throw "Could not parse computer model number. This may not be a Lenovo computer, or an unsupported model."
         }
-        $Model = $MODELRGX.Value
+        $Model = $MODELREGEX.Value
     }
     
     Write-Verbose "Lenovo Model is: $Model`r`n"
@@ -447,8 +445,11 @@ function Get-LSUpdate {
         [xml]$packageXML = $packageXMLOrig -replace "^$UTF8ByteOrderMark"
         
         if ($packageXML.Package.Files.External) {
-            foreach ($externalFile in $packageXML.Package.Files.External.ChildNodes) {
-                $webClient.DownloadFile(($packageURL.location -replace "[^/]*$") + $externalFile.Name, (Join-Path -Path $env:Temp -ChildPath $externalFile.Name))
+            # Downloading files needed by external detection in package dependencies
+            [array]$DownloadedExternalFiles = foreach ($externalFile in $packageXML.Package.Files.External.ChildNodes) {
+                [string]$DownloadDest = Join-Path -Path $env:Temp -ChildPath $externalFile.Name
+                $webClient.DownloadFile(($packageURL.location -replace "[^/]*$") + $externalFile.Name, $DownloadDest)
+                [System.IO.FileInfo]::new($DownloadDest)
             }
         }
 
@@ -472,6 +473,12 @@ function Get-LSUpdate {
 
         if ($All -or $packageObject.IsApplicable) {
             $packageObject
+        }
+
+        foreach ($tempFile in $DownloadedExternalFiles) {
+            if ($tempFile.Exists) {
+                $tempFile.Delete()
+            }
         }
     }
     
