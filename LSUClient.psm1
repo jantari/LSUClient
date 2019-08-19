@@ -441,15 +441,16 @@ function Get-LSUpdate {
     Write-Verbose "A total of $($PARSEDXML.packages.count) driver packages are available for this computer model."
 
     foreach ($packageURL in $PARSEDXML.packages.package) {
-        $packageXMLOrig  = $webClient.DownloadString($packageURL.location)
-        [xml]$packageXML = $packageXMLOrig -replace "^$UTF8ByteOrderMark"
+        $rawPackageXML           = $webClient.DownloadString($packageURL.location)
+        [xml]$packageXML         = $rawPackageXML -replace "^$UTF8ByteOrderMark"
+        $DownloadedExternalFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
         
         if ($packageXML.Package.Files.External) {
             # Downloading files needed by external detection in package dependencies
-            [array]$DownloadedExternalFiles = foreach ($externalFile in $packageXML.Package.Files.External.ChildNodes) {
+            foreach ($externalFile in $packageXML.Package.Files.External.ChildNodes) {
                 [string]$DownloadDest = Join-Path -Path $env:Temp -ChildPath $externalFile.Name
                 $webClient.DownloadFile(($packageURL.location -replace "[^/]*$") + $externalFile.Name, $DownloadDest)
-                [System.IO.FileInfo]::new($DownloadDest)
+                $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
             }
         }
 
