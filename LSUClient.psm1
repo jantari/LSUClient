@@ -24,7 +24,7 @@ $DependencyHardwareTable = @{
     '_OS'                = 'WIN' + (Get-CimInstance Win32_OperatingSystem).Version -replace "\..*"
     '_CPUAddressWidth'   = [wmisearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
     '_Bios'              = (Get-CimInstance -ClassName Win32_BIOS).SMBIOSBIOSVersion
-    '_PnPID'             = (Get-PnpDevice).DeviceID
+    '_PnPID'             = (Get-PnpDevice).HardwareID
     '_ExternalDetection' = $NULL
     #'_EmbeddedControllerVersion' = [Regex]::Match((Get-CimInstance -ClassName Win32_BIOS).SMBIOSBIOSVersion, "(?<=\()[\d\.]+")
 }
