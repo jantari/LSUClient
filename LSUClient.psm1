@@ -14,8 +14,8 @@ enum DependencyParserState {
     DO_NOT_HAVE = 1
 }
 
-# Check for old Windows versions
-$WINDOWSVERSION = Get-WmiObject -Class Win32_OperatingSystem | Select-Object -ExpandProperty Version
+# Check for old Windows versions in a manner that is compatible with PowerShell 2.0 all the way to to 7.0
+$WINDOWSVERSION = (New-Object -TypeName 'System.Management.ManagementObjectSearcher' -ArgumentList "SELECT Version FROM Win32_OperatingSystem").Get() | Select-Object -ExpandProperty Version
 if ($WINDOWSVERSION -notmatch "^10\.") {
     throw "This module requires Windows 10."
 }
