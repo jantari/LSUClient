@@ -598,7 +598,10 @@ function Expand-LSUpdate {
     )
 
     if (Get-ChildItem -Path $Path -File) {
-        $null = Invoke-PackageCommand -Path $Path -Command $Package.Extracter.Command
+        $extractionProcess = Invoke-PackageCommand -Path $Path -Command $Package.Extracter.Command
+        if ($extractionProcess.ExitCode -ne 0) {
+            Write-Warning "Extraction of package $($PackageToProcess.ID) may have failed!`r`n"
+        }
     } else {
         Write-Warning "This package was not downloaded or deleted (empty folder), skipping extraction ...`r`n"
     }
@@ -634,7 +637,7 @@ function Install-LSUpdate {
         foreach ($PackageToProcess in $Package) {
             $PackageDirectory = Join-Path -Path $Path -ChildPath $PackageToProcess.id
             if (-not (Test-Path -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $PackageToProcess.Extracter.FileName) -PathType Leaf)) {
-                Write-Verbose "Package '$($PackageToProcess.id)' was not yet downloaded or deleted, downloading ..."
+                Write-Verbose "Package '$($PackageToProcess.id)' was not yet downloaded or deleted, downloading ...`r`n"
                 Save-LSUpdate -Package $PackageToProcess -Path $Path
             }
 
