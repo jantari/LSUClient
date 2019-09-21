@@ -20,13 +20,12 @@ if ($WINDOWSVERSION -notmatch "^10\.") {
     throw "This module requires Windows 10."
 }
 
-$DependencyHardwareTable = @{
-    '_OS'                = 'WIN' + (Get-CimInstance Win32_OperatingSystem).Version -replace "\..*"
-    '_CPUAddressWidth'   = [wmisearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
-    '_Bios'              = (Get-CimInstance -ClassName Win32_BIOS).SMBIOSBIOSVersion
-    '_PnPID'             = (Get-PnpDevice).HardwareID
-    '_ExternalDetection' = $NULL
-    #'_EmbeddedControllerVersion' = [Regex]::Match((Get-CimInstance -ClassName Win32_BIOS).SMBIOSBIOSVersion, "(?<=\()[\d\.]+")
+$CachedHardwareTable = @{
+    '_OS'                        = 'WIN' + (Get-CimInstance Win32_OperatingSystem).Version -replace "\..*"
+    '_CPUAddressWidth'           = [wmisearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
+    '_Bios'                      = (Get-CimInstance -ClassName Win32_BIOS).SMBIOSBIOSVersion
+    '_PnPID'                     = @(Get-PnpDevice)
+    '_EmbeddedControllerVersion' = [Regex]::Match((Get-CimInstance -ClassName Win32_BIOS).SMBIOSBIOSVersion, "(?<=\()[\d\.]+").Value
 }
 
 [int]$XMLTreeDepth = 0
@@ -158,6 +157,71 @@ function New-WebClient {
     return $webClient
 }
 
+function Compare-VersionStrings {
+    <#
+        .SYNOPSIS
+        This function parses some of Lenovos conventions for expressing
+        version requirements and does the comparison. Returns 0, -1 or -2.
+    #>
+
+    Param (
+        [ValidateNotNullOrEmpty()]
+        [string]$LenovoString,
+        [ValidateNotNullOrEmpty()]
+        [string]$SystemString
+    )
+
+    [bool]$LenovoStringIsVersion = [Version]::TryParse( $LenovoString, [ref]$null )
+    [bool]$SystemStringIsVersion = [Version]::TryParse( $SystemString, [ref]$null )
+
+    if (-not $SystemStringIsVersion) {
+        Write-Verbose "Got unsupported version format from OS: '$SystemString'"
+        return -2
+    }
+
+    if ($LenovoStringIsVersion) {
+        # Easiest case, both inputs are just version numbers
+        if ([Version]::new($LenovoString) -eq [Version]::new($SystemString)) {
+            return 0 # SUCCESS, Versions match
+        } else {
+            return -1
+        }
+    } else {
+        # Lenovo string contains additional directive (^-symbol likely)
+        if (-not ($LenovoString -match '^\^?[\d\.]+$' -xor $LenovoString -match '^[\d\.]+\^?$')) {
+            # Unknown character in version string or ^ at both the first and last positions
+            Write-Verbose "Got unsupported version format from Lenovo: '$LenovoString'"
+            return -2
+        }
+
+        [Version]$LenovoVersion = $LenovoString -replace '\^'
+        [Version]$SystemVersion = $SystemString
+        
+        switch -Wildcard ($LenovoString) {
+            "^*" {
+                # Means up to and including
+                if ($SystemVersion -le $LenovoVersion) {
+                    return 0
+                } else {
+                    return -1
+                }
+            }
+            "*^" {
+                # Means must be equal or higher than
+                if ($SystemVersion -ge $LenovoVersion) {
+                    return 0
+                } else {
+                    return -1
+                }
+            }
+            default {
+                Write-Verbose "Got unsupported version format from Lenovo: '$LenovoString'"
+                return -2
+            }
+        }
+    }
+}
+
 function Invoke-PackageCommand {
     Param (
         [ValidateNotNullOrEmpty()]
@@ -190,9 +254,11 @@ function Invoke-PackageCommand {
 
     [System.Environment]::SetEnvironmentVariable("PACKAGEPATH", [String]::Empty, "Process")
 
-    $output = Get-Content -LiteralPath "$LogFilePath" -Raw
-    Remove-Item -LiteralPath "$LogFilePath"
-
+    if ([System.IO.File]::Exists($LogFilePath)) {
+        $output = Get-Content -LiteralPath "$LogFilePath" -Raw
+        Remove-Item -LiteralPath "$LogFilePath"
+    }
+    
     return [PSCustomObject]@{
         'Output'   = $output
         'ExitCode' = $process.ExitCode
@@ -201,26 +267,105 @@ function Invoke-PackageCommand {
 
 function Test-MachineSatisfiesDependency {
     Param (
-        [string]$DependencyKey,
-        [string]$DependencyValue
+        [ValidateNotNullOrEmpty()]
+        [System.Xml.XmlElement]$Dependency
     )
 
-    # Return values:
-    # 0  SUCCESS, Dependency is met
+    #  0 SUCCESS, Dependency is met
     # -1 FAILRE, Dependency is not met
     # -2 Unknown dependency kind - status uncertain
 
-    if ($DependencyKey -notin $DependencyHardwareTable.Keys) {
-        return -2;
-    }
+    switch ($Dependency.SchemaInfo.Name) {
+        '_OS' {
+            foreach ($entry in $Dependency.OS) {
+                if ($CachedHardwareTable['_OS'] -like "$entry*") {
+                    return 0
+                }
+            }
+            return -1
+        }
+        '_EmbeddedControllerVersion' {
+            if ($CachedHardwareTable['_EmbeddedControllerVersion']) {
+                return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $CachedHardwareTable['_EmbeddedControllerVersion'])
+            }
+            return -1
+        }
+        '_FileExists' {
+            return (Invoke-PackageCommand -Command "IF EXIST `"$Dependency`" ( exit 0 ) else ( exit -1 )" -Path $env:TEMP)
+        }
+        '_CPUAddressWidth' {
+            if ($CachedHardwareTable['_CPUAddressWidth'] -like "$($Dependency.AddressWidth)*") {
+                return 0
+            } else {
+                return -1
+            }
+        }
+        '_Bios' {
+            foreach ($entry in $Dependency.Level) {
+                if ($CachedHardwareTable['_Bios'] -like "$entry*") {
+                    return 0
+                }
+            }
+            return -1
+        }
+        '_PnPID' {
+            foreach ($HardwareID in $CachedHardwareTable['_PnPID'].HardwareID) {
+                if ($HardwareID -like "$($Dependency.'#cdata-section')*") {
+                    return 0
+                }
+            }
+            return -1
+        }
+        '_ExternalDetection' {
+            $externalDetection = Invoke-PackageCommand -Command $Dependency.'#text' -Path $env:TEMP
+            if ($externalDetection.ExitCode -in ($Dependency.rc -split ',')) {
+                return 0
+            } else {
+                return -1
+            }
+        }
+        '_RegistryKey' {
+            if ($Dependency.Key) {
+                if (Test-Path -LiteralPath ('Microsoft.PowerShell.Core\Registry::{0}' -f $Dependency.Key) -PathType Container) {
+                    return 0
+                }
+            }
+            return -1
+        }
+        '_Driver' {
+            if ( @($Dependency.ChildNodes.SchemaInfo.Name) -notmatch "^(HardwareID|Version|Date)$") {
+                # If there's any unsupported node inside _Driver, return unsupported (-2)
+                return -2
+            }
 
-    foreach ($Value in $DependencyHardwareTable["$DependencyKey"]) {
-        if ($Value -like "$DependencyValue*") {
-            return 0
+            foreach ($HardwareID in $Dependency.HardwareID.'#cdata-section') {
+                if ($CachedHardwareTable['_PnPID'].HardwareID -notcontains "$HardwareID") {
+                    continue
+                }
+
+                if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Date') {
+                    if ([datetime]::TryParse($Dependency.Date, [ref]$null)) {
+                        $DriverDate = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareID" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
+                        if ($DriverDate -eq [DateTime]::Parse($Dependency.Date)) {
+                            return 0 # SUCCESS
+                        }
+                    } else {
+                        Write-Verbose "Got unsupported date format from Lenovo: '$($Dependency.Date)'"
+                    }
+                }
+
+                if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Version') {
+                    $DriverVersion = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareID" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
+                    return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion)
+                }
+            }
+            return -1
+        }
+        default {
+            Write-Verbose "Unsupported dependency encountered: $_`r`n"
+            return -2
         }
     }
-
-    return -1;
 }
 
 function Resolve-XMLDependencies {
@@ -237,39 +382,36 @@ function Resolve-XMLDependencies {
     [DependencyParserState]$ParserState = 0
     
     foreach ($XMLTREE in $XMLIN) {
-        switch -Regex ($XMLTREE.SchemaInfo.Name) {
-            '^_' {
-                $ITEM = $XMLTREE.SchemaInfo.Name
-            }
-            'Not' {
-                $ParserState = $ParserState -bxor 1
-                if ($DebugLogFile) {
-                    Add-Content -LiteralPath $DebugLogFile -Value "Switched state to: $ParserState"
-                }
+        if ($DebugLogFile) {
+            Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth )|> Node: $($XMLTREE.SchemaInfo.Name)"
+        }
+
+        if ($XMLTREE.SchemaInfo.Name -eq 'Not') {
+            $ParserState = $ParserState -bxor 1
+            if ($DebugLogFile) {
+                Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth)Switched state to: $ParserState"
             }
         }
         
-        $Results = if ($XMLTREE.HasChildNodes -and $XMLTREE.ChildNodes) {
-            if ($DebugLogFile) {
-                Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth)$($XMLTREE.SchemaInfo.Name) has more children --> $($XMLTREE.ChildNodes)"
-            }
-            $subtreeresults = if ($XMLTREE.SchemaInfo.Name -eq '_ExternalDetection') {
-                if ($DebugLogFile) {
-                    Add-Content -LiteralPath $DebugLogFile -Value "External command is RAW: $($XMLTREE.'#text')"
-                }
-                $externalDetection = Invoke-PackageCommand -Path $env:Temp -Command $XMLTREE.'#text'
-                if ($externalDetection.ExitCode -in ($XMLTREE.rc -split ',')) {
+        $Result = if ($XMLTREE.SchemaInfo.Name -like "_*") {
+            switch (Test-MachineSatisfiesDependency -Dependency $XMLTREE) {
+                0 {
                     $true
-                } else {
+                }
+                -1 {
                     $false
                 }
-            } else {
-                Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile:$DebugLogFile
+                -2 {
+                    Write-Host "$('- ' * $XMLTreeDepth)Unsupported dependency encountered: $($XMLTREE.SchemaInfo.Name)"
+                    if ($FailUnsupportedDependencies) { $false } else { $true }
+                }
             }
+        } else {
+            $SubtreeResults = Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
             switch ($XMLTREE.SchemaInfo.Name) {
                 'And' {
                     if ($DebugLogFile) {
-                        Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth)Tree was AND: Results: $subtreeresults" 
+                        Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth)Tree was AND: Results: $subtreeresults"
                     }
                     if ($subtreeresults -contains $false) { $false } else { $true  }
                 }
@@ -280,28 +422,13 @@ function Resolve-XMLDependencies {
                     if ($subtreeresults -contains $true ) { $true  } else { $false }
                 }
             }
-        } else {
-            switch (Test-MachineSatisfiesDependency -DependencyKey $ITEM -DependencyValue $XMLTREE.innerText) {
-                0 {
-                    $true
-                }
-                -1 {
-                    $false
-                }
-                -2 {
-                    Write-Verbose "Unsupported dependency encountered: $ITEM`r`n"
-                    if ($FailUnsupportedDependencies) { $false } else { $true }
-                }
-            }
-            if ($DebugLogFile) {
-                Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth)$ITEM  :  $($XMLTREE.innerText)"
-            }
-        }
-        if ($DebugLogFile) {
-            Add-Content -LiteralPath $DebugLogFile -Value "Returning $($Results -bxor $ParserState) from node $($XMLTREE.SchemaInfo.Name)"
         }
 
-        $Results -bxor $ParserState
+        if ($DebugLogFile) {
+            Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth)< Returning $($Result -bxor $ParserState) from node $($XMLTREE.SchemaInfo.Name)"
+        }
+
+        $Result -bxor $ParserState
         $ParserState = 0 # DO_HAVE
     }
 
