@@ -284,6 +284,13 @@ function Test-MachineSatisfiesDependency {
             }
             return -1
         }
+        '_OSLang' {
+            if ($Dependency.Lang -eq [CultureInfo]::CurrentUICulture.ThreeLetterWindowsLanguageName) {
+                return 0
+            } else {
+                return -1
+            }
+        }
         '_EmbeddedControllerVersion' {
             if ($CachedHardwareTable['_EmbeddedControllerVersion']) {
                 return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $CachedHardwareTable['_EmbeddedControllerVersion'])
