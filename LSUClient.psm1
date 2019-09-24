@@ -276,37 +276,6 @@ function Test-MachineSatisfiesDependency {
     # -2 Unknown dependency kind - status uncertain
 
     switch ($Dependency.SchemaInfo.Name) {
-        '_OS' {
-            foreach ($entry in $Dependency.OS) {
-                if ($CachedHardwareTable['_OS'] -like "$entry*") {
-                    return 0
-                }
-            }
-            return -1
-        }
-        '_OSLang' {
-            if ($Dependency.Lang -eq [CultureInfo]::CurrentUICulture.ThreeLetterWindowsLanguageName) {
-                return 0
-            } else {
-                return -1
-            }
-        }
-        '_EmbeddedControllerVersion' {
-            if ($CachedHardwareTable['_EmbeddedControllerVersion']) {
-                return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $CachedHardwareTable['_EmbeddedControllerVersion'])
-            }
-            return -1
-        }
-        '_FileExists' {
-            return (Invoke-PackageCommand -Command "IF EXIST `"$Dependency`" ( exit 0 ) else ( exit -1 )" -Path $env:TEMP)
-        }
-        '_CPUAddressWidth' {
-            if ($CachedHardwareTable['_CPUAddressWidth'] -like "$($Dependency.AddressWidth)*") {
-                return 0
-            } else {
-                return -1
-            }
-        }
         '_Bios' {
             foreach ($entry in $Dependency.Level) {
                 if ($CachedHardwareTable['_Bios'] -like "$entry*") {
@@ -315,29 +284,12 @@ function Test-MachineSatisfiesDependency {
             }
             return -1
         }
-        '_PnPID' {
-            foreach ($HardwareID in $CachedHardwareTable['_PnPID'].HardwareID) {
-                if ($HardwareID -like "$($Dependency.'#cdata-section')*") {
-                    return 0
-                }
-            }
-            return -1
-        }
-        '_ExternalDetection' {
-            $externalDetection = Invoke-PackageCommand -Command $Dependency.'#text' -Path $env:TEMP
-            if ($externalDetection.ExitCode -in ($Dependency.rc -split ',')) {
+        '_CPUAddressWidth' {
+            if ($CachedHardwareTable['_CPUAddressWidth'] -like "$($Dependency.AddressWidth)*") {
                 return 0
             } else {
                 return -1
             }
-        }
-        '_RegistryKey' {
-            if ($Dependency.Key) {
-                if (Test-Path -LiteralPath ('Microsoft.PowerShell.Core\Registry::{0}' -f $Dependency.Key) -PathType Container) {
-                    return 0
-                }
-            }
-            return -1
         }
         '_Driver' {
             if ( @($Dependency.ChildNodes.SchemaInfo.Name) -notmatch "^(HardwareID|Version|Date)$") {
@@ -364,6 +316,54 @@ function Test-MachineSatisfiesDependency {
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Version') {
                     $DriverVersion = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareID" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
                     return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion)
+                }
+            }
+            return -1
+        }
+        '_EmbeddedControllerVersion' {
+            if ($CachedHardwareTable['_EmbeddedControllerVersion']) {
+                return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $CachedHardwareTable['_EmbeddedControllerVersion'])
+            }
+            return -1
+        }
+        '_ExternalDetection' {
+            $externalDetection = Invoke-PackageCommand -Command $Dependency.'#text' -Path $env:TEMP
+            if ($externalDetection.ExitCode -in ($Dependency.rc -split ',')) {
+                return 0
+            } else {
+                return -1
+            }
+        }
+        '_FileExists' {
+            return (Invoke-PackageCommand -Command "IF EXIST `"$Dependency`" ( exit 0 ) else ( exit -1 )" -Path $env:TEMP)
+        }
+        '_OS' {
+            foreach ($entry in $Dependency.OS) {
+                if ($CachedHardwareTable['_OS'] -like "$entry*") {
+                    return 0
+                }
+            }
+            return -1
+        }
+        '_OSLang' {
+            if ($Dependency.Lang -eq [CultureInfo]::CurrentUICulture.ThreeLetterWindowsLanguageName) {
+                return 0
+            } else {
+                return -1
+            }
+        }
+        '_PnPID' {
+            foreach ($HardwareID in $CachedHardwareTable['_PnPID'].HardwareID) {
+                if ($HardwareID -like "$($Dependency.'#cdata-section')*") {
+                    return 0
+                }
+            }
+            return -1
+        }
+        '_RegistryKey' {
+            if ($Dependency.Key) {
+                if (Test-Path -LiteralPath ('Microsoft.PowerShell.Core\Registry::{0}' -f $Dependency.Key) -PathType Container) {
+                    return 0
                 }
             }
             return -1
