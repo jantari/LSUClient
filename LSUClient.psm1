@@ -582,8 +582,12 @@ function Get-LSUpdate {
         [xml]$packageXML         = $rawPackageXML -replace "^$UTF8ByteOrderMark"
         $DownloadedExternalFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
         
+        # Downloading files needed by external detection in package dependencies
         if ($packageXML.Package.Files.External) {
-            # Downloading files needed by external detection in package dependencies
+            # Packages like https://download.lenovo.com/pccbbs/mobiles/r0qch05w_2_.xml show we have to download the XML itself too
+            $DownloadDest = Join-Path -Path $env:Temp -ChildPath ($packageURL.location -replace "^.*/")
+            $webClient.DownloadFile($packageURL.location, $DownloadDest)
+            $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
             foreach ($externalFile in $packageXML.Package.Files.External.ChildNodes) {
                 [string]$DownloadDest = Join-Path -Path $env:Temp -ChildPath $externalFile.Name
                 $webClient.DownloadFile(($packageURL.location -replace "[^/]*$") + $externalFile.Name, $DownloadDest)
