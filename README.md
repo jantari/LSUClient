@@ -28,7 +28,7 @@ Install-Module -Name 'LSUClient'
 
 ## Examples and tips
 
-### Typical use for ones own computer:
+### Typical use for one's own computer:
 ```powershell
 $updates = Get-LSUpdate
 $updates | Save-LSUpdate -ShowProgress
