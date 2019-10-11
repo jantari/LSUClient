@@ -293,7 +293,7 @@ function Test-MachineSatisfiesDependency {
         }
         '_Driver' {
             if ( @($Dependency.ChildNodes.SchemaInfo.Name) -notmatch "^(HardwareID|Version|Date)$") {
-                # If there's any unsupported node inside _Driver, return unsupported (-2)
+                # If there's any unknown node inside _Driver, return unsupported (-2) right away
                 return -2
             }
 
@@ -303,19 +303,25 @@ function Test-MachineSatisfiesDependency {
                 }
 
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Date') {
-                    if ([datetime]::TryParse($Dependency.Date, [ref]$null)) {
+                    $LenovoDate = [DateTime]::new(0)
+                    if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
                         $DriverDate = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareID" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
-                        if ($DriverDate -eq [DateTime]::Parse($Dependency.Date)) {
+                        if ($DriverDate -eq $LenovoDate) {
                             return 0 # SUCCESS
                         }
                     } else {
-                        Write-Verbose "Got unsupported date format from Lenovo: '$($Dependency.Date)'"
+                        Write-Verbose "Got unsupported date format from Lenovo: '$($Dependency.Date)' (expected yyyy-MM-dd)"
                     }
                 }
 
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Version') {
                     $DriverVersion = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareID" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
-                    return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion)
+                    # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
+                    if ($DriverVersion) {
+                        return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion)
+                    } else {
+                        return -2
+                    }
                 }
             }
             return -1
@@ -449,14 +455,13 @@ function Install-BiosUpdate {
         [System.IO.DirectoryInfo]$PackageDirectory
     )
 
-    [array]$BIOSUpdateFiles = Get-ChildItem -LiteralPath $PackageDirectory -File
     $BitLockerOSDrive = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction SilentlyContinue | Where-Object { $_.ProtectionStatus -eq 'On' }
     if ($BitLockerOSDrive) {
         Write-Verbose "Operating System drive is BitLocker-encrypted, suspending protection for BIOS update. BitLocker will automatically resume after the next bootup.`r`n"
         $null = $BitLockerOSDrive | Suspend-BitLocker
     }
 
-    if ($BIOSUpdateFiles.Name -contains 'winuptp.exe' ) {
+    if (Test-Path -LiteralPath "$PackageDirectory\wintpup.exe" -PathType Leaf) {
         Write-Verbose "This is a ThinkPad-style BIOS update`r`n"
         if (Test-Path -LiteralPath "$PackageDirectory\winuptp.log" -PathType Leaf) {
             Remove-Item -LiteralPath "$PackageDirectory\winuptp.log" -Force
@@ -470,7 +475,7 @@ function Install-BiosUpdate {
             'LogMessage'   = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -Raw -ErrorAction SilentlyContinue) { $Log.Trim() } else { [String]::Empty }
             'ActionNeeded' = 'REBOOT'
         }
-    } elseif ($BIOSUpdateFiles.Name -contains 'Flash.cmd' ) {
+    } elseif (Test-Path -LiteralPath "$PackageDirectory\Flash.cmd" -PathType Leaf) {
         Write-Verbose "This is a ThinkCentre-style BIOS update`r`n"
         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command 'Flash.cmd /ign /sccm /quiet'
         return [BiosUpdateInfo]@{
