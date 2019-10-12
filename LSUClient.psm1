@@ -247,7 +247,7 @@ function Invoke-PackageCommand {
     $process.StartInfo.WindowStyle      = [System.Diagnostics.ProcessWindowStyle]::Hidden
     $process.StartInfo.FileName         = 'cmd.exe'
     $process.StartInfo.UseShellExecute  = $true
-    $process.StartInfo.Arguments        = "/D /C $Command 2>&1 1>$LogFilePath"
+    $process.StartInfo.Arguments        = "/D /C $Command 2>&1 1>`"$LogFilePath`""
     $process.StartInfo.WorkingDirectory = $Path
     $null = $process.Start()
     $process.WaitForExit()
