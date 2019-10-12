@@ -415,7 +415,9 @@ function Resolve-XMLDependencies {
                     $false
                 }
                 -2 {
-                    Write-Host "$('- ' * $XMLTreeDepth)Unsupported dependency encountered: $($XMLTREE.SchemaInfo.Name)"
+                    if ($DebugLogFile) {
+                        Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth)Something unsupported encountered in: $($XMLTREE.SchemaInfo.Name)"
+                    }
                     if ($FailUnsupportedDependencies) { $false } else { $true }
                 }
             }
@@ -799,7 +801,7 @@ function Install-LSUpdate {
                         }
                     } else {
                         # BIOS Update successful
-                        Write-Host "BIOS UPDATE SUCCESS: An immediate full $($BIOSUpdateExit.ActionNeeded) is strongly recommended to allow the BIOS update to complete!`r`n"
+                        Write-Output "BIOS UPDATE SUCCESS: An immediate full $($BIOSUpdateExit.ActionNeeded) is strongly recommended to allow the BIOS update to complete!`r`n"
                         if ($SaveBIOSUpdateInfoToRegistry) {
                             Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $Package.Extracter.FileName)).Hash
                         }
