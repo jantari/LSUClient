@@ -1,6 +1,5 @@
 ﻿#Requires -Version 5.0
 
-# StrictMode 2.0 is possible but makes the creation of the LenovoPackage objects a lot uglier with no real benefit
 Set-StrictMode -Version 1.0
 
 enum Severity {
@@ -267,8 +266,15 @@ function Invoke-PackageCommand {
 
 function Test-Wflash2ForSCCMParameter {
     <#
+        .DESCRIPTION
+        This function tests for wflash2.exe versions that do not support the /sccm (suppress reboot) argument
+        because when you supply wflash2.exe an unknown argument it displays some usage help and then waits for
+        something to be written to its CONIN$ console input buffer. Redirecting the StdIn handle of wflash2.exe
+        and writing to that does not suffice to break this deadlock - real console keyboard input has to be made,
+        so this is the only solution I've found that can accomplish this even in a non-interactive session.
+
         .NOTES
-        You might think this function is a crazy hack, but it's actually the only working way
+        While this approach may look like a crazy hack, it's actually the only working way
         I've found to send STDIN to wflash2.exe so that it exits when printing the usage help.
         Redirecting STDIN through StartInfo.RedirectStandardInput does nothing, and the SendInput
         API is simpler but only works in interactive sessions.
@@ -383,18 +389,13 @@ function Test-Wflash2ForSCCMParameter {
     $process.StartInfo.WorkingDirectory       = "$env:USERPROFILE"
     $null = $process.Start()
 
-    # The following tests for wflash2.exe versions that do not support the /sccm (suppress reboot) argument
-    # because when you supply wflash2.exe an unknown argument it displays some usage help and then waits for
-    # something to be written to its CONIN$ console input buffer. Redirecting the StdIn handle of wflash2.exe
-    # and writing to that does not suffice to break this deadlock - real console keyboard input has to be made,
-    # so this is the only solution I've found that can accomplish this even in a non-interactive session.
     do {
         Start-Sleep -Seconds 1
         [WinAPI+ReturnValues]$APICALL = [WinAPI]::WriteCharToConin()
         if ($APICALL.WCIReturnValue   -ne $true -or
             $APICALL.WCIEventsWritten -ne 1 -or
             $APICALL.LastWin32Error   -ne 0) {
-                Write-Warning "Could not test this ThinkCentre BIOS-Update for the /sscm (Suppress reboot) parameter: A problem occured when calling the native API 'WriteConsoleInput'. Try running this script in a terminal that supports it, such as the default conhost or anything that builds atop of ConPTY."
+                Write-Warning "Could not test this ThinkCentre BIOS-Update for the /sscm (suppress reboot) parameter: A problem occured when calling the native API 'WriteConsoleInput'. Try running this script in a terminal that supports it, such as the default conhost or anything that builds atop of ConPTY."
                 $process.Kill()
         }
     } until ($process.HasExited)
@@ -488,6 +489,7 @@ function Test-MachineSatisfiesDependency {
             }
         }
         '_FileExists' {
+            # This isn't 100% yet as Lenovo sometimes uses some non-system environment variables in their file paths
             return (Invoke-PackageCommand -Command "IF EXIST `"$Dependency`" ( exit 0 ) else ( exit -1 )" -Path $env:TEMP)
         }
         '_OS' {
@@ -744,14 +746,26 @@ function Get-LSUpdate {
     Write-Verbose "A total of $($PARSEDXML.packages.count) driver packages are available for this computer model."
 
     foreach ($packageURL in $PARSEDXML.packages.package) {
-        $rawPackageXML           = $webClient.DownloadString($packageURL.location)
-        [xml]$packageXML         = $rawPackageXML -replace "^$UTF8ByteOrderMark"
+        # This is in place to stop packages like 'k2txe01us17' that
+        try {
+            $rawPackageXML   = $webClient.DownloadString($packageURL.location)
+            [xml]$packageXML = $rawPackageXML -replace "^$UTF8ByteOrderMark"
+        }
+        catch {
+            if ($_.FullyQualifiedErrorId -eq 'InvalidCastToXmlDocument') {
+                Write-Warning "Could not parse package '$($packageURL.location)' (invalid XML)"
+            } else {
+                Write-Warning "Could not retrieve or parse package '$($packageURL.location)':`r`n$($_.Exception.Message)"
+            }
+            continue
+        }
+        
         $DownloadedExternalFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
         
         # Downloading files needed by external detection in package dependencies
         if ($packageXML.Package.Files.External) {
             # Packages like https://download.lenovo.com/pccbbs/mobiles/r0qch05w_2_.xml show we have to download the XML itself too
-            $DownloadDest = Join-Path -Path $env:Temp -ChildPath ($packageURL.location -replace "^.*/")
+            [string]$DownloadDest = Join-Path -Path $env:Temp -ChildPath ($packageURL.location -replace "^.*/")
             $webClient.DownloadFile($packageURL.location, $DownloadDest)
             $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
             foreach ($externalFile in $packageXML.Package.Files.External.ChildNodes) {
