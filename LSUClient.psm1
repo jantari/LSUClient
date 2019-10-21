@@ -746,7 +746,7 @@ function Get-LSUpdate {
     Write-Verbose "A total of $($PARSEDXML.packages.count) driver packages are available for this computer model."
 
     foreach ($packageURL in $PARSEDXML.packages.package) {
-        # This is in place to stop packages like 'k2txe01us17' that
+        # This is in place to prevent packages like 'k2txe01us17' that have invalid XML from stopping the entire function with an error
         try {
             $rawPackageXML   = $webClient.DownloadString($packageURL.location)
             [xml]$packageXML = $rawPackageXML -replace "^$UTF8ByteOrderMark"
