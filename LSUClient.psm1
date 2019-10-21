@@ -628,7 +628,14 @@ function Install-BiosUpdate {
         }
     } elseif ((Test-Path -LiteralPath "$PackageDirectory\Flash.cmd" -PathType Leaf) -and (Test-Path -LiteralPath "$PackageDirectory\wflash2.exe" -PathType Leaf)) {
         Write-Verbose "This is a ThinkCentre-style BIOS update`r`n"
-        [bool]$SCCMParameterIsSupported = Test-Wflash2ForSCCMParameter -PathToWFLASH2EXE "$PackageDirectory\wflash2.exe"
+        # Get a random non-existant directory name to copy wflash2 to as a safe testbed
+        do {
+            [string]$wflashTestPath = Join-Path -Path "$PackageDirectory" -ChildPath ( [System.IO.Path]::GetRandomFileName() )
+        } until ( -not [System.IO.Directory]::Exists($wflashTestPath) )
+        $null = New-Item -Path "$wflashTestPath" -ItemType Directory
+        Copy-Item -LiteralPath "$PackageDirectory\wflash2.exe" -Destination "$wflashTestPath"
+        [bool]$SCCMParameterIsSupported = Test-Wflash2ForSCCMParameter -PathToWFLASH2EXE "$wflashTestPath\wflash2.exe"
+        Remove-Item -LiteralPath "$wflashTestPath" -Recurse -Force
         if ($SCCMParameterIsSupported) {
             $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command 'Flash.cmd /ign /sccm /quiet'
             return [BiosUpdateInfo]@{
