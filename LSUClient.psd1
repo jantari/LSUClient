@@ -85,7 +85,7 @@
         PSData = @{
 
             # Tags applied to this module. These help with module discovery in online galleries.
-            # Tags = @()
+            Tags = @('Hardware', 'Driver', 'Update', 'Firmware', 'System', 'BIOS', 'UEFI', 'Install')
 
             # A URL to the license for this module.
             LicenseUri = 'https://raw.githubusercontent.com/jantari/LSUClient/master/LICENSE'
@@ -97,7 +97,9 @@
             IconUri = 'https://raw.githubusercontent.com/jantari/LSUClient/master/logo_220px.png'
 
             # ReleaseNotes of this module
-            # ReleaseNotes = ''
+            ReleaseNotes = @'
+Please see the release notes on GitHub: https://github.com/jantari/LSUClient/releases
+'@
 
             # Prerelease string of this module
             # Prerelease = ''
