@@ -21,7 +21,7 @@ jobs:
 
     - name: Install PSScriptAnalyzer Module
       run : |
-        pwsh -Command "Install-Module -Name PSScriptAnalyzer -AcceptLicense -Confirm:\$false"
+        pwsh -Command "Set-PSRepository -Name PSGallery -InstallationPolicy Trusted; Install-Module -Name PSScriptAnalyzer -AcceptLicense -Confirm:\$false"
 
     - name: Run PSScriptAnalyzer
       run : |
