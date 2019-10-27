@@ -10,6 +10,7 @@ automatable and worry-free driver and system updates for Lenovo computers.
 ```powershell
 Install-Module -Name 'LSUClient'
 ```
+
 </div>
 
 <br>
@@ -28,18 +29,27 @@ Install-Module -Name 'LSUClient'
 
 ## Examples and tips
 
-### Typical use for one's own computer:
+### Typical use for one's own computer
+
 ```powershell
 $updates = Get-LSUpdate
 $updates | Save-LSUpdate -ShowProgress
 $updates | Install-LSUpdate -Verbose
 ```
 
-### To select only packages that can be installed silently and non-interactively:
+### To select only packages that can be installed silently and non-interactively
+
 ```powershell
 $updates = Get-LSUpdate | Where-Object { $_.Installer.Unattended }
 $updates | Save-LSUpdate -Verbose
 $updates | Install-LSUpdate -Verbose
+```
+
+### Download and install packages (including BIOS) and reboot
+
+```powershell
+Get-LSUpdate -Verbose | Where-Object { $_.Installer.Unattended } | Save-LSUpdate -ShowProgress | Install-LSUpdate -Verbose -SaveBIOSUpdateInfoToRegistry
+Restart-Computer -Force
 ```
 
 ### Dealing with BIOS/UEFI updates (Version 1.0.2+ only)
@@ -54,6 +64,7 @@ including the String `"ActionNeeded"` which will contain `"REBOOT"` or `"SHUTDOW
 on your terms. I recommend clearing the registry values under `HKLM\Software\LSUClient\BIOSUpdate` afterwards so you know the update is no longer pending.
 
 If you want to exclude BIOS/UEFI updates, simply do so by their category:
+
 ```powershell
 $updates = Get-LSUpdate | Where-Object { $_.Category -ne 'BIOS UEFI' }
 ```
@@ -68,7 +79,5 @@ For more details, available parameters and guidance on how to use them run `Get-
 - Only Windows 10 is supported. Windows 7 compatibility is theoretically feasible for as long as Lenovo provides support for it, but I won't do it. This module makes use of modern PowerShell and modern Windows features and I personally have no interest in Windows 7.
 - If you explicitly `Save-LSUpdate` before using `Install-LSUpdate` the whole operation will be faster because when calling `Save-LSUpdate` directly it downloads the packages in parallel, but calling `Install-LSUpdate` first will download then install each package after the other
 - The Module currently does not check whether an available update has already been installed. This will lead to some of the same updates being found every time you run it - reinstalling a driver does not hurt or will sometimes simply fail - see [issue #4][issue4]
-
-
 
 [issue4]: https://github.com/jantari/LSUClient/issues/4
