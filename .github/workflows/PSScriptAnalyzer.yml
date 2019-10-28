@@ -8,20 +8,10 @@ jobs:
     steps:
     - uses: actions/checkout@master
 
-    - name: Install Microsoft repository
-      run: |
-        wget -q https://packages.microsoft.com/config/ubuntu/18.04/packages-microsoft-prod.deb
-        sudo dpkg -i packages-microsoft-prod.deb
-
-    - name: Update repositories and install PowerShell
-      run: |
-        sudo apt-get update
-        sudo add-apt-repository universe
-        sudo apt-get install -y powershell
-
     - name: Install PSScriptAnalyzer Module
       run : |
-        pwsh -Command "Set-PSRepository -Name PSGallery -InstallationPolicy Trusted; Install-Module -Name PSScriptAnalyzer -AcceptLicense -Confirm:\$false"
+        pwsh -Command "Set-PSRepository -Name PSGallery -InstallationPolicy Trusted"
+        pwsh -Command "Install-Module -Name PSScriptAnalyzer -AcceptLicense -Confirm:\$false"
 
     - name: Run PSScriptAnalyzer
       run : |
