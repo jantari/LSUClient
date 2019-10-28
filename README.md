@@ -1,7 +1,7 @@
 <div>
 <img align="left" src="logo_220px.png" alt="LSUClient PowerShell Module PNG Logo" style="padding-right: 40px"/>
 
-# LSU Client
+# LSUClient
 
 ![PowerShell Gallery](https://img.shields.io/powershellgallery/dt/LSUClient?label=PowerShell%20Gallery&logo=Powershell&logoColor=FFFFFF&style=flat)  
 A PowerShell module that partially reimplements the "Lenovo System Update" program for convenient,
