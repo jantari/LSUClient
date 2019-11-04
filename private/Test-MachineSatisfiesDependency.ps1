@@ -1,7 +1,8 @@
 ﻿function Test-MachineSatisfiesDependency {
     Param (
         [ValidateNotNullOrEmpty()]
-        [System.Xml.XmlElement]$Dependency
+        [System.Xml.XmlElement]$Dependency,
+        [string]$DebugLogFile
     )
 
     #  0 SUCCESS, Dependency is met
@@ -74,8 +75,9 @@
             }
         }
         '_FileExists' {
-            # This isn't 100% yet as Lenovo sometimes uses some non-system environment variables in their file paths
-            return (Invoke-PackageCommand -Command "IF EXIST `"$Dependency`" ( exit 0 ) else ( exit -1 )" -Path $env:TEMP)
+            # This may not be 100% yet as Lenovo sometimes uses some non-system environment variables in their file paths
+            [string]$Path = Resolve-CmdVariable -StringToEcho $Dependency -ExtraVariables @{'WINDOWS' = $env:SystemRoot}
+            return (Test-Path -LiteralPath $Path -PathType Leaf)
         }
         '_OS' {
             foreach ($entry in $Dependency.OS) {
@@ -107,6 +109,22 @@
                 }
             }
             return -1
+        }
+        '_RegistryKeyValue' {
+            if ($Dependency.type -ne 'REG_SZ') {
+                return -2
+            }
+
+            if (Test-Path -LiteralPath ('Microsoft.PowerShell.Core\Registry::{0}' -f $Dependency.Key) -PathType Container) {
+                try {
+                    $regVersion = Get-ItemPropertyValue -LiteralPath ('Microsoft.PowerShell.Core\Registry::{0}' -f $Dependency.Key) -Name $Dependency.KeyName
+                }
+                catch {
+                    return -1
+                }
+                return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $regVersion)
+            }
+
         }
         default {
             Write-Verbose "Unsupported dependency encountered: $_`r`n"

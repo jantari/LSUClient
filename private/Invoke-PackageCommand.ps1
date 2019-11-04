@@ -7,43 +7,63 @@
         [string]$Command
     )
 
-    # In order to support paths with spaces and to not break on symbols like & that would
-    # normally be parsed by cmd we have to wrap everything in double quotes if we can
-    $ExeAndArgs = Split-ExecutableAndArguments -Command $Command
-    if ($ExeAndArgs) {
-        [string]$CMDARGS = '""{0}" {1}"' -f $ExeAndArgs.EXECUTABLE, $ExeAndArgs.ARGUMENTS
-    } else {
-        # This fallback is unlikely, as it would basically mean we have an invalid path (non existant executable)
-        [string]$CMDARGS = $Command
-    }
+    Write-Host -ForegroundColor Cyan "Raw Package-Command is '$Command'"
+
+    $Command = Resolve-CmdVariable -StringToEcho $Command -ExtraVariables @{'PACKAGEPATH' = "$Path"}
+
+    # In some cases (n1cgf02w for the T460s) Lenovo does not escape the & symbol in a command,
+    # but other times (n1olk08w for the X1 Tablet 2nd Gen) they do! This means I cannot double-quote
+    # the CLI arguments, but instead have to manually escape unescaped ampersands.
+    $Command = $Command -replace '(?<!\^)&', '^&'
+
+    Write-Host -ForegroundColor Cyan "Command with vars resolved is '$Command'"
+
+    $ExeAndArgs = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
+    $ExeAndArgs | Format-List | Out-Host
 
     # Get a random non-existant file name to capture cmd output to
     do {
         [string]$LogFilePath = Join-Path -Path $Path -ChildPath ( [System.IO.Path]::GetRandomFileName() )
     } until ( -not [System.IO.File]::Exists($LogFilePath) )
 
-    # Environment variables are carried over to child processes and we cannot set this in the StartInfo of the new process because ShellExecute is true
-    # ShellExecute is true because there are installers that indefinitely hang otherwise (Conexant Audio)
-    [System.Environment]::SetEnvironmentVariable("PACKAGEPATH", "$Path", "Process")
-
     $process                            = [System.Diagnostics.Process]::new()
     $process.StartInfo.WindowStyle      = [System.Diagnostics.ProcessWindowStyle]::Hidden
-    $process.StartInfo.FileName         = 'cmd.exe'
     $process.StartInfo.UseShellExecute  = $true
-    $process.StartInfo.Arguments        = "/D /C $CMDARGS 2>&1 1>`"$LogFilePath`""
     $process.StartInfo.WorkingDirectory = $Path
-    $null = $process.Start()
-    $process.WaitForExit()
+    $process.StartInfo.FileName         = 'cmd.exe'
+    $process.StartInfo.Arguments        = '/D /C ""{0}" {1} 2>&1 1>"{2}""' -f $ExeAndArgs.Executable, $ExeAndArgs.Arguments, $LogFilePath
 
-    [System.Environment]::SetEnvironmentVariable("PACKAGEPATH", [String]::Empty, "Process")
+    $return = $null
+    $output = [String]::Empty
+    [bool]$processStarted = $false
+
+    try {
+        $processStarted = $process.Start()
+    }
+    catch [System.Management.Automation.MethodInvocationException] {
+        Write-Warning $_
+    }
+
+    if ($processStarted) {
+        $process.WaitForExit()
+    } else {
+        Write-Warning "A process failed to start."
+    }
 
     if ([System.IO.File]::Exists($LogFilePath)) {
-        $output = Get-Content -LiteralPath "$LogFilePath" -Raw
-        Remove-Item -LiteralPath "$LogFilePath"
+        $output = Get-Content -LiteralPath $LogFilePath -Raw
+        if ($output) {
+            $output = $output.Trim()
+        }
+        Remove-Item -LiteralPath $LogFilePath
     }
-    
-    return [PSCustomObject]@{
+
+    $return = [PSCustomObject]@{
         'Output'   = $output
         'ExitCode' = $process.ExitCode
     }
+
+    $return | Format-List | Out-Host
+
+    return $return
 }

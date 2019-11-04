@@ -8,17 +8,26 @@
 
     Param (
         [ValidateNotNullOrEmpty()]
-        [string]$Command
+        [string]$Command,
+        [string]$WorkingDirectory
     )
 
     $pathParts = $Command -split ' '
 
     for ($i = $pathParts.Count - 1; $i -ge 0; $i--) {
-        $testPath = [String]::Join(' ', $pathParts[0..$i])
+        $testPath            = [String]::Join(' ', $pathParts[0..$i])
+        $testPathWasRelative = Join-Path -Path $WorkingDirectory -ChildPath $testPath
 
         if ( [System.IO.File]::Exists($testPath) ) {
             return [PSCustomObject]@{
                 "EXECUTABLE" = "$testPath"
+                "ARGUMENTS"  = "$($pathParts | Select-Object -Skip ($i + 1))"
+            }
+        }
+
+        if ( [System.IO.File]::Exists($testPathWasRelative) ) {
+            return [PSCustomObject]@{
+                "EXECUTABLE" = "$testPathWasRelative"
                 "ARGUMENTS"  = "$($pathParts | Select-Object -Skip ($i + 1))"
             }
         }

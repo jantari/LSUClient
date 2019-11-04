@@ -62,7 +62,7 @@
                         $InstallCMD     = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
                         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
                         if ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
-                            Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with return code $($installProcess.ExitCode)!`r`n"
+                            Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List | Out-String)"
                         }
                     }
                     'INF' {
@@ -70,7 +70,7 @@
                         # pnputil is a documented Microsoft tool and Exit code 0 means SUCCESS while 3010 means SUCCESS but reboot required,
                         # however Lenovo does not always include 3010 as an OK return code - that's why we manually check against it here
                         if ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes -and $installProcess.ExitCode -notin 0, 3010) {
-                            Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with return code $($installProcess.ExitCode)!`r`n"
+                            Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List | Out-String)"
                         }
                     }
                     default {
