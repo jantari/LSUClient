@@ -14,8 +14,11 @@ jobs:
         Install-Module PSScriptAnalyzer -Scope CurrentUser -Repository PSGallery -Force
       shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
 
+    - name: Print location of $GITHUB_WORKSPACE (location of repo files)
+      run : echo ">> $GITHUB_WORKSPACE <<"
+
     - name: Run PSScriptAnalyzer
       run : |
         Import-Module PSScriptAnalyzer
-        Invoke-ScriptAnalyzer -Path '.\' -ReportSummary -ExcludeRule PSAvoidTrailingWhitespace
+        Invoke-ScriptAnalyzer -Path "$ENV:GITHUB_WORKSPACE" -ReportSummary -ExcludeRule PSAvoidTrailingWhitespace
       shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
