@@ -22,9 +22,21 @@ jobs:
         run: |
           Import-Module PSScriptAnalyzer
           $PSSAResults = Invoke-ScriptAnalyzer -Path "$ENV:GITHUB_WORKSPACE" -ExcludeRule PSAvoidTrailingWhitespace -Recurse
-          $PSSAResults
-          Write-Output ""
-          $PSSAResults | Group-Object -Property Severity -NoElement | ConvertTo-Json -Compress | Set-Content -LiteralPath 'COMMENTBODY.json'
+          $SUMMARY    = ($PSSAResults | Group-Object -Property Severity -NoElement | Foreach-Object { "$($_.Count) - $($_.Name)" }) -join [Environment]::NewLine
+          $DETAILS    = ($PSSAResults | Format-List | Out-String).Trim()
+          $STRINGBODY = "PSScriptAnalyzer Results as of this commit:
+
+          $SUMMARY
+
+          <details><summary>See Details</summary>
+          <p>
+          $DETAILS
+          </p>
+          </details>
+          " | ConvertTo-Json -Compress
+
+          $BODY = '"body":{0}' -f $STRINGBODY
+          Set-Content -LiteralPath 'COMMENTBODY.json' -Value "{$BODY}"
         shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
 
       - name: Add commit comment
