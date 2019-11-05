@@ -6,19 +6,19 @@ jobs:
   PSSA:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
+      - uses: actions/checkout@master
 
-    - name: Install PSScriptAnalyzer Module
-      run: |
-        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-        Install-Module PSScriptAnalyzer -Scope CurrentUser -Repository PSGallery -Force
-      shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
+      - name: Install PSScriptAnalyzer Module
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Repository PSGallery -Force
+        shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
 
-    - name: Print location of GITHUB_WORKSPACE (location of repo files)
-      run: echo ">> $GITHUB_WORKSPACE <<"
+      - name: Print location of GITHUB_WORKSPACE (location of repo files)
+        run: echo "$GITHUB_WORKSPACE"
 
-    - name: Run PSScriptAnalyzer
-      run: |
-        Import-Module PSScriptAnalyzer
-        Invoke-ScriptAnalyzer -Path "$ENV:GITHUB_WORKSPACE" -ReportSummary -ExcludeRule PSAvoidTrailingWhitespace
-      shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
+      - name: Run PSScriptAnalyzer
+        run: |
+          Import-Module PSScriptAnalyzer
+          Invoke-ScriptAnalyzer -Path "$ENV:GITHUB_WORKSPACE" -ReportSummary -ExcludeRule PSAvoidTrailingWhitespace
+        shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
