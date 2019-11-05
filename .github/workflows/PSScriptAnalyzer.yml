@@ -21,5 +21,24 @@ jobs:
       - name: Run PSScriptAnalyzer
         run: |
           Import-Module PSScriptAnalyzer
-          Invoke-ScriptAnalyzer -Path "$ENV:GITHUB_WORKSPACE" -ReportSummary -ExcludeRule PSAvoidTrailingWhitespace
+          $PSSAResults = Invoke-ScriptAnalyzer -Path "$ENV:GITHUB_WORKSPACE" -ExcludeRule PSAvoidTrailingWhitespace -Recurse
+          $PSSAResults
+          Write-Output ""
+          $PSSAResults | Group-Object -Property Severity -NoElement
         shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
+
+      - uses: actions/github-script@0.2.0
+        with:
+          github-token: ${{github.token}}
+          script: |
+            github.repos.createCommitComment({...context.commit, body: '👋'})
+
+      #- name: Create commit comment
+      #  uses: peter-evans/commit-comment@v1.0.1
+      #  with:
+      #    token: ${{ secrets.GITHUB_TOKEN }}
+      #    body: |
+      #      This is a multi-line test comment
+      #      - With GitHub **Markdown**
+      #      - Created by [commit-comment][1]
+      #      [1]: https://github.com/peter-evans/commit-comment
