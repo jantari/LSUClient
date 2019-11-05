@@ -8,10 +8,6 @@ jobs:
     steps:
     - uses: actions/checkout@master
 
-    - name: Disable PowerShell progress bars
-      run:  
-      shell: pwsh
-
     - name: Install PSScriptAnalyzer Module
       run : |
         Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
