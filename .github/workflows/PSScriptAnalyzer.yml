@@ -1,4 +1,4 @@
-name: Run PSScriptAnalyzer
+﻿name: Run PSScriptAnalyzer
 
 on: push
 
@@ -14,9 +14,9 @@ jobs:
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Repository PSGallery -Force
         shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
 
-      - name: Print location of GITHUB_WORKSPACE (location of repo files)
+      - name: Print contents of GITHUB_WORKSPACE (location of repo files)
         run: |
-          echo "$GITHUB_WORKSPACE"
+          ls -la "$GITHUB_WORKSPACE"
 
       - name: Run PSScriptAnalyzer
         run: |
@@ -31,14 +31,4 @@ jobs:
         with:
           github-token: ${{github.token}}
           script: |
-            github.repos.createCommitComment({...context.commit, body: '👋'})
-
-      #- name: Create commit comment
-      #  uses: peter-evans/commit-comment@v1.0.1
-      #  with:
-      #    token: ${{ secrets.GITHUB_TOKEN }}
-      #    body: |
-      #      This is a multi-line test comment
-      #      - With GitHub **Markdown**
-      #      - Created by [commit-comment][1]
-      #      [1]: https://github.com/peter-evans/commit-comment
+            github.repos.createCommitComment({...context.commit, body: 'test'})
