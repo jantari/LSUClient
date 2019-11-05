@@ -11,11 +11,11 @@ jobs:
     - name: Install PSScriptAnalyzer Module
       run : |
         Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-        Install-Module PSScriptAnalyzer -Scope AllUsers -Repository PSGallery
+        Install-Module PSScriptAnalyzer -Scope AllUsers -Repository PSGallery -Force
       shell: pwsh
 
     - name: Run PSScriptAnalyzer
       run : |
         Import-Module PSScriptAnalyzer
-        Invoke-ScriptAnalyzer -Path '.\' -ReportSummary -ExcludeRule PSAvoidTrailingWhitespace"
+        Invoke-ScriptAnalyzer -Path '.\' -ReportSummary -ExcludeRule PSAvoidTrailingWhitespace
       shell: pwsh
