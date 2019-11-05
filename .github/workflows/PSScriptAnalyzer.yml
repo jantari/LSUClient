@@ -29,11 +29,11 @@ jobs:
           $SUMMARY
 
           <details><summary>See details</summary>
-          <p>
+          
           ```
           $DETAILS
           ```
-          </p>
+
           </details>
           " | ConvertTo-Json -Compress
 
