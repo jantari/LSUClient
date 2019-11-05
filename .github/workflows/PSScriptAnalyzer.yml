@@ -24,11 +24,12 @@ jobs:
           $PSSAResults = Invoke-ScriptAnalyzer -Path "$ENV:GITHUB_WORKSPACE" -ExcludeRule PSAvoidTrailingWhitespace -Recurse
           $PSSAResults
           Write-Output ""
-          $PSSAResults | Group-Object -Property Severity -NoElement
+          $PSSAResults | Group-Object -Property Severity -NoElement | ConvertTo-Json -Compress | Set-Content -LiteralPath 'COMMENTBODY.json'
         shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
 
-      - uses: actions/github-script@0.2.0
-        with:
-          github-token: ${{github.token}}
-          script: |
-            github.repos.createCommitComment({...context.commit_id, body: 'test'})
+      - name: Add commit comment
+        run: |
+          curl -sL --data @COMMENTBODY.json \
+            -H "Content-Type: application/json" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/comments"
