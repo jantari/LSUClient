@@ -31,4 +31,4 @@ jobs:
         with:
           github-token: ${{github.token}}
           script: |
-            github.repos.createCommitComment({...context.commit, body: 'test'})
+            github.repos.createCommitComment({...context.commit_id, body: 'test'})
