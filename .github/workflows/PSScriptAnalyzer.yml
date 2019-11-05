@@ -22,15 +22,17 @@ jobs:
         run: |
           Import-Module PSScriptAnalyzer
           $PSSAResults = Invoke-ScriptAnalyzer -Path "$ENV:GITHUB_WORKSPACE" -ExcludeRule PSAvoidTrailingWhitespace -Recurse
-          $SUMMARY    = ($PSSAResults | Group-Object -Property Severity -NoElement | Foreach-Object { "$($_.Count) - $($_.Name)" }) -join [Environment]::NewLine
+          $SUMMARY    = ($PSSAResults | Group-Object -Property Severity -NoElement | Foreach-Object { "- $($_.Count) $($_.Name)" }) -join [Environment]::NewLine
           $DETAILS    = ($PSSAResults | Format-List | Out-String).Trim()
-          $STRINGBODY = "PSScriptAnalyzer Results as of this commit:
+          $STRINGBODY = "PSScriptAnalyzer results as of this commit:
 
           $SUMMARY
 
-          <details><summary>See Details</summary>
+          <details><summary>See details</summary>
           <p>
+          ```
           $DETAILS
+          ```
           </p>
           </details>
           " | ConvertTo-Json -Compress
