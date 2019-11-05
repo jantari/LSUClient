@@ -3,16 +3,19 @@ name: Run PSScriptAnalyzer
 on: [push]
 
 jobs:
-  build:
+  PSSA:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
 
     - name: Install PSScriptAnalyzer Module
       run : |
-        pwsh -Command "Set-PSRepository -Name PSGallery -InstallationPolicy Trusted"
-        pwsh -Command "Install-Module -Name PSScriptAnalyzer -AcceptLicense -Confirm:\$false"
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+        Install-Module PSScriptAnalyzer -Scope AllUsers -Repository PSGallery
+      shell: pwsh
 
     - name: Run PSScriptAnalyzer
       run : |
-        pwsh -Command "Import-Module PSScriptAnalyzer; Invoke-ScriptAnalyzer -Path '.\' -ReportSummary -ExcludeRule PSAvoidTrailingWhitespace"
+        Import-Module PSScriptAnalyzer
+        Invoke-ScriptAnalyzer -Path '.\' -ReportSummary -ExcludeRule PSAvoidTrailingWhitespace"
+      shell: pwsh
