@@ -15,6 +15,7 @@
     #>
 
     [CmdletBinding()]
+    [OutputType('System.Boolean')]
     Param (
         [ValidateNotNullOrEmpty()]
         [ValidateScript({ [System.IO.File]::Exists($_) })]

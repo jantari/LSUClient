@@ -1,4 +1,5 @@
 function Resolve-CmdVariable {
+    [OutputType('System.String')]
     Param (
         [ValidateNotNullOrEmpty()]
         [Parameter( Mandatory = $true )]

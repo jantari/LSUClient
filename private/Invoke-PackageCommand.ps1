@@ -1,4 +1,5 @@
 ﻿function Invoke-PackageCommand {
+    [CmdletBinding()]
     Param (
         [ValidateNotNullOrEmpty()]
         [string]$Path,

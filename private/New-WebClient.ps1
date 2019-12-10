@@ -1,4 +1,5 @@
 ﻿function New-WebClient {
+    [OutputType('System.Net.WebClient')]
     Param (
         [Uri]$Proxy,
         [pscredential]$ProxyCredential,
