@@ -8,7 +8,7 @@
     )
 
     # PSSA doesn't like Write-Host but we definitely don't want this to be returned by the function
-    [Console]::WriteLine("Raw Package-Command is '$Command'")
+    Write-Verbose "Raw Package-Command is '$Command'"
 
     $Command = Resolve-CmdVariable -StringToEcho $Command -ExtraVariables @{'PACKAGEPATH' = "$Path"}
 
@@ -17,7 +17,7 @@
     # the CLI arguments, but instead have to manually escape unescaped ampersands.
     $Command = $Command -replace '(?<!\^)&', '^&'
 
-    [Console]::WriteLine("Command with vars resolved is '$Command'")
+    Write-Verbose "Command with vars resolved is '$Command'"
 
     $ExeAndArgs = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
     $ExeAndArgs | Format-List | Out-Host
