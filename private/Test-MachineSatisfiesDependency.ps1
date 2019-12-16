@@ -31,11 +31,18 @@
                 return -2
             }
 
-            foreach ($HardwareID in $Dependency.HardwareID.'#cdata-section') {
-                if ($CachedHardwareTable['_PnPID'].HardwareID -notcontains "$HardwareID") {
-                    continue
-                }
+            [bool]$HardwareFound = $false
 
+            foreach ($HardwareInMachine in $CachedHardwareTable['_PnPID'].HardwareID) {
+                foreach ($HardwareID in $Dependency.HardwareID.'#cdata-section') {
+                    # Lenovo HardwareIDs can contain wildcards (*) so we have to compare with "-like"
+                    if ($HardwareInMachine -like "$HardwareID") {
+                        $HardwareFound = $true
+                    }
+                }
+            }
+
+            if ($HardwareFound) {
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Date') {
                     $LenovoDate = [DateTime]::new(0)
                     if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
@@ -47,7 +54,7 @@
                         Write-Verbose "Got unsupported date format from Lenovo: '$($Dependency.Date)' (expected yyyy-MM-dd)"
                     }
                 }
-
+    
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Version') {
                     $DriverVersion = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareID" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
                     # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
@@ -58,6 +65,7 @@
                     }
                 }
             }
+
             return -1
         }
         '_EmbeddedControllerVersion' {
