@@ -125,9 +125,10 @@
             'Extracter'    = $packageXML.Package
             'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $packageURL.category)
             'IsApplicable' = Resolve-XMLDependencies -PackageID $packageXML.Package.id -XML $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
+            'IsInstalled'  = Resolve-XMLDependencies -PackageID $packageXML.Package.id -XML $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
         }
 
-        if ($All -or $packageObject.IsApplicable) {
+        if ($All -or ($packageObject.IsApplicable -and $packageObject.IsInstalled -eq $false)) {
             $packageObject
         }
 

@@ -41,6 +41,7 @@ class LenovoPackage {
     [PackageExtractInfo]$Extracter
     [PackageInstallInfo]$Installer
     [bool]$IsApplicable
+    [bool]$IsInstalled
 }
 
 class PackageExtractInfo {

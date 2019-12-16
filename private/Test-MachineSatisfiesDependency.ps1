@@ -79,6 +79,16 @@
             [string]$Path = Resolve-CmdVariable -StringToEcho $Dependency -ExtraVariables @{'WINDOWS' = $env:SystemRoot}
             return (Test-Path -LiteralPath $Path -PathType Leaf)
         }
+        '_FileVersion' {
+            # This may not be 100% yet as Lenovo sometimes uses some non-system environment variables in their file paths
+            [string]$Path = Resolve-CmdVariable -StringToEcho $Dependency -ExtraVariables @{'WINDOWS' = $env:SystemRoot}
+            if (Test-Path -LiteralPath $Path -PathType Leaf) {
+                $filVersion = (Get-Item -LiteralPath $Path).VersionInfo.FileVersion
+                return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $filVersion)
+            } else {
+                return -1
+            }
+        }
         '_OS' {
             foreach ($entry in $Dependency.OS) {
                 if ("$entry" -like "${CachedHardwareTable['_OS']}*") {
@@ -117,7 +127,7 @@
 
             if (Test-Path -LiteralPath ('Microsoft.PowerShell.Core\Registry::{0}' -f $Dependency.Key) -PathType Container) {
                 try {
-                    $regVersion = Get-ItemPropertyValue -LiteralPath ('Microsoft.PowerShell.Core\Registry::{0}' -f $Dependency.Key) -Name $Dependency.KeyName
+                    $regVersion = Get-ItemPropertyValue -LiteralPath ('Microsoft.PowerShell.Core\Registry::{0}' -f $Dependency.Key) -Name $Dependency.KeyName -ErrorAction Stop
                 }
                 catch {
                     return -1
@@ -131,4 +141,6 @@
             return -2
         }
     }
+
+    return -2
 }
