@@ -11,7 +11,7 @@
     # PSSA doesn't like Write-Host but we definitely don't want this to be returned by the function
     Write-Verbose "Raw Package-Command is '$Command'"
 
-    $Command = Resolve-CmdVariable -StringToEcho $Command -ExtraVariables @{'PACKAGEPATH' = "$Path"}
+    $Command = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "$Path"}
 
     # In some cases (n1cgf02w for the T460s) Lenovo does not escape the & symbol in a command,
     # but other times (n1olk08w for the X1 Tablet 2nd Gen) they do! This means I cannot double-quote

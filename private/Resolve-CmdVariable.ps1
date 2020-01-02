@@ -3,25 +3,21 @@ function Resolve-CmdVariable {
     Param (
         [ValidateNotNullOrEmpty()]
         [Parameter( Mandatory = $true )]
-        [string]$StringToEcho,
+        [string]$String,
         [Hashtable]$ExtraVariables
     )
-
-    $process                                  = [System.Diagnostics.Process]::new()
-    $process.StartInfo.WindowStyle            = [System.Diagnostics.ProcessWindowStyle]::Hidden
-    $process.StartInfo.FileName               = 'cmd.exe'
-    $process.StartInfo.UseShellExecute        = $false
-    $process.StartInfo.RedirectStandardOutput = $true
-    $process.StartInfo.Arguments              = "/D /C echo `"$StringToEcho`" 2> nul"
-    if ($extraVariables) {
-        foreach ($extraVariable in $ExtraVariables.GetEnumerator()) {
-            $process.StartInfo.Environment[$extraVariable.Key] = $extraVariable.Value
-        }
+    
+    if ($String.Contains('%')) {
+        $String = [Regex]::Replace($String, "%([^%]+)%", {
+            if ($ExtraVariables.ContainsKey($args.Groups[1].Value)) {
+                $ExtraVariables.get_Item($args.Groups[1].Value)
+            } elseif ($value = [Environment]::GetEnvironmentVariable($args.Groups[1].Value)) {
+                $value
+            } else {
+                $args.Value
+            }
+        })
     }
-    $null = $process.Start()
-    $process.WaitForExit()
 
-    $out = $process.StandardOutput.ReadToEnd().Trim() -replace '^"' -replace '"$'
-
-    return $out
+    return $String
 }
