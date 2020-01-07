@@ -114,7 +114,7 @@
         }
         '_PnPID' {
             foreach ($HardwareID in $CachedHardwareTable['_PnPID'].HardwareID) {
-                if ($HardwareID -like "$($Dependency.'#cdata-section')*") {
+                if ($HardwareID -like "*$($Dependency.'#cdata-section')*") {
                     return 0
                 }
             }
