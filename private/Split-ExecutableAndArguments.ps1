@@ -20,15 +20,15 @@
 
         if ( [System.IO.File]::Exists($testPath) ) {
             return [PSCustomObject]@{
-                "EXECUTABLE" = "$testPath"
-                "ARGUMENTS"  = "$($pathParts | Select-Object -Skip ($i + 1))"
+                "Executable" = "$testPath"
+                "Arguments"  = "$($pathParts | Select-Object -Skip ($i + 1))"
             }
         }
 
         if ( [System.IO.File]::Exists($testPathWasRelative) ) {
             return [PSCustomObject]@{
-                "EXECUTABLE" = "$testPathWasRelative"
-                "ARGUMENTS"  = "$($pathParts | Select-Object -Skip ($i + 1))"
+                "Executable" = "$testPathWasRelative"
+                "Arguments"  = "$($pathParts | Select-Object -Skip ($i + 1))"
             }
         }
     }

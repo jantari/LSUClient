@@ -6,18 +6,16 @@ function Resolve-CmdVariable {
         [string]$String,
         [Hashtable]$ExtraVariables
     )
-    
-    if ($String.Contains('%')) {
-        $String = [Regex]::Replace($String, "%([^%]+)%", {
-            if ($ExtraVariables.ContainsKey($args.Groups[1].Value)) {
-                $ExtraVariables.get_Item($args.Groups[1].Value)
-            } elseif ($value = [Environment]::GetEnvironmentVariable($args.Groups[1].Value)) {
-                $value
-            } else {
-                $args.Value
-            }
-        })
+
+    foreach ($Variable in $ExtraVariables.GetEnumerator()) {
+        [System.Environment]::SetEnvironmentVariable($Variable.Key, $Variable.Value, 'Process')
     }
 
-    return $String
+    [string]$ResolvedVars = [System.Environment]::ExpandEnvironmentVariables($String)
+
+    foreach ($Variable in $ExtraVariables.GetEnumerator()) {
+        [System.Environment]::SetEnvironmentVariable($Variable.Key, '', 'Process')
+    }
+
+    return $ResolvedVars
 }

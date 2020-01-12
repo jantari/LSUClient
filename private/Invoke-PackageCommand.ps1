@@ -8,26 +8,21 @@
         [string]$Command
     )
 
-    # PSSA doesn't like Write-Host but we definitely don't want this to be returned by the function
     Write-Verbose "Raw Package-Command is '$Command'"
 
-    $Command = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "$Path"}
-
-    # In some cases (n1cgf02w for the T460s) Lenovo does not escape the & symbol in a command,
-    # but other times (n1olk08w for the X1 Tablet 2nd Gen) they do! This means I cannot double-quote
-    # the CLI arguments, but instead have to manually escape unescaped ampersands.
-    $Command = $Command -replace '(?<!\^)&', '^&'
-
-    Write-Verbose "Command with vars resolved is '$Command'"
-
-    $ExeAndArgs = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
-    $ExeAndArgs | Format-List | Out-Host
+    $Command        = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "$Path\"}
+    $Command        = $Command -replace '(?<!\^)&', '^&'
+    $ExeAndArgs     = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
+    $output         = [String]::Empty
+    $processStarted = $false
 
     # Get a random non-existant file name to capture cmd output to
     do {
         [string]$LogFilePath = Join-Path -Path $Path -ChildPath ( [System.IO.Path]::GetRandomFileName() )
     } until ( -not [System.IO.File]::Exists($LogFilePath) )
 
+    # We cannot simply use CreateProcess API and redirect the output handles
+    # because that causes packages like u3aud03w_w10 (Conexant USB Audio) to hang indefinitely
     $process                            = [System.Diagnostics.Process]::new()
     $process.StartInfo.WindowStyle      = [System.Diagnostics.ProcessWindowStyle]::Hidden
     $process.StartInfo.UseShellExecute  = $true
@@ -35,14 +30,10 @@
     $process.StartInfo.FileName         = 'cmd.exe'
     $process.StartInfo.Arguments        = '/D /C ""{0}" {1} 2>&1 1>"{2}""' -f $ExeAndArgs.Executable, $ExeAndArgs.Arguments, $LogFilePath
 
-    $return = $null
-    $output = [String]::Empty
-    [bool]$processStarted = $false
-
     try {
         $processStarted = $process.Start()
     }
-    catch [System.Management.Automation.MethodInvocationException] {
+    catch {
         Write-Warning $_
     }
 
