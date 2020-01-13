@@ -25,7 +25,7 @@
     $process.StartInfo.WindowStyle      = [System.Diagnostics.ProcessWindowStyle]::Hidden
     $process.StartInfo.UseShellExecute  = $true
     $process.StartInfo.WorkingDirectory = $Path
-    $process.StartInfo.FileName         = 'cmd.exe'
+    $process.StartInfo.FileName         = $env:ComSpec
     $process.StartInfo.Arguments        = '/D /C ""{0}" {1} 2>&1 1>"{2}""' -f $ExeAndArgs.Executable, $ExeAndArgs.Arguments, $LogFilePath
 
     try {
