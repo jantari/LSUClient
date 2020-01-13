@@ -8,8 +8,6 @@
         [string]$Command
     )
 
-    Write-Verbose "Raw Package-Command is '$Command'"
-
     $Command        = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "$Path\"}
     $Command        = $Command -replace '(?<!\^)&', '^&'
     $ExeAndArgs     = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
@@ -55,8 +53,6 @@
         'Output'   = $output
         'ExitCode' = $process.ExitCode
     }
-
-    $return | Format-List | Out-Host
 
     return $return
 }

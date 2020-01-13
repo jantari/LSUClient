@@ -60,7 +60,6 @@
                     $DriverVersion = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
                     # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
                     if ($DriverVersion) {
-                        Write-Verbose "_Driver version compare: WANT:( $($Dependency.Version) ), HAVE:( $DriverVersion )"
                         return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion)
                     } else {
                         Write-Verbose "HardwareID '$HardwareID' does not report its driver version. Returning unsupported -2"
