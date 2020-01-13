@@ -89,7 +89,7 @@
         }
         '_FileVersion' {
             # This may not be 100% yet as Lenovo sometimes uses some non-system environment variables in their file paths
-            [string]$Path = Resolve-CmdVariable -String $Dependency -ExtraVariables @{'WINDOWS' = $env:SystemRoot}
+            [string]$Path = Resolve-CmdVariable -String $Dependency.File -ExtraVariables @{'WINDOWS' = $env:SystemRoot}
             if (Test-Path -LiteralPath $Path -PathType Leaf) {
                 $filVersion = (Get-Item -LiteralPath $Path).VersionInfo.FileVersion
                 return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $filVersion)
