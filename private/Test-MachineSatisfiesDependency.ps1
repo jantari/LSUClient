@@ -36,8 +36,9 @@
             foreach ($HardwareInMachine in $CachedHardwareTable['_PnPID'].HardwareID) {
                 foreach ($HardwareID in $Dependency.HardwareID.'#cdata-section') {
                     # Lenovo HardwareIDs can contain wildcards (*) so we have to compare with "-like"
-                    if ($HardwareInMachine -like "$HardwareID") {
-                        $HardwareFound = $true
+                    if ($HardwareInMachine -like "*$HardwareID*") {
+                        $HardwareFound   = $true
+                        $HardwareIDFound = $HardwareInMachine
                     }
                 }
             }
@@ -46,7 +47,7 @@
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Date') {
                     $LenovoDate = [DateTime]::new(0)
                     if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
-                        $DriverDate = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareID" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
+                        $DriverDate = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
                         if ($DriverDate -eq $LenovoDate) {
                             return 0 # SUCCESS
                         }
@@ -56,14 +57,18 @@
                 }
     
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Version') {
-                    $DriverVersion = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareID" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
+                    $DriverVersion = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
                     # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
                     if ($DriverVersion) {
+                        Write-Verbose "_Driver version compare: WANT:( $($Dependency.Version) ), HAVE:( $DriverVersion )"
                         return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion)
                     } else {
+                        Write-Verbose "HardwareID '$HardwareID' does not report its driver version. Returning unsupported -2"
                         return -2
                     }
                 }
+            } else {
+                Write-Verbose "Hardware IDs specified by _Driver not present in system."
             }
 
             return -1

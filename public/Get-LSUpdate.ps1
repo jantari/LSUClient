@@ -115,7 +115,7 @@
             if ($DebugLogFile) {
                 Add-Content -LiteralPath $DebugLogFile -Value "Parsing dependencies for package: $($packageXML.Package.id)`r`n"
             }
-    
+
             $packageObject = [LenovoPackage]@{
                 'ID'           = $packageXML.Package.id
                 'Category'     = $packageURL.category
@@ -127,9 +127,9 @@
                 'URL'          = $packageURL.location
                 'Extracter'    = $packageXML.Package
                 'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $packageURL.category)
-                'IsApplicable' = Resolve-XMLDependencies -PackageID $packageXML.Package.id -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
+                'IsApplicable' = Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
                 'IsInstalled'  = if ($packageXML.Package.DetectInstall) {
-                    Resolve-XMLDependencies -PackageID $packageXML.Package.id -XMLIN $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
+                    Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
                 } else {
                     Write-Verbose "Package $($packageURL.location) doesn't have a DetectInstall section"
                     0

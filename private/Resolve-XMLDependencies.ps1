@@ -1,6 +1,5 @@
 ﻿function Resolve-XMLDependencies {
     Param (
-        [string]$PackageID,
         [Parameter ( Mandatory = $true )]
         [ValidateNotNullOrEmpty()]
         $XMLIN,
