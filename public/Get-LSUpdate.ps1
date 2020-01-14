@@ -118,12 +118,12 @@
 
             $packageObject = [LenovoPackage]@{
                 'ID'           = $packageXML.Package.id
-                'Category'     = $packageURL.category
                 'Title'        = $packageXML.Package.Title.Desc.'#text'
+                'Category'     = $packageURL.category
                 'Version'      = if ([Version]::TryParse($packageXML.Package.version, [ref]$null)) { $packageXML.Package.version } else { '0.0.0.0' }
-                'Vendor'       = $packageXML.Package.Vendor
                 'Severity'     = $packageXML.Package.Severity.type
                 'RebootType'   = $packageXML.Package.Reboot.type
+                'Vendor'       = $packageXML.Package.Vendor
                 'URL'          = $packageURL.location
                 'Extracter'    = $packageXML.Package
                 'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $packageURL.category)

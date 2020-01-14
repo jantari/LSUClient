@@ -31,12 +31,12 @@ $script:CachedHardwareTable = @{
 
 class LenovoPackage {
     [string]$ID
-    [string]$Category
     [string]$Title
+    [string]$Category
     [version]$Version
-    [string]$Vendor
     [Severity]$Severity
     [int]$RebootType
+    [string]$Vendor
     [Uri]$URL
     [PackageExtractInfo]$Extracter
     [PackageInstallInfo]$Installer

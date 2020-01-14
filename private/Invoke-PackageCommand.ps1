@@ -8,11 +8,11 @@
         [string]$Command
     )
 
-    $Command        = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "$Path\"}
-    $Command        = $Command -replace '(?<!\^)&', '^&'
-    $ExeAndArgs     = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
-    $output         = [String]::Empty
-    $processStarted = $false
+    $Command              = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "$Path\"}
+    $ExeAndArgs           = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
+    $ExeAndArgs.Arguments = Assert-CmdAmpersandEscaped -String $ExeAndArgs.Arguments
+    $output               = [String]::Empty
+    $processStarted       = $false
 
     # Get a random non-existant file name to capture cmd output to
     do {

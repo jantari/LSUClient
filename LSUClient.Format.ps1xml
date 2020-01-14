@@ -2,7 +2,7 @@
 <Configuration>
   <ViewDefinitions>
     <View>
-      <Name>LenovoPackage</Name>
+      <Name>LenovoPackageTable</Name>
       <ViewSelectedBy>
         <TypeName>LenovoPackage</TypeName>
       </ViewSelectedBy>
@@ -42,6 +42,47 @@
           </TableRowEntry>
         </TableRowEntries>
       </TableControl>
+    </View>
+    <View>
+      <Name>LenovoPackageList</Name>
+      <ViewSelectedBy>
+        <TypeName>LenovoPackage</TypeName>
+      </ViewSelectedBy>
+      <ListControl>
+        <ListEntries>
+          <ListEntry>
+            <ListItems>
+              <ListItem>
+                <PropertyName>ID</PropertyName>
+              </ListItem>
+              <ListItem>
+                <PropertyName>Title</PropertyName>
+              </ListItem>
+              <ListItem>
+                <PropertyName>Category</PropertyName>
+              </ListItem>
+              <ListItem>
+                <PropertyName>Version</PropertyName>
+              </ListItem>
+              <ListItem>
+                <PropertyName>Severity</PropertyName>
+              </ListItem>
+              <ListItem>
+                <PropertyName>Extracter</PropertyName>
+              </ListItem>
+              <ListItem>
+                <PropertyName>Installer</PropertyName>
+              </ListItem>
+              <ListItem>
+                <PropertyName>IsApplicable</PropertyName>
+              </ListItem>
+              <ListItem>
+                <PropertyName>IsInstalled</PropertyName>
+              </ListItem>
+            </ListItems>
+          </ListEntry>
+        </ListEntries>
+      </ListControl>
     </View>
   </ViewDefinitions>
 </Configuration>

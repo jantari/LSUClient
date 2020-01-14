@@ -66,8 +66,6 @@
                         return -2
                     }
                 }
-            } else {
-                Write-Verbose "Hardware IDs specified by _Driver not present in system."
             }
 
             return -1
