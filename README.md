@@ -28,21 +28,33 @@ Install-Module -Name 'LSUClient'
 
 ## Examples and tips
 
-### Typical use for one's own computer:
+<b>Typical use for one's own computer:</b>
 ```powershell
 $updates = Get-LSUpdate
 $updates | Save-LSUpdate -ShowProgress
 $updates | Install-LSUpdate -Verbose
 ```
 
-### To select only packages that can be installed silently and non-interactively:
+<b>To select only packages that can be installed silently and non-interactively:</b>
 ```powershell
 $updates = Get-LSUpdate | Where-Object { $_.Installer.Unattended }
 $updates | Save-LSUpdate -Verbose
 $updates | Install-LSUpdate -Verbose
 ```
 
-### Dealing with BIOS/UEFI updates (Version 1.0.2+ only)
+By default, `Get-LSUpdate` only returns "needed" updates. Needed updates are those
+that are applicable to the system but not yet installed. To get all available packages instead,
+use `Get-LSUpdate -All`. If you later want to filter out unneeded packages, just check the
+`IsApplicable` and `IsInstalled` properties. The default logic is equivalent to:
+`Get-LSUpdate -All | Where-Object { $_.IsApplicable -and -not $_.IsInstalled }`
+
+### To get all possible updates and apply custom logic to decide which ones to install:
+```powershell
+$updates = Get-LSUpdate -All
+```
+If you do this, take note of the `IsApplicable` and `IsInstalled` properties.
+
+### Dealing with BIOS/UEFI updates
 
 It is important to know that some Lenovo computers require a reboot to apply BIOS updates while other models require a shutdown - the BIOS will then wake the machine from the power-off state, apply the update and boot into Windows.
 So as to not interrupt a deployment or someone working, this module will never initiate reboots or shutdowns on its own - however it's easy for you to:
@@ -64,11 +76,6 @@ For more details, available parameters and guidance on how to use them run `Get-
 
 ## Misc
 
+- Only Windows 10 is supported.
 - This module does not clean up downloaded packages at any point. This is by design as it checks for previously downloaded packages and skips them. The default download location is `$env:TEMP\LSUPackages` - you may delete it yourself
-- Only Windows 10 is supported. Windows 7 compatibility is theoretically feasible for as long as Lenovo provides support for it, but I won't do it. This module makes use of modern PowerShell and modern Windows features and I personally have no interest in Windows 7.
-- If you explicitly `Save-LSUpdate` before using `Install-LSUpdate` the whole operation will be faster because when calling `Save-LSUpdate` directly it downloads the packages in parallel, but calling `Install-LSUpdate` first will download then install each package after the other
-- The Module currently does not check whether an available update has already been installed. This will lead to some of the same updates being found every time you run it - reinstalling a driver does not hurt or will sometimes simply fail - see [issue #4][issue4]
-
-
-
-[issue4]: https://github.com/jantari/LSUClient/issues/4
+- If you explicitly `Save-LSUpdate` before using `Install-LSUpdate` the whole operation will be faster because when calling `Save-LSUpdate` explicitly it downloads the packages in parallel, but calling `Install-LSUpdate` first will download then install each package after the other
