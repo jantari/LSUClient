@@ -35,24 +35,21 @@ $updates | Save-LSUpdate -ShowProgress
 $updates | Install-LSUpdate -Verbose
 ```
 
-<b>To select only packages that can be installed silently and non-interactively:</b>
+<b>To get only packages that can be installed silently and non-interactively:</b>
 ```powershell
 $updates = Get-LSUpdate | Where-Object { $_.Installer.Unattended }
 $updates | Save-LSUpdate -Verbose
 $updates | Install-LSUpdate -Verbose
 ```
 
-By default, `Get-LSUpdate` only returns "needed" updates. Needed updates are those
-that are applicable to the system but not yet installed. To get all available packages instead,
-use `Get-LSUpdate -All`. If you later want to filter out unneeded packages, just check the
-`IsApplicable` and `IsInstalled` properties. The default logic is equivalent to:
-`Get-LSUpdate -All | Where-Object { $_.IsApplicable -and -not $_.IsInstalled }`
-
-### To get all possible updates and apply custom logic to decide which ones to install:
+<b>To get all available packages:</b>
 ```powershell
 $updates = Get-LSUpdate -All
 ```
-If you do this, take note of the `IsApplicable` and `IsInstalled` properties.
+By default, `Get-LSUpdate` only returns "needed" updates. Needed updates are those that are applicable to the system
+and not yet installed. If you want to see all available packages instead, use `Get-LSUpdate -All`. To filter out
+unneeded packages later, just look at the `IsApplicable` and `IsInstalled` properties. The default logic is equivalent to:
+`Get-LSUpdate -All | Where-Object { $_.IsApplicable -and -not $_.IsInstalled }`
 
 ### Dealing with BIOS/UEFI updates
 
