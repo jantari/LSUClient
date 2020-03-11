@@ -6,6 +6,7 @@
     #>
 
     [CmdletBinding()]
+    [OutputType('System.SByte')]
     Param (
         [ValidateNotNullOrEmpty()]
         [string]$LenovoString,
