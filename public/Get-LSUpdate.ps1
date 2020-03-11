@@ -77,7 +77,13 @@
     
         # Downloading with Net.WebClient seems to remove the BOM automatically, this only seems to be neccessary when downloading with IWR. Still I'm leaving it in to be safe
         [xml]$PARSEDXML = $COMPUTERXML -replace "^$UTF8ByteOrderMark"
-    
+
+        [array]$CoreQList = foreach ($package in $PARSEDXML.packages.package) {
+            $rawPackageXML = $webClient.DownloadString($package.location)
+            [xml]$packageXML = $rawPackageXML -replace "^$UTF8ByteOrderMark"
+            $packageXML.package.name
+        }
+
         Write-Verbose "A total of $($PARSEDXML.packages.count) driver packages are available for this computer model."    
     }
 
@@ -113,21 +119,28 @@
             }
     
             if ($DebugLogFile) {
-                Add-Content -LiteralPath $DebugLogFile -Value "Parsing dependencies for package: $($packageXML.Package.id)`r`n"
+                Add-Content -LiteralPath $DebugLogFile -Value "`r`nParsing dependencies for package: $($packageXML.Package.id)"
             }
 
+            Write-Host "Parsing dependencies for package: $($packageXML.Package.id) ($($packageXML.Package.name))"
+
+            [Hashtable]$DependsOn = @{}
+            $IsApplicable     = Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile -DependsOnPackages $DependsOn
+
             $packageObject = [LenovoPackage]@{
+                'Name'         = $packageXML.Package.name
                 'ID'           = $packageXML.Package.id
                 'Title'        = $packageXML.Package.Title.Desc.'#text'
                 'Category'     = $packageURL.category
-                'Version'      = if ([Version]::TryParse($packageXML.Package.version, [ref]$null)) { $packageXML.Package.version } else { '0.0.0.0' }
+                'Version'      = $packageXML.Package.version
                 'Severity'     = $packageXML.Package.Severity.type
                 'RebootType'   = $packageXML.Package.Reboot.type
                 'Vendor'       = $packageXML.Package.Vendor
                 'URL'          = $packageURL.location
                 'Extracter'    = $packageXML.Package
                 'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $packageURL.category)
-                'IsApplicable' = Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
+                'DependsOn'    = $DependsOn
+                'IsApplicable' = $IsApplicable
                 'IsInstalled'  = if ($packageXML.Package.DetectInstall) {
                     Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
                 } else {

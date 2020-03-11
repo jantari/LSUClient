@@ -2,6 +2,7 @@
     Param (
         [ValidateNotNullOrEmpty()]
         [System.Xml.XmlElement]$Dependency,
+        $DependsOnPackages,
         [string]$DebugLogFile
     )
 
@@ -17,6 +18,14 @@
                 }
             }
             return -1
+        }
+        '_Coreq' {
+            Write-Host "COREQ DEPENDENCY ON: $($Dependency.name)"
+            if ($CoreQList -notcontains $Dependency.name) {
+                Write-Warning "A package depends on the package $($Dependency.name) which is not available."
+                return -1
+            }
+            $DependsOnPackages[$Dependency.name] = $Dependency.Version
         }
         '_CPUAddressWidth' {
             if ($CachedHardwareTable['_CPUAddressWidth'] -like "$($Dependency.AddressWidth)*") {

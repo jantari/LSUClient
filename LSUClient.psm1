@@ -30,16 +30,18 @@ $script:CachedHardwareTable = @{
 [int]$script:XMLTreeDepth = 0
 
 class LenovoPackage {
+    [string]$Name
     [string]$ID
     [string]$Title
     [string]$Category
-    [version]$Version
+    [string]$Version
     [Severity]$Severity
     [int]$RebootType
     [string]$Vendor
     [Uri]$URL
     [PackageExtractInfo]$Extracter
     [PackageInstallInfo]$Installer
+    [Hashtable]$DependsOn
     [bool]$IsApplicable
     [bool]$IsInstalled
 }

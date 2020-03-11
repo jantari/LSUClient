@@ -62,6 +62,7 @@
                         $InstallCMD     = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
                         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
                         if ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
+                            $FailureDetails = "ExitCode: $($installProcess.ExitCode){0}" -f $installProcess.Output
                             Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List | Out-String)"
                         }
                     }

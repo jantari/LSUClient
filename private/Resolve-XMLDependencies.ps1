@@ -3,6 +3,7 @@
         [Parameter ( Mandatory = $true )]
         [ValidateNotNullOrEmpty()]
         $XMLIN,
+        [Hashtable]$DependsOnPackages,
         [switch]$FailUnsupportedDependencies,
         [string]$DebugLogFile
     )
@@ -23,7 +24,7 @@
         }
         
         $Result = if ($XMLTREE.SchemaInfo.Name -like "_*") {
-            switch (Test-MachineSatisfiesDependency -Dependency $XMLTREE) {
+            switch (Test-MachineSatisfiesDependency -Dependency $XMLTREE -DependsOnPackages:$DependsOnPackages) {
                 0 {
                     $true
                 }
@@ -38,7 +39,7 @@
                 }
             }
         } else {
-            $SubtreeResults = Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
+            $SubtreeResults = Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile -DependsOnPackages:$DependsOnPackages
             switch ($XMLTREE.SchemaInfo.Name) {
                 'And' {
                     if ($DebugLogFile) {

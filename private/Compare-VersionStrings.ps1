@@ -5,12 +5,16 @@
         version requirements and does the comparison. Returns 0, -1 or -2.
     #>
 
+    [CmdletBinding()]
     Param (
         [ValidateNotNullOrEmpty()]
         [string]$LenovoString,
         [ValidateNotNullOrEmpty()]
         [string]$SystemString
     )
+
+    Write-Host "LENOVO-STRING: $LenovoString" -ForegroundColor Magenta
+    Write-Host "SYSTEM-STRING: $SystemString" -ForegroundColor Magenta
 
     [bool]$LenovoStringIsVersion = [Version]::TryParse( $LenovoString, [ref]$null )
     [bool]$SystemStringIsVersion = [Version]::TryParse( $SystemString, [ref]$null )
@@ -40,10 +44,14 @@
         
         switch -Wildcard ($LenovoString) {
             "^*" {
+                Write-Verbose "SystemVersion: '$SystemVersion'"
+                Write-Verbose "Up to and including '$LenovoVersion'"
                 # Means up to and including
                 if ($SystemVersion -le $LenovoVersion) {
+                    Write-Verbose "returning 0!"
                     return 0
                 } else {
+                    Write-Verbose "returning -1!"
                     return -1
                 }
             }

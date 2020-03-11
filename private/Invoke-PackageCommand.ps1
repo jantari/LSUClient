@@ -38,7 +38,7 @@
     if ($processStarted) {
         $process.WaitForExit()
     } else {
-        Write-Warning "A process failed to start."
+        Write-Warning "A process failed to start: $($ExeAndArgs.Executable)"
     }
 
     if ([System.IO.File]::Exists($LogFilePath)) {
@@ -49,10 +49,8 @@
         Remove-Item -LiteralPath $LogFilePath
     }
 
-    $return = [PSCustomObject]@{
+    return [PSCustomObject]@{
         'Output'   = $output
         'ExitCode' = $process.ExitCode
     }
-
-    return $return
 }
