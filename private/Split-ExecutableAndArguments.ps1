@@ -20,14 +20,14 @@
 
         if ( [System.IO.File]::Exists($testPath) ) {
             return [PSCustomObject]@{
-                "Executable" = "$testPath"
+                "Executable" = [System.IO.Path]::GetFullPath($testPath)
                 "Arguments"  = "$($pathParts | Select-Object -Skip ($i + 1))"
             }
         }
 
         if ( [System.IO.File]::Exists($testPathWasRelative) ) {
             return [PSCustomObject]@{
-                "Executable" = "$testPathWasRelative"
+                "Executable" =  [System.IO.Path]::GetFullPath($testPathWasRelative)
                 "Arguments"  = "$($pathParts | Select-Object -Skip ($i + 1))"
             }
         }
