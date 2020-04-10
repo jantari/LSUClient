@@ -11,12 +11,12 @@
         if ($Package.Extracter.Command) {
             $extractionProcess = Invoke-PackageCommand -Path $Path -Command $Package.Extracter.Command
             if ($extractionProcess.ExitCode -ne 0) {
-                Write-Warning "Extraction of package $($PackageToProcess.ID) may have failed!`r`n"
+                Write-Warning "Extraction of package $($Package.ID) may have failed!`r`n"
             }
         } else {
-            Write-Verbose "This package does not require extraction."
+            Write-Verbose "The package '$($Package.ID)' does not require extraction.`r`n"
         }
     } else {
-        Write-Warning "This package was not downloaded or deleted (empty folder), skipping extraction ...`r`n"
+        Write-Warning "The package '$($Package.ID)' could not be found, skipping extraction ...`r`n"
     }
 }
