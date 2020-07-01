@@ -24,7 +24,7 @@ $script:CachedHardwareTable = @{
     '_CPUAddressWidth'           = [wmisearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
     '_Bios'                      = (Get-CimInstance -ClassName Win32_BIOS).SMBIOSBIOSVersion
     '_PnPID'                     = @(Get-PnpDevice)
-    '_EmbeddedControllerVersion' = [Regex]::Match((Get-CimInstance -ClassName Win32_BIOS).SMBIOSBIOSVersion, "(?<=\()[\d\.]+").Value
+    '_EmbeddedControllerVersion' = (Get-ItemPropertyValue -Path "HKLM:\HARDWARE\DESCRIPTION\System\BIOS" -Name ECFirmwareMajorRelease, ECFirmwareMinorRelease) -join '.'
 }
 
 [int]$script:XMLTreeDepth = 0
