@@ -39,7 +39,7 @@
             if ($PackageToProcess.Category -eq 'BIOS UEFI') {
                 # We are dealing with a BIOS Update
                 [BiosUpdateInfo]$BIOSUpdateExit = Install-BiosUpdate -PackageDirectory $PackageDirectory
-                if ($BIOSUpdateExit.WasRun -eq $true) {
+                if ($BIOSUpdateExit) {
                     if ($BIOSUpdateExit.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
                         Write-Warning "Unattended BIOS/UEFI update FAILED with return code $($BIOSUpdateExit.ExitCode)!`r`n"
                         if ($BIOSUpdateExit.LogMessage) {
@@ -61,7 +61,9 @@
                         # Correct typo from Lenovo ... yes really...
                         $InstallCMD     = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
                         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
-                        if ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
+                        if (-not $installProcess) {
+                            Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED"
+                        } elseif ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
                             Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List | Out-String)"
                         }
                     }

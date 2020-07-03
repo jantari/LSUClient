@@ -1,4 +1,9 @@
 ﻿function Invoke-PackageCommand {
+    <#
+        .SYNOPSIS
+        Tries to run a command, returns its ExitCode and Output if successful, otherwise returns NULL
+    #>
+
     [CmdletBinding()]
     Param (
         [ValidateNotNullOrEmpty()]
@@ -11,11 +16,17 @@
     # Lenovo sometimes forgets to put a directory separator betweeen %PACKAGEPATH% and the executable so make sure it's there
     # If we end up with two backslashes, Split-ExecutableAndArguments removes the duplicate from the executable path, but
     # we could still end up with a double-backslash after %PACKAGEPATH% somewhere in the arguments for now.
-    $Command              = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "$Path\"}
-    $ExeAndArgs           = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
+    $Command        = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "$Path\"}
+    $output         = [String]::Empty
+    $processStarted = $false
+    $ExeAndArgs     = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
+    # Split-ExecutableAndArguments returns NULL if no executable could be found
+    if (-not $ExeAndArgs) {
+        Write-Warning "The command or file '$Command' could not be found from '$Path' and was not run"
+        return $null
+    }
+
     $ExeAndArgs.Arguments = Assert-CmdAmpersandEscaped -String $ExeAndArgs.Arguments
-    $output               = [String]::Empty
-    $processStarted       = $false
 
     # Get a random non-existant file name to capture cmd output to
     do {
@@ -42,6 +53,7 @@
         $process.WaitForExit()
     } else {
         Write-Warning "A process failed to start."
+        return $null
     }
 
     if ([System.IO.File]::Exists($LogFilePath)) {

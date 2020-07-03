@@ -18,12 +18,13 @@
         }
 
         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command 'winuptp.exe -s'
-        return [BiosUpdateInfo]@{
-            'WasRun'       = $true
-            'Timestamp'    = [datetime]::Now.ToFileTime()
-            'ExitCode'     = $installProcess.ExitCode
-            'LogMessage'   = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -Raw -ErrorAction SilentlyContinue) { $Log.Trim() } else { [String]::Empty }
-            'ActionNeeded' = 'REBOOT'
+        if ($installProcess) {
+            return [BiosUpdateInfo]@{
+                'Timestamp'    = [datetime]::Now.ToFileTime()
+                'ExitCode'     = $installProcess.ExitCode
+                'LogMessage'   = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -Raw -ErrorAction SilentlyContinue) { $Log.Trim() } else { [String]::Empty }
+                'ActionNeeded' = 'REBOOT'
+            }
         }
     } elseif ((Test-Path -LiteralPath "$PackageDirectory\Flash.cmd" -PathType Leaf) -and (Test-Path -LiteralPath "$PackageDirectory\wflash2.exe" -PathType Leaf)) {
         Write-Verbose "This is a ThinkCentre-style BIOS update`r`n"
@@ -37,12 +38,14 @@
         Remove-Item -LiteralPath "$wflashTestPath" -Recurse -Force
         if ($SCCMParameterIsSupported) {
             $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command 'Flash.cmd /ign /sccm /quiet'
-            return [BiosUpdateInfo]@{
-                'WasRun'       = $true
-                'Timestamp'    = [datetime]::Now.ToFileTime()
-                'ExitCode'     = $installProcess.ExitCode
-                'LogMessage'   = $installProcess.Output
-                'ActionNeeded' = 'SHUTDOWN'
+            # Handle the case where $installProcess is NULL because the process never started
+            if ($installProcess) {
+                return [BiosUpdateInfo]@{
+                    'Timestamp'    = [datetime]::Now.ToFileTime()
+                    'ExitCode'     = $installProcess.ExitCode
+                    'LogMessage'   = $installProcess.Output
+                    'ActionNeeded' = 'SHUTDOWN'
+                }
             }
         } else {
             Write-Warning "This BIOS-Update uses an older version of wflash2.exe that cannot be installed without forcing a reboot - skipping!"

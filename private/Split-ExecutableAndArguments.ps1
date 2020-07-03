@@ -3,12 +3,13 @@
         .SYNOPSIS
         This function seperates the exeutable path from its command line arguments
 
-        Returns nothing if unsuccessful
+        Returns NULL if unsuccessful
     #>
 
     Param (
         [ValidateNotNullOrEmpty()]
         [string]$Command,
+        [Parameter( Mandatory = $true )]
         [string]$WorkingDirectory
     )
 

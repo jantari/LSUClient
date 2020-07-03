@@ -78,7 +78,7 @@
         }
         '_ExternalDetection' {
             $externalDetection = Invoke-PackageCommand -Command $Dependency.'#text' -Path $env:TEMP
-            if ($externalDetection.ExitCode -in ($Dependency.rc -split ',')) {
+            if ($externalDetection -and $externalDetection.ExitCode -in ($Dependency.rc -split ',')) {
                 return 0
             } else {
                 return -1

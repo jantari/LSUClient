@@ -10,7 +10,9 @@
     if (Get-ChildItem -Path $Path -File) {
         if ($Package.Extracter.Command) {
             $extractionProcess = Invoke-PackageCommand -Path $Path -Command $Package.Extracter.Command
-            if ($extractionProcess.ExitCode -ne 0) {
+            if (-not $extractionProcess) {
+                Write-Warning "Extraction of package $($Package.ID) has failed!`r`n"
+            } elseif ($extractionProcess.ExitCode -ne 0) {
                 Write-Warning "Extraction of package $($Package.ID) may have failed!`r`n"
             }
         } else {
