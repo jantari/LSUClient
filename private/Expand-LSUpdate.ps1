@@ -1,6 +1,6 @@
 ﻿function Expand-LSUpdate {
     Param (
-        [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
+        [Parameter( Mandatory = $true )]
         [pscustomobject]$Package,
         [Parameter( Mandatory = $true )]
         [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
