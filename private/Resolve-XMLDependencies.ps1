@@ -6,10 +6,10 @@
         [switch]$FailUnsupportedDependencies,
         [string]$DebugLogFile
     )
-    
+
     $XMLTreeDepth++
     [DependencyParserState]$ParserState = 0
-    
+
     foreach ($XMLTREE in $XMLIN) {
         if ($DebugLogFile) {
             Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth )|> Node: $($XMLTREE.SchemaInfo.Name)"
@@ -21,7 +21,7 @@
                 Add-Content -LiteralPath $DebugLogFile -Value "$('- ' * $XMLTreeDepth)Switched state to: $ParserState"
             }
         }
-        
+
         $Result = if ($XMLTREE.SchemaInfo.Name -like "_*") {
             switch (Test-MachineSatisfiesDependency -Dependency $XMLTREE) {
                 0 {
