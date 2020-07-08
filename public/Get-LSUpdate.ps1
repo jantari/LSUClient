@@ -107,7 +107,13 @@
                 $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
                 foreach ($externalFile in $packageXML.Package.Files.External.ChildNodes) {
                     [string]$DownloadDest = Join-Path -Path $env:Temp -ChildPath $externalFile.Name
-                    $webClient.DownloadFile(($packageURL.location -replace "[^/]*$") + $externalFile.Name, $DownloadDest)
+                    [string]$DownloadSrc = ($packageURL.location -replace "[^/]*$") + $externalFile.Name
+                    try {
+                        $webClient.DownloadFile($DownloadSrc, $DownloadDest)
+                    }
+                    catch {
+                        Write-Error "Download of '$DownloadSrc' failed, dependency resolution for package '$($packageXML.Package.id)' will be impaired:`r`n$($_.Exception)"
+                    }
                     $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
                 }
             }
