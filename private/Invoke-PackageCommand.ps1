@@ -39,7 +39,7 @@
     $process.StartInfo.WindowStyle      = [System.Diagnostics.ProcessWindowStyle]::Hidden
     $process.StartInfo.UseShellExecute  = $true
     $process.StartInfo.WorkingDirectory = $Path
-    $process.StartInfo.FileName         = $env:ComSpec
+    $process.StartInfo.FileName         = "${env:SystemRoot}\system32\cmd.exe"
     # We can't have a space after the arguments (before the redirection operator) because it'd
     # be passed through to the executable arguments and that causes GitHub#15
     # We do need a space between the quoted executable path and the arguments though or else
