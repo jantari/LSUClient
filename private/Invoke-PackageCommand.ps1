@@ -42,9 +42,9 @@
     $process.StartInfo.FileName         = $env:ComSpec
     # We can't have a space after the arguments (before the redirection operator) because it'd
     # be passed through to the executable arguments and that causes GitHub#15
-    # Having no space between executable and arguments results in a single space for the program
-    # we're launching, otherwise it's two. This doesn't cause any known problems, but just to be sure.
-    $process.StartInfo.Arguments        = '/D /C ""{0}"{1}>"{2}" 2>&1"' -f $ExeAndArgs.Executable, $ExeAndArgs.Arguments, $LogFilePath
+    # We do need a space between the quoted executable path and the arguments though or else
+    # the arguments are interpreted as part of the file name in some cases (GitHub#19)
+    $process.StartInfo.Arguments        = '/D /C ""{0}" {1}>"{2}" 2>&1"' -f $ExeAndArgs.Executable, $ExeAndArgs.Arguments, $LogFilePath
 
     try {
         $processStarted = $process.Start()
