@@ -142,7 +142,19 @@
                 catch {
                     return -1
                 }
-                return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $regVersion)
+
+                [string]$DependencyVersion = if ($Dependency.KeyValue) {
+                    $Dependency.KeyValue
+                } elseif ($Dependency.Version) {
+                    $Dependency.Version
+                } else {
+                    Write-Verbose "Could not get LenovoString from _RegistryKeyValue dependency node"
+                    return -2
+                }
+
+                return (Compare-VersionStrings -LenovoString $DependencyVersion -SystemString $regVersion)
+            } else {
+                return -1
             }
 
         }
