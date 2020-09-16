@@ -133,12 +133,14 @@
                 'URL'          = $packageURL.location
                 'Extracter'    = $packageXML.Package
                 'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $packageURL.category)
-                'IsApplicable' = Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
-                'IsInstalled'  = if ($packageXML.Package.DetectInstall) {
-                    Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
-                } else {
-                    Write-Verbose "Package $($packageURL.location) doesn't have a DetectInstall section"
-                    0
+                'IsApplicable' = if ($All) { 1 } else { Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile }
+                'IsInstalled'  = if ($All) { 0 } else { 
+                    if ($packageXML.Package.DetectInstall) {
+                        Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
+                    } else {
+                        Write-Verbose "Package $($packageURL.location) doesn't have a DetectInstall section"
+                        0
+                    }
                 }
             }
     
