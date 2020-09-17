@@ -2,7 +2,7 @@
     <#
         .SYNOPSIS
         Fetches available driver packages and updates for Lenovo computers
-        
+
         .PARAMETER Model
         Specify an alternative Lenovo Computer Model to retrieve update packages for.
         You may want to use this together with '-All' so that packages are not filtered against your local machines configuration.
@@ -20,8 +20,15 @@
 
         .PARAMETER All
         Return all updates, regardless of whether they are applicable to this specific machine or whether they are already installed.
-        E.g. this will retrieve LTE-Modem drivers even for machines that do not have the optional LTE-Modem installed. Installation of such drivers will likely still fail.
-        
+        E.g. this will retrieve LTE-Modem drivers even for machines that do not have the optional LTE-Modem installed.
+        Installation of such drivers will likely still fail.
+
+        .PARAMETER NoTestApplicable
+        Only available with -All.
+
+        .PARAMETER NoTestInstalled
+        Only available with -All.
+
         .PARAMETER FailUnsupportedDependencies
         Lenovo has different kinds of dependencies they specify for each package. This script makes a best effort to parse, understand and check these.
         However, new kinds of dependencies may be added at any point and some currently in use are not supported yet either. By default, any unknown
@@ -42,7 +49,33 @@
         [string]$DebugLogFile
     )
 
+    DynamicParam {
+        if ($All) {
+            $NoTestApplicableAttribute = New-Object System.Management.Automation.ParameterAttribute
+            $NoTestApplicableAttribute.HelpMessage = "This product is only available for customers 21 years of age and older. Please enter your age:"
+
+            $NoTestInstalledAttribute = New-Object System.Management.Automation.ParameterAttribute
+            $NoTestInstalledAttribute.HelpMessage = "This product is only available for customers 21 years of age and older. Please enter your age:"
+ 
+            $attributeCollection  = [System.Collections.ObjectModel.Collection[System.Attribute]]$NoTestApplicableAttribute
+            $attributeCollection2 = [System.Collections.ObjectModel.Collection[System.Attribute]]$NoTestInstalledAttribute
+ 
+            $NoTestApplicableParam = New-Object System.Management.Automation.RuntimeDefinedParameter('NoTestApplicable', [switch], $attributeCollection)
+            $NoTestInstalledParam  = New-Object System.Management.Automation.RuntimeDefinedParameter('NoTestInstalled', [switch], $attributeCollection2)
+ 
+            $paramDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary
+            $paramDictionary.Add('NoTestApplicable', $NoTestApplicableParam)
+            $paramDictionary.Add('NoTestInstalled', $NoTestInstalledParam)
+            return $paramDictionary
+        }
+    }
+
     begin {
+        Write-Host "All: $All"
+        Write-Host "NoTestApplicable: $($PSBoundParameters.NoTestApplicable)"
+        Write-Host "NoTestInstalled: $($PSBoundParameters.NoTestInstalled)"
+        $PSBoundParameters | out-host
+
         if (-not (Test-RunningAsAdmin)) {
             Write-Warning "Unfortunately, this command produces most accurate results when run as an Administrator`r`nbecause some of the commands Lenovo uses to detect your computers hardware have to run as admin :("
         }
@@ -54,14 +87,14 @@
             }
             $Model = $MODELREGEX.Value
         }
-        
+
         Write-Verbose "Lenovo Model is: $Model`r`n"
         if ($DebugLogFile) {
             Add-Content -LiteralPath $DebugLogFile -Value "Lenovo Model is: $Model"
         }
-    
+
         $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
-        
+
         try {
             $COMPUTERXML = $webClient.DownloadString("https://download.lenovo.com/catalog/${Model}_Win10.xml")
         }
@@ -72,12 +105,12 @@
                 throw "An error occured when contacting download.lenovo.com:`r`n$($_.Exception.Message)"
             }
         }
-    
+
         $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
-    
+
         # Downloading with Net.WebClient seems to remove the BOM automatically, this only seems to be neccessary when downloading with IWR. Still I'm leaving it in to be safe
         [xml]$PARSEDXML = $COMPUTERXML -replace "^$UTF8ByteOrderMark"
-    
+
         Write-Verbose "A total of $($PARSEDXML.packages.count) driver packages are available for this computer model."    
     }
 
@@ -96,9 +129,9 @@
                 }
                 continue
             }
-            
+
             $DownloadedExternalFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
-            
+
             # Downloading files needed by external detection in package dependencies
             if ($packageXML.Package.Files.External) {
                 # Packages like https://download.lenovo.com/pccbbs/mobiles/r0qch05w_2_.xml show we have to download the XML itself too
@@ -117,9 +150,28 @@
                     $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
                 }
             }
-    
+
             if ($DebugLogFile) {
                 Add-Content -LiteralPath $DebugLogFile -Value "Parsing dependencies for package: $($packageXML.Package.id)`r`n"
+            }
+
+            # The explicit $null is to avoid powershell/powershell#13651
+            [Nullable[bool]]$PackageIsApplicable = if ($PSBoundParameters.NoTestApplicable) {
+                $null
+            } else {
+                Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
+            }
+
+            # The explicit $null is to avoid powershell/powershell#13651
+            [Nullable[bool]]$PackageIsInstalled = if ($PSBoundParameters.NoTestInstalled) {
+                $null
+            } else {
+                if ($packageXML.Package.DetectInstall) {
+                    Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
+                } else {
+                    Write-Verbose "Package $($packageURL.location) doesn't have a DetectInstall section"
+                    0
+                }
             }
 
             $packageObject = [LenovoPackage]@{
@@ -133,19 +185,14 @@
                 'URL'          = $packageURL.location
                 'Extracter'    = $packageXML.Package
                 'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $packageURL.category)
-                'IsApplicable' = Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
-                'IsInstalled'  = if ($packageXML.Package.DetectInstall) {
-                    Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
-                } else {
-                    Write-Verbose "Package $($packageURL.location) doesn't have a DetectInstall section"
-                    0
-                }
+                'IsApplicable' = $PackageIsApplicable
+                'IsInstalled'  = $PackageIsInstalled
             }
-    
+
             if ($All -or ($packageObject.IsApplicable -and $packageObject.IsInstalled -eq $false)) {
                 $packageObject
             }
-    
+
             foreach ($tempFile in $DownloadedExternalFiles) {
                 if ($tempFile.Exists) {
                     $tempFile.Delete()

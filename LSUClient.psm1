@@ -40,8 +40,8 @@ class LenovoPackage {
     [Uri]$URL
     [PackageExtractInfo]$Extracter
     [PackageInstallInfo]$Installer
-    [bool]$IsApplicable
-    [bool]$IsInstalled
+    [Nullable[bool]]$IsApplicable
+    [Nullable[bool]]$IsInstalled
 }
 
 class PackageExtractInfo {
