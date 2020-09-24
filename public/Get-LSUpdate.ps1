@@ -151,14 +151,13 @@
                 }
             }
 
-            if ($DebugLogFile) {
-                Add-Content -LiteralPath $DebugLogFile -Value "Parsing dependencies for package: $($packageXML.Package.id)`r`n"
-            }
-
             # The explicit $null is to avoid powershell/powershell#13651
             [Nullable[bool]]$PackageIsApplicable = if ($PSBoundParameters.NoTestApplicable) {
                 $null
             } else {
+                if ($DebugLogFile) {
+                    Add-Content -LiteralPath $DebugLogFile -Value "Parsing dependencies for package: $($packageXML.Package.id)`r`n"
+                }
                 Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
             }
 
@@ -167,6 +166,9 @@
                 $null
             } else {
                 if ($packageXML.Package.DetectInstall) {
+                    if ($DebugLogFile) {
+                        Add-Content -LiteralPath $DebugLogFile -Value "Detecting install status of package: $($packageXML.Package.id)`r`n"
+                    }
                     Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
                 } else {
                     Write-Verbose "Package $($packageURL.location) doesn't have a DetectInstall section"
