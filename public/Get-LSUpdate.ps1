@@ -44,37 +44,17 @@
         [pscredential]$ProxyCredential,
         [switch]$ProxyUseDefaultCredentials,
         [switch]$All,
+        [switch]$NoTestApplicable,
+        [switch]$NoTestInstalled,
         [switch]$FailUnsupportedDependencies,
         [ValidateScript({ try { [System.IO.File]::Create("$_").Dispose(); $true} catch { $false } })]
         [string]$DebugLogFile
     )
 
-    DynamicParam {
-        if ($All) {
-            $NoTestApplicableAttribute = New-Object System.Management.Automation.ParameterAttribute
-            $NoTestApplicableAttribute.HelpMessage = "This product is only available for customers 21 years of age and older. Please enter your age:"
-
-            $NoTestInstalledAttribute = New-Object System.Management.Automation.ParameterAttribute
-            $NoTestInstalledAttribute.HelpMessage = "This product is only available for customers 21 years of age and older. Please enter your age:"
- 
-            $attributeCollection  = [System.Collections.ObjectModel.Collection[System.Attribute]]$NoTestApplicableAttribute
-            $attributeCollection2 = [System.Collections.ObjectModel.Collection[System.Attribute]]$NoTestInstalledAttribute
- 
-            $NoTestApplicableParam = New-Object System.Management.Automation.RuntimeDefinedParameter('NoTestApplicable', [switch], $attributeCollection)
-            $NoTestInstalledParam  = New-Object System.Management.Automation.RuntimeDefinedParameter('NoTestInstalled', [switch], $attributeCollection2)
- 
-            $paramDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary
-            $paramDictionary.Add('NoTestApplicable', $NoTestApplicableParam)
-            $paramDictionary.Add('NoTestInstalled', $NoTestInstalledParam)
-            return $paramDictionary
-        }
-    }
-
     begin {
-        Write-Host "All: $All"
-        Write-Host "NoTestApplicable: $($PSBoundParameters.NoTestApplicable)"
-        Write-Host "NoTestInstalled: $($PSBoundParameters.NoTestInstalled)"
-        $PSBoundParameters | out-host
+        if ($NoTestApplicable -or $NoTestInstalled -and -not $All) {
+            throw "You cam only use -NoTestApplicable or -NoTestInstalled together with -All"
+        }
 
         if (-not (Test-RunningAsAdmin)) {
             Write-Warning "Unfortunately, this command produces most accurate results when run as an Administrator`r`nbecause some of the commands Lenovo uses to detect your computers hardware have to run as admin :("
