@@ -1,8 +1,7 @@
 ﻿function Test-MachineSatisfiesDependency {
     Param (
         [ValidateNotNullOrEmpty()]
-        [System.Xml.XmlElement]$Dependency,
-        [string]$DebugLogFile
+        [System.Xml.XmlElement]$Dependency
     )
 
     #  0 SUCCESS, Dependency is met

@@ -46,12 +46,15 @@
         [switch]$All,
         [switch]$NoTestApplicable,
         [switch]$NoTestInstalled,
-        [switch]$FailUnsupportedDependencies,
-        [ValidateScript({ try { [System.IO.File]::Create("$_").Dispose(); $true} catch { $false } })]
-        [string]$DebugLogFile
+        [switch]$FailUnsupportedDependencies
     )
 
     begin {
+        if ($PSBoundParameters['Debug'] -and $DebugPreference -eq 'Inquire') {
+            Write-Verbose "Adjusting the DebugPreference to 'Continue'."
+            $DebugPreference = 'Continue'
+        }
+
         if ($NoTestApplicable -or $NoTestInstalled -and -not $All) {
             throw "You cam only use -NoTestApplicable or -NoTestInstalled together with -All"
         }
@@ -69,9 +72,7 @@
         }
 
         Write-Verbose "Lenovo Model is: $Model`r`n"
-        if ($DebugLogFile) {
-            Add-Content -LiteralPath $DebugLogFile -Value "Lenovo Model is: $Model"
-        }
+        Write-Debug "Lenovo Model is: $Model"
 
         $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
 
@@ -135,10 +136,8 @@
             [Nullable[bool]]$PackageIsApplicable = if ($PSBoundParameters.NoTestApplicable) {
                 $null
             } else {
-                if ($DebugLogFile) {
-                    Add-Content -LiteralPath $DebugLogFile -Value "Parsing dependencies for package: $($packageXML.Package.id)`r`n"
-                }
-                Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
+                Write-Debug "Parsing dependencies for package: $($packageXML.Package.id)`r`n"
+                Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies
             }
 
             # The explicit $null is to avoid powershell/powershell#13651
@@ -146,10 +145,8 @@
                 $null
             } else {
                 if ($packageXML.Package.DetectInstall) {
-                    if ($DebugLogFile) {
-                        Add-Content -LiteralPath $DebugLogFile -Value "Detecting install status of package: $($packageXML.Package.id)`r`n"
-                    }
-                    Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies -DebugLogFile $DebugLogFile
+                    Write-Debug "Detecting install status of package: $($packageXML.Package.id)`r`n"
+                    Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies
                 } else {
                     Write-Verbose "Package $($packageURL.location) doesn't have a DetectInstall section"
                     0
