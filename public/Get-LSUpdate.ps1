@@ -71,8 +71,7 @@
             $Model = $MODELREGEX.Value
         }
 
-        Write-Verbose "Lenovo Model is: $Model`r`n"
-        Write-Debug "Lenovo Model is: $Model"
+        Write-Verbose "Lenovo Model is: $Model"
 
         $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
 

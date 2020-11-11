@@ -68,6 +68,8 @@
         Remove-Item -LiteralPath $LogFilePath
     }
 
+    Write-Debug "Process '$($ExeAndArgs.Executable)' finished with ExitCode $($process.ExitCode)"
+
     $return = [PSCustomObject]@{
         'Output'   = $output
         'ExitCode' = $process.ExitCode

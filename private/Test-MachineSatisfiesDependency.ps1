@@ -1,4 +1,5 @@
 ﻿function Test-MachineSatisfiesDependency {
+    [CmdletBinding()]
     Param (
         [ValidateNotNullOrEmpty()]
         [System.Xml.XmlElement]$Dependency
@@ -10,6 +11,7 @@
 
     switch ($Dependency.SchemaInfo.Name) {
         '_Bios' {
+            Write-Debug "System BIOS is: $($CachedHardwareTable['_Bios'])"
             foreach ($entry in $Dependency.Level) {
                 if ($CachedHardwareTable['_Bios'] -like "$entry*") {
                     return 0
@@ -18,6 +20,7 @@
             return -1
         }
         '_CPUAddressWidth' {
+            Write-Debug "[ System: $($CachedHardwareTable['_CPUAddressWidth']), Needed: $($dependency.AddressWidth) ]"
             if ($CachedHardwareTable['_CPUAddressWidth'] -like "$($Dependency.AddressWidth)*") {
                 return 0
             } else {
@@ -27,6 +30,7 @@
         '_Driver' {
             if ( @($Dependency.ChildNodes.SchemaInfo.Name) -notmatch "^(HardwareID|Version|Date)$") {
                 # If there's any unknown node inside _Driver, return unsupported (-2) right away
+                Write-Debug "_Driver node contained unknown element - skipping checks"
                 return -2
             }
 
@@ -36,6 +40,7 @@
                 foreach ($HardwareID in $Dependency.HardwareID.'#cdata-section') {
                     # Lenovo HardwareIDs can contain wildcards (*) so we have to compare with "-like"
                     if ($HardwareInMachine -like "*$HardwareID*") {
+                        Write-Debug "Matched device '$HardwareInMachine' with required '$HardwareID'"
                         $HardwareFound   = $true
                         $HardwareIDFound = $HardwareInMachine
                     }
@@ -44,6 +49,7 @@
 
             if ($HardwareFound) {
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Date') {
+                    Write-Debug "Trying to match driver based on Date"
                     $LenovoDate = [DateTime]::new(0)
                     if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
                         $DriverDate = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
@@ -56,15 +62,21 @@
                 }
     
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Version') {
+                    Write-Debug "Trying to match driver basded on Version"
                     $DriverVersion = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
                     # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
                     if ($DriverVersion) {
+                        Write-Debug "Testing installed driver version: $DriverVersion against required $($Dependency.Version)"
                         return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion)
                     } else {
-                        Write-Verbose "HardwareID '$HardwareID' does not report its driver version. Returning unsupported -2"
+                        Write-Verbose "Device '$HardwareID' does not report its driver version. Returning unsupported (-2)"
                         return -2
                     }
                 }
+            }
+
+            if (-not $HardwareFound) {
+                Write-Debug "No installed device matched the driver check"
             }
 
             return -1
@@ -77,6 +89,7 @@
         }
         '_ExternalDetection' {
             $externalDetection = Invoke-PackageCommand -Command $Dependency.'#text' -Path $env:TEMP
+            Write-Debug "[ Got ExitCode: $($externalDetection.ExitCode), OK: $($Dependency.rc) ]"
             if ($externalDetection -and $externalDetection.ExitCode -in ($Dependency.rc -split ',')) {
                 return 0
             } else {
