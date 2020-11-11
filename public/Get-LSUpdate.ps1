@@ -132,24 +132,24 @@
             }
 
             # The explicit $null is to avoid powershell/powershell#13651
-            [Nullable[bool]]$PackageIsApplicable = if ($PSBoundParameters.NoTestApplicable) {
-                $null
-            } else {
-                Write-Debug "Parsing dependencies for package: $($packageXML.Package.id)`r`n"
-                Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies
-            }
-
-            # The explicit $null is to avoid powershell/powershell#13651
             [Nullable[bool]]$PackageIsInstalled = if ($PSBoundParameters.NoTestInstalled) {
                 $null
             } else {
                 if ($packageXML.Package.DetectInstall) {
-                    Write-Debug "Detecting install status of package: $($packageXML.Package.id)`r`n"
+                    Write-Debug "Detecting install status of package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
                     Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies
                 } else {
                     Write-Verbose "Package $($packageURL.location) doesn't have a DetectInstall section"
                     0
                 }
+            }
+
+            # The explicit $null is to avoid powershell/powershell#13651
+            [Nullable[bool]]$PackageIsApplicable = if ($PSBoundParameters.NoTestApplicable) {
+                $null
+            } else {
+                Write-Debug "Parsing dependencies for package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
+                Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies
             }
 
             $packageObject = [LenovoPackage]@{
