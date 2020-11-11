@@ -62,7 +62,7 @@
                 }
     
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Version') {
-                    Write-Debug "Trying to match driver basded on Version"
+                    Write-Debug "Trying to match driver based on Version"
                     $DriverVersion = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
                     # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
                     if ($DriverVersion) {
