@@ -19,15 +19,17 @@
         specified by the -Proxy parameter.
 
         .PARAMETER All
-        Return all updates, regardless of whether they are applicable to this specific machine or whether they are already installed.
-        E.g. this will retrieve LTE-Modem drivers even for machines that do not have the optional LTE-Modem installed.
-        Installation of such drivers will likely still fail.
+        Return all packages, regardless of whether they are applicable to this specific machine or whether they are already installed.
+        E.g. this will return LTE-Modem drivers even on machines that do not have the optional LTE-Modem installed, or 32-bit drivers on a 64-bit OS.
+        Attempting to install such drivers will likely fail.
 
         .PARAMETER NoTestApplicable
-        Only available with -All.
+        Do not check whether packages are applicable to the computer. The IsApplicable property of the package objects will be set to $null.
+        This switch is only available together with -All.
 
         .PARAMETER NoTestInstalled
-        Only available with -All.
+        Do not check whether packages are already installed on the computer. The IsInstalled property of the package objects will be set to $null.
+        This switch is only available together with -All.
 
         .PARAMETER FailUnsupportedDependencies
         Lenovo has different kinds of dependencies they specify for each package. This script makes a best effort to parse, understand and check these.
