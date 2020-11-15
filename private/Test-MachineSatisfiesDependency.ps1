@@ -48,11 +48,20 @@
             }
 
             if ($HardwareFound) {
+                $Device = $CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" }
+
+                # First, check if there is a driver installed for the device at all before proceeding (issue#24)
+                if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
+                    [string]$HexDeviceProblemStatus = '0x{0:X8}' -f ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_ProblemStatus').Data
+                    Write-Debug "Device '$HardwareIDFound' does not have any driver (ProblemStatus: $HexDeviceProblemStatus)"
+                    return -1
+                }
+
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Date') {
                     Write-Debug "Trying to match driver based on Date"
                     $LenovoDate = [DateTime]::new(0)
                     if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
-                        $DriverDate = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
+                        $DriverDate = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
                         if ($DriverDate -eq $LenovoDate) {
                             return 0 # SUCCESS
                         }
@@ -60,16 +69,16 @@
                         Write-Verbose "Got unsupported date format from Lenovo: '$($Dependency.Date)' (expected yyyy-MM-dd)"
                     }
                 }
-    
+
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Version') {
                     Write-Debug "Trying to match driver based on Version"
-                    $DriverVersion = ($CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" } | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
+                    $DriverVersion = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
                     # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
                     if ($DriverVersion) {
                         Write-Debug "Testing installed driver version: $DriverVersion against required $($Dependency.Version)"
                         return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion)
                     } else {
-                        Write-Verbose "Device '$HardwareID' does not report its driver version. Returning unsupported (-2)"
+                        Write-Verbose "Device '$HardwareIDFound' does not report its driver version. Returning unsupported (-2)"
                         return -2
                     }
                 }
