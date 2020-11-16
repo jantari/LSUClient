@@ -2,7 +2,8 @@
     [CmdletBinding()]
     Param (
         [ValidateNotNullOrEmpty()]
-        [System.Xml.XmlElement]$Dependency
+        [System.Xml.XmlElement]$Dependency,
+        [int]$DebugIndent = 0
     )
 
     #  0 SUCCESS, Dependency is met
@@ -11,7 +12,7 @@
 
     switch ($Dependency.SchemaInfo.Name) {
         '_Bios' {
-            Write-Debug "System BIOS is: $($CachedHardwareTable['_Bios'])"
+            Write-Debug "$('- ' * $MessageIndent)[ Got: $($CachedHardwareTable['_Bios']) ]"
             foreach ($entry in $Dependency.Level) {
                 if ($CachedHardwareTable['_Bios'] -like "$entry*") {
                     return 0
@@ -20,7 +21,7 @@
             return -1
         }
         '_CPUAddressWidth' {
-            Write-Debug "[ System: $($CachedHardwareTable['_CPUAddressWidth']), Needed: $($dependency.AddressWidth) ]"
+            Write-Debug "$('- ' * $MessageIndent)[ Got: $($CachedHardwareTable['_CPUAddressWidth']), Expected: $($dependency.AddressWidth) ]"
             if ($CachedHardwareTable['_CPUAddressWidth'] -like "$($Dependency.AddressWidth)*") {
                 return 0
             } else {
@@ -30,7 +31,7 @@
         '_Driver' {
             if ( @($Dependency.ChildNodes.SchemaInfo.Name) -notmatch "^(HardwareID|Version|Date)$") {
                 # If there's any unknown node inside _Driver, return unsupported (-2) right away
-                Write-Debug "_Driver node contained unknown element - skipping checks"
+                Write-Debug "$('- ' * $MessageIndent)_Driver node contained unknown element - skipping checks"
                 return -2
             }
 
@@ -40,7 +41,7 @@
                 foreach ($HardwareID in $Dependency.HardwareID.'#cdata-section') {
                     # Lenovo HardwareIDs can contain wildcards (*) so we have to compare with "-like"
                     if ($HardwareInMachine -like "*$HardwareID*") {
-                        Write-Debug "Matched device '$HardwareInMachine' with required '$HardwareID'"
+                        Write-Debug "$('- ' * $MessageIndent)Matched device '$HardwareInMachine' with required '$HardwareID'"
                         $HardwareFound   = $true
                         $HardwareIDFound = $HardwareInMachine
                     }
@@ -53,12 +54,12 @@
                 # First, check if there is a driver installed for the device at all before proceeding (issue#24)
                 if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
                     [string]$HexDeviceProblemStatus = '0x{0:X8}' -f ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_ProblemStatus').Data
-                    Write-Debug "Device '$HardwareIDFound' does not have any driver (ProblemStatus: $HexDeviceProblemStatus)"
+                    Write-Debug "$('- ' * $MessageIndent)Device '$HardwareIDFound' does not have any driver (ProblemStatus: $HexDeviceProblemStatus)"
                     return -1
                 }
 
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Date') {
-                    Write-Debug "Trying to match driver based on Date"
+                    Write-Debug "$('- ' * $MessageIndent)Trying to match driver based on Date"
                     $LenovoDate = [DateTime]::new(0)
                     if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
                         $DriverDate = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
@@ -71,11 +72,11 @@
                 }
 
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Version') {
-                    Write-Debug "Trying to match driver based on Version"
+                    Write-Debug "$('- ' * $MessageIndent)Trying to match driver based on Version"
                     $DriverVersion = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
                     # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
                     if ($DriverVersion) {
-                        Write-Debug "Testing installed driver version: $DriverVersion against required $($Dependency.Version)"
+                        Write-Debug "$('- ' * $MessageIndent)Testing installed driver version: $DriverVersion against required $($Dependency.Version)"
                         return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion)
                     } else {
                         Write-Verbose "Device '$HardwareIDFound' does not report its driver version. Returning unsupported (-2)"
@@ -85,7 +86,7 @@
             }
 
             if (-not $HardwareFound) {
-                Write-Debug "No installed device matched the driver check"
+                Write-Debug "$('- ' * $MessageIndent)No installed device matched the driver check"
             }
 
             return -1
@@ -98,7 +99,7 @@
         }
         '_ExternalDetection' {
             $externalDetection = Invoke-PackageCommand -Command $Dependency.'#text' -Path $env:TEMP
-            Write-Debug "[ Got ExitCode: $($externalDetection.ExitCode), OK: $($Dependency.rc) ]"
+            Write-Debug "$('- ' * $MessageIndent)[ Got ExitCode: $($externalDetection.ExitCode), Expected: $($Dependency.rc) ]"
             if ($externalDetection -and $externalDetection.ExitCode -in ($Dependency.rc -split ',')) {
                 return 0
             } else {

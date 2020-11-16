@@ -18,7 +18,7 @@
         }
 
         $Result = if ($XMLTREE.SchemaInfo.Name -like "_*") {
-            switch (Test-MachineSatisfiesDependency -Dependency $XMLTREE) {
+            switch (Test-MachineSatisfiesDependency -Dependency $XMLTREE -DebugIndent $XMLTreeDepth) {
                 0 {
                     $true
                 }
