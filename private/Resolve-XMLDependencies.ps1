@@ -1,9 +1,9 @@
 ﻿function Resolve-XMLDependencies {
     Param (
-        [Parameter ( Mandatory = $true )]
+        [Parameter( Mandatory = $true )]
         [ValidateNotNullOrEmpty()]
         $XMLIN,
-        [switch]$FailUnsupportedDependencies
+        [switch]$TreatUnsupportedAsPassed
     )
 
     $XMLTreeDepth++
@@ -27,11 +27,11 @@
                 }
                 -2 {
                     Write-Debug "$('- ' * $XMLTreeDepth)Something unsupported encountered in: $($XMLTREE.SchemaInfo.Name)"
-                    if ($FailUnsupportedDependencies) { $false } else { $true }
+                    if ($TreatUnsupportedAsPassed) { $true } else { $false }
                 }
             }
         } else {
-            $SubtreeResults = Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -FailUnsupportedDependencies:$FailUnsupportedDependencies
+            $SubtreeResults = Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -TreatUnsupportedAsPassed:$TreatUnsupportedAsPassed
             switch ($XMLTREE.SchemaInfo.Name) {
                 'And' {
                     Write-Debug "$('- ' * $XMLTreeDepth)Tree was AND: Results: $subtreeresults"

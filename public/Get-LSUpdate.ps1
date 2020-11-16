@@ -32,10 +32,18 @@
         This switch is only available together with -All.
 
         .PARAMETER FailUnsupportedDependencies
-        Lenovo has different kinds of dependencies they specify for each package. This script makes a best effort to parse, understand and check these.
-        However, new kinds of dependencies may be added at any point and some currently in use are not supported yet either. By default, any unknown
-        dependency will be treated as met/OK. This switch will fail all dependencies we can't actually check. Typically, an update installation
-        will simply fail if there really was a dependency missing.
+        Lenovo specifies different tests to determine whether each package is applicable to a machine or not.
+        This module makes a best effort to parse, understand and check these.
+        However, new kinds of tests may be added by Lenovo at any point and some currently in use are not supported yet either.
+        By default, any unknown applicability test will be treated as passed which could result in packages that are not actually applicable being detected as applicable.
+        This switch will make all applicability tests we can't really check fail instead, which could lead to an applicable package being detected as not applicable instead.
+
+        .PARAMETER PassUnsupportedInstallTests
+        Lenovo specifies different tests to determine whether each package is already installed or not.
+        This module makes a best effort to parse, understand and check these.
+        However, new kinds of tests may be added by Lenovo at any point and some currently in use are not supported yet either.
+        By default, any unknown install tests will be treated as failed which could result in a package that is actually installed being detected as missing.
+        This switch will make all tests we can't really check pass instead, which could lead to a missing update being detected as installed instead.
     #>
 
     [CmdletBinding()]
@@ -48,7 +56,8 @@
         [switch]$All,
         [switch]$NoTestApplicable,
         [switch]$NoTestInstalled,
-        [switch]$FailUnsupportedDependencies
+        [switch]$FailUnsupportedDependencies,
+        [switch]$PassUnsupportedInstallTests
     )
 
     begin {
@@ -114,8 +123,8 @@
 
             $DownloadedExternalFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
 
-            # Downloading files needed by external detection in package dependencies
-            if (-not $PSBoundParameters.NoTestApplicable -and -not $PSBoundParameters.NoTestInstalled -and $packageXML.Package.Files.External) {
+            # Downloading files needed by external detection tests in package
+            if (-not $NoTestApplicable -and -not $NoTestInstalled -and $packageXML.Package.Files.External) {
                 # Packages like https://download.lenovo.com/pccbbs/mobiles/r0qch05w_2_.xml show we have to download the XML itself too
                 [string]$DownloadDest = Join-Path -Path $env:Temp -ChildPath ($packageURL.location -replace "^.*/")
                 $webClient.DownloadFile($packageURL.location, $DownloadDest)
@@ -134,12 +143,12 @@
             }
 
             # The explicit $null is to avoid powershell/powershell#13651
-            [Nullable[bool]]$PackageIsInstalled = if ($PSBoundParameters.NoTestInstalled) {
+            [Nullable[bool]]$PackageIsInstalled = if ($NoTestInstalled) {
                 $null
             } else {
                 if ($packageXML.Package.DetectInstall) {
                     Write-Debug "Detecting install status of package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
-                    Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -FailUnsupportedDependencies:$FailUnsupportedDependencies
+                    Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -TreatUnsupportedAsPassed:$PassUnsupportedInstallTests
                 } else {
                     Write-Verbose "Package $($packageURL.location) doesn't have a DetectInstall section"
                     0
@@ -147,11 +156,11 @@
             }
 
             # The explicit $null is to avoid powershell/powershell#13651
-            [Nullable[bool]]$PackageIsApplicable = if ($PSBoundParameters.NoTestApplicable) {
+            [Nullable[bool]]$PackageIsApplicable = if ($NoTestApplicable) {
                 $null
             } else {
                 Write-Debug "Parsing dependencies for package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
-                Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -FailUnsupportedDependencies:$FailUnsupportedDependencies
+                Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -TreatUnsupportedAsPassed:(-not $FailUnsupportedDependencies)
             }
 
             $packageObject = [LenovoPackage]@{
