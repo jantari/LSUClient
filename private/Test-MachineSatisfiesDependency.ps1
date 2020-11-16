@@ -1,5 +1,6 @@
 ﻿function Test-MachineSatisfiesDependency {
     [CmdletBinding()]
+    [OutputType('System.Int32')]
     Param (
         [ValidateNotNullOrEmpty()]
         [System.Xml.XmlElement]$Dependency,

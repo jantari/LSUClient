@@ -5,6 +5,7 @@
         version requirements and does the comparison. Returns 0, -1 or -2.
     #>
 
+    [OutputType('System.Int32')]
     Param (
         [ValidateNotNullOrEmpty()]
         [string]$LenovoString,
@@ -37,7 +38,7 @@
 
         [Version]$LenovoVersion = $LenovoString -replace '\^'
         [Version]$SystemVersion = $SystemString
-        
+
         switch -Wildcard ($LenovoString) {
             "^*" {
                 # Means up to and including
