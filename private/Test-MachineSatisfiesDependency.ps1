@@ -55,15 +55,21 @@
                 # First, check if there is a driver installed for the device at all before proceeding (issue#24)
                 if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
                     [string]$HexDeviceProblemStatus = '0x{0:X8}' -f ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_ProblemStatus').Data
-                    Write-Debug "$('- ' * $DebugIndent)Device '$HardwareIDFound' does not have any driver (ProblemStatus: $HexDeviceProblemStatus)"
-                    return -1
+                    Write-Debug "$('- ' * $DebugIndent)Device '$HardwareIDFound' does not have any driver ($HexDeviceProblemStatus) - treating as if version 0.1"
+                    # It is common for packages to use _Driver checks with a version of only '0.1^' as a way to just test if the HardwareID is present (I'm guessing)
+                    # so we have to treat a present HardwareID that has absolutely no driver as if it has version 0.1 instead of failing outright
+                    # An example of this is the dependencies section of: https://download.lenovo.com/pccbbs/mobiles/n1fup89w_2_.xml
+                    $DriverVersion = '0.1'
+                    $DriverDate = $null
+                } else {
+                    $DriverVersion = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
+                    $DriverDate = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
                 }
 
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Date') {
                     Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Date"
                     $LenovoDate = [DateTime]::new(0)
                     if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
-                        $DriverDate = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
                         if ($DriverDate -eq $LenovoDate) {
                             return 0 # SUCCESS
                         }
@@ -74,7 +80,6 @@
 
                 if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Version') {
                     Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Version"
-                    $DriverVersion = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
                     # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
                     if ($DriverVersion) {
                         Write-Debug "$('- ' * $DebugIndent)Testing installed driver version: $DriverVersion against required $($Dependency.Version)"
