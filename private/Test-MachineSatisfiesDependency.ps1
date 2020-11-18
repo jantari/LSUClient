@@ -121,8 +121,15 @@
             # This may not be 100% yet as Lenovo sometimes uses some non-system environment variables in their file paths
             [string]$Path = Resolve-CmdVariable -String $Dependency.File -ExtraVariables @{'WINDOWS' = $env:SystemRoot}
             if (Test-Path -LiteralPath $Path -PathType Leaf) {
-                $filVersion = (Get-Item -LiteralPath $Path).VersionInfo.ProductVersion
-                return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $filVersion)
+                $filProductVersion = (Get-Item -LiteralPath $Path).VersionInfo.ProductVersion
+                $FileVersionCompare = Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $filProductVersion
+                if ($FileVersionCompare -eq -2) {
+                    Write-Debug "$('- ' * $DebugIndent)Got unsupported with ProductVersion, trying comparison with FileVersion"
+                    $filFileVersion = (Get-Item -LiteralPath $Path).VersionInfo.FileVersion
+                    return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $filFileVersion)
+                } else {
+                    return $FileVersionCompare
+                }
             } else {
                 Write-Debug "$('- ' * $DebugIndent)The file '$Path' was not found."
                 return -1
