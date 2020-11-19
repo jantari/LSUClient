@@ -73,9 +73,9 @@
         if (-not (Test-RunningAsAdmin)) {
             Write-Warning "Unfortunately, this command produces most accurate results when run as an Administrator`r`nbecause some of the commands Lenovo uses to detect your computers hardware have to run as admin :("
         }
-    
+
         if (-not $Model) {
-            $MODELREGEX = [regex]::Match((Get-CimInstance -ClassName CIM_ComputerSystem -ErrorAction SilentlyContinue).Model, '^\w{4}')
+            $MODELREGEX = [regex]::Match((Get-CimInstance -ClassName CIM_ComputerSystem -ErrorAction SilentlyContinue -Verbose:$false).Model, '^\w{4}')
             if ($MODELREGEX.Success -ne $true) {
                 throw "Could not parse computer model number. This may not be a Lenovo computer, or an unsupported model."
             }
@@ -147,7 +147,7 @@
                 $null
             } else {
                 if ($packageXML.Package.DetectInstall) {
-                    Write-Debug "Detecting install status of package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
+                    Write-Verbose "Detecting install status of package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
                     Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -TreatUnsupportedAsPassed:$PassUnsupportedInstallTests
                 } else {
                     Write-Verbose "Package $($packageURL.location) doesn't have a DetectInstall section"
@@ -159,7 +159,7 @@
             [Nullable[bool]]$PackageIsApplicable = if ($NoTestApplicable) {
                 $null
             } else {
-                Write-Debug "Parsing dependencies for package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
+                Write-Verbose "Parsing dependencies for package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
                 Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -TreatUnsupportedAsPassed:(-not $FailUnsupportedDependencies)
             }
 

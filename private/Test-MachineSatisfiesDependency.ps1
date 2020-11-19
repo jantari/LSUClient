@@ -66,6 +66,11 @@
                     } else {
                         $DriverVersion = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
                         $DriverDate = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
+                        # Documentation for this: https://docs.microsoft.com/en-us/windows-hardware/drivers/install/identifier-score--windows-vista-and-later-
+                        [byte]$DriverMatchTypeScore = (Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverRank').Data -shr 12 -band 0xF
+                        if ($DriverMatchTypeScore -ge 2) {
+                            Write-Verbose "Device '$($Device.Name)' may be using a generic or inbox driver, which could lead to wrong results for this package."
+                        }
                     }
 
                     if ($DriverChildNodes -contains 'Date') {
@@ -216,7 +221,7 @@
 
         }
         default {
-            Write-Verbose "Unsupported dependency encountered: $_`r`n"
+            Write-Verbose "Unsupported dependency encountered: $_"
             return -2
         }
     }
