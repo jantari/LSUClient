@@ -19,13 +19,7 @@ if ($WindowsVersion -notlike "10.*") {
     throw "This module requires Windows 10."
 }
 
-$script:CachedHardwareTable = @{
-    '_OS'                        = 'WIN' + (Get-CimInstance Win32_OperatingSystem).Version -replace "\..*"
-    '_CPUAddressWidth'           = [wmisearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
-    '_Bios'                      = (Get-CimInstance -ClassName Win32_BIOS).SMBIOSBIOSVersion
-    '_PnPID'                     = @(Get-PnpDevice)
-    '_EmbeddedControllerVersion' = (Get-ItemPropertyValue -Path "HKLM:\HARDWARE\DESCRIPTION\System\BIOS" -Name ECFirmwareMajorRelease, ECFirmwareMinorRelease) -join '.'
-}
+$script:CachedHardwareTable = @{}
 
 [int]$script:XMLTreeDepth = 0
 
