@@ -37,69 +37,69 @@
                 return -2
             }
 
-            [bool]$HardwareFound = $false
+            if ($DriverChildNodes -contains 'HardwareID') {
+                [bool]$HardwareFound = $false
 
-            foreach ($HardwareInMachine in $CachedHardwareTable['_PnPID'].HardwareID) {
-                foreach ($HardwareID in $Dependency.HardwareID.'#cdata-section') {
-                    # Lenovo HardwareIDs can contain wildcards (*) so we have to compare with "-like"
-                    if ($HardwareInMachine -like "*$HardwareID*") {
-                        Write-Debug "$('- ' * $DebugIndent)Matched device '$HardwareInMachine' with required '$HardwareID'"
-                        $HardwareFound   = $true
-                        $HardwareIDFound = $HardwareInMachine
-                    }
-                }
-            }
-
-            if ($HardwareFound) {
-                $Device = $CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" }
-
-                # First, check if there is a driver installed for the device at all before proceeding (issue#24)
-                if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
-                    [string]$HexDeviceProblemStatus = '0x{0:X8}' -f ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_ProblemStatus').Data
-                    Write-Debug "$('- ' * $DebugIndent)Device '$HardwareIDFound' does not have any driver ($HexDeviceProblemStatus) - treating as if version 0.1"
-                    # It is common for packages to use _Driver checks with a version of only '0.1^' as a way to just test if the HardwareID is present (I'm guessing)
-                    # so we have to treat a present HardwareID that has absolutely no driver as if it has version 0.1 instead of failing outright
-                    # An example of this is the dependencies section of: https://download.lenovo.com/pccbbs/mobiles/n1fup89w_2_.xml
-                    $DriverVersion = '0.1'
-                    $DriverDate = $null
-                } else {
-                    $DriverVersion = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
-                    $DriverDate = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
-                }
-
-                if (Compare-Array @('HardwareID', 'Date') -in $DriverChildNodes) {
-                    Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Date"
-                    $LenovoDate = [DateTime]::new(0)
-                    if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
-                        Write-Debug "$('- ' * $DebugIndent)[Got: $DriverDate, Expected: $LenovoDate]"
-                        if ($DriverDate -eq $LenovoDate) {
-                            return 0 # SUCCESS
+                foreach ($HardwareInMachine in $CachedHardwareTable['_PnPID'].HardwareID) {
+                    foreach ($HardwareID in $Dependency.HardwareID.'#cdata-section') {
+                        # Lenovo HardwareIDs can contain wildcards (*) so we have to compare with "-like"
+                        if ($HardwareInMachine -like "*$HardwareID*") {
+                            Write-Debug "$('- ' * $DebugIndent)Matched device '$HardwareInMachine' with required '$HardwareID'"
+                            $HardwareFound   = $true
+                            $HardwareIDFound = $HardwareInMachine
                         }
-                    } else {
-                        Write-Verbose "Got unsupported date format from Lenovo: '$($Dependency.Date)' (expected yyyy-MM-dd)"
                     }
                 }
 
-                if (Compare-Array @('HardwareID', 'Version') -in $DriverChildNodes) {
-                    Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Version"
-                    # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
-                    if ($DriverVersion) {
-                        Write-Debug "$('- ' * $DebugIndent)Testing installed driver version: $DriverVersion against required $($Dependency.Version)"
-                        return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion)
-                    } else {
-                        Write-Verbose "Device '$HardwareIDFound' does not report its driver version. Returning unsupported (-2)"
-                        return -2
-                    }
-                }
+                if ($HardwareFound) {
+                    $Device = $CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" }
 
-                if (Compare-Array @('File', 'Version') -in $DriverChildNodes) {
-                    Write-Debug "Got a File-Version check in _DRIVER! not implemented yet"
-                    return -2
+                    # First, check if there is a driver installed for the device at all before proceeding (issue#24)
+                    if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
+                        [string]$HexDeviceProblemStatus = '0x{0:X8}' -f ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_ProblemStatus').Data
+                        Write-Debug "$('- ' * $DebugIndent)Device '$HardwareIDFound' does not have any driver ($HexDeviceProblemStatus) - treating as if version 0.1"
+                        # It is common for packages to use _Driver checks with a version of only '0.1^' as a way to just test if the HardwareID is present (I'm guessing)
+                        # so we have to treat a present HardwareID that has absolutely no driver as if it has version 0.1 instead of failing outright
+                        # An example of this is the dependencies section of: https://download.lenovo.com/pccbbs/mobiles/n1fup89w_2_.xml
+                        $DriverVersion = '0.1'
+                        $DriverDate = $null
+                    } else {
+                        $DriverVersion = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
+                        $DriverDate = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
+                    }
+
+                    if ($DriverChildNodes -contains 'Date') {
+                        Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Date"
+                        $LenovoDate = [DateTime]::new(0)
+                            if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
+                            Write-Debug "$('- ' * $DebugIndent)[Got: $DriverDate, Expected: $LenovoDate]"
+                            if ($DriverDate -eq $LenovoDate) {
+                                return 0 # SUCCESS
+                            }
+                        } else {
+                            Write-Verbose "Got unsupported date format from Lenovo: '$($Dependency.Date)' (expected yyyy-MM-dd)"
+                        }
+                    }
+
+                    if ($DriverChildNodes -contains 'Version') {
+                        Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Version"
+                        # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
+                        if ($DriverVersion) {
+                            Write-Debug "$('- ' * $DebugIndent)Testing installed driver version: $DriverVersion against required $($Dependency.Version)"
+                            return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion)
+                        } else {
+                            Write-Verbose "Device '$HardwareIDFound' does not report its driver version. Returning unsupported (-2)"
+                            return -2
+                        }
+                    }
+                } else {
+                    Write-Debug "$('- ' * $DebugIndent)No installed device matched the driver check"
                 }
             }
 
-            if (-not $HardwareFound) {
-                Write-Debug "$('- ' * $DebugIndent)No installed device matched the driver check"
+            if (Compare-Array @('File', 'Version') -in $DriverChildNodes) {
+                Write-Debug "Got a File-Version check in _DRIVER! not implemented yet"
+                return -2
             }
 
             return -1

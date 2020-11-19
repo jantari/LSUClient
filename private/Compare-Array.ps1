@@ -36,7 +36,6 @@
 
     foreach ($ElementOfOne in $ArrayOne) {
         if ($ElementOfOne -notin $ArrayTwo) {
-            Write-Debug "ArrayOne contains '$ElementOfOne' but ArrayTwo doesn't."
             return $false
         }
     }
@@ -44,7 +43,6 @@
     if ($PSCmdlet.ParameterSetName -eq 'CONTAINSONLY') {
         foreach ($ElementOfTwo in $ArrayTwo) {
             if ($ElementOfTwo -notin $ArrayOne) {
-                Write-Debug "ArrayTwo contains '$ElementOfTwo' but ArrayOne doesn't."
                 return $false
             }
         }
