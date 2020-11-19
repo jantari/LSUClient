@@ -52,7 +52,12 @@
                 }
 
                 if ($HardwareFound) {
-                    $Device = $CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" }
+                    [array]$DevicesWithHardwareID = $CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" }
+                    if ($DevicesWithHardwareID.Count -ne 1) {
+                        Write-Debug "$('- ' * $DebugIndent)$($DevicesWithHardwareID.Count) devices with HardwareID '$HardwareIDFound'"
+                    }
+
+                    $Device = $DevicesWithHardwareID[0]
 
                     # First, check if there is a driver installed for the device at all before proceeding (issue#24)
                     if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
