@@ -70,6 +70,7 @@
                     Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Date"
                     $LenovoDate = [DateTime]::new(0)
                     if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
+                        Write-Debug "$('- ' * $DebugIndent)[Got: $DriverDate, Expected: $LenovoDate]"
                         if ($DriverDate -eq $LenovoDate) {
                             return 0 # SUCCESS
                         }
