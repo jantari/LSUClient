@@ -30,8 +30,9 @@
             }
         }
         '_Driver' {
-            if ( @($Dependency.ChildNodes.SchemaInfo.Name) -notmatch "^(HardwareID|Version|Date)$") {
-                # If there's any unknown node inside _Driver, return unsupported (-2) right away
+            [array]$SupportedDriverNodes = 'HardwareID', 'Version', 'Date', 'File'
+            [array]$DriverChildNodes = $Dependency.ChildNodes.SchemaInfo.Name
+            if (-not (Compare-Array $DriverChildNodes -in $SupportedDriverNodes)) {
                 Write-Debug "$('- ' * $DebugIndent)_Driver node contained unknown element - skipping checks"
                 return -2
             }
@@ -66,7 +67,7 @@
                     $DriverDate = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
                 }
 
-                if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Date') {
+                if (Compare-Array @('HardwareID', 'Date') -in $DriverChildNodes) {
                     Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Date"
                     $LenovoDate = [DateTime]::new(0)
                     if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
@@ -79,7 +80,7 @@
                     }
                 }
 
-                if (@($Dependency.ChildNodes.SchemaInfo.Name) -contains 'Version') {
+                if (Compare-Array @('HardwareID', 'Version') -in $DriverChildNodes) {
                     Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Version"
                     # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
                     if ($DriverVersion) {
@@ -89,6 +90,11 @@
                         Write-Verbose "Device '$HardwareIDFound' does not report its driver version. Returning unsupported (-2)"
                         return -2
                     }
+                }
+
+                if (Compare-Array @('File', 'Version') -in $DriverChildNodes) {
+                    Write-Debug "Got a File-Version check in _DRIVER! not implemented yet"
+                    return -2
                 }
             }
 
