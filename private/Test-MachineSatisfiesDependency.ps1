@@ -98,8 +98,22 @@
             }
 
             if (Compare-Array @('File', 'Version') -in $DriverChildNodes) {
-                Write-Debug "Got a File-Version check in _DRIVER! not implemented yet"
-                return -2
+                # This may not be 100% yet as Lenovo sometimes uses some non-system environment variables in their file paths
+                [string]$Path = Resolve-CmdVariable -String $Dependency.File -ExtraVariables @{'WINDOWS' = $env:SystemRoot}
+                if (Test-Path -LiteralPath $Path -PathType Leaf) {
+                    $filProductVersion = (Get-Item -LiteralPath $Path).VersionInfo.ProductVersion
+                    $FileVersionCompare = Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $filProductVersion
+                    if ($FileVersionCompare -eq -2) {
+                        Write-Debug "$('- ' * $DebugIndent)Got unsupported with ProductVersion, trying comparison with FileVersion"
+                        $filFileVersion = (Get-Item -LiteralPath $Path).VersionInfo.FileVersion
+                        return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $filFileVersion)
+                    } else {
+                        return $FileVersionCompare
+                    }
+                } else {
+                    Write-Debug "$('- ' * $DebugIndent)The file '$Path' was not found."
+                    return -1
+                }
             }
 
             return -1
