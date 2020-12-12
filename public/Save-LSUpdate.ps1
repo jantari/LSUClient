@@ -40,17 +40,17 @@
         [switch]$Force,
         [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages"
     )
-    
+
     begin {
         $transfers = [System.Collections.Generic.List[System.Threading.Tasks.Task]]::new()
     }
-    
+
     process {
         foreach ($PackageToGet in $Package) {
             $DownloadDirectory = Join-Path -Path $Path -ChildPath $PackageToGet.id
 
             if (-not (Test-Path -Path $DownloadDirectory -PathType Container)) {
-                Write-Verbose "Destination directory did not exist, created it: '$DownloadDirectory'`r`n"
+                Write-Verbose "Destination directory did not exist, created it: '$DownloadDirectory'"
                 $null = New-Item -Path $DownloadDirectory -Force -ItemType Directory
             }
 
@@ -66,7 +66,7 @@
             }
         }
     }
-    
+
     end {
         if ($ShowProgress -and $transfers) {
             Show-DownloadProgress -Transfers $transfers
@@ -83,7 +83,7 @@
             }
             Write-Error $errorString
         }
-        
+
         foreach ($webClient in $transfers) {
             $webClient.Dispose()
         }
