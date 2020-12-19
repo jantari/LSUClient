@@ -132,7 +132,7 @@
             $DownloadedExternalFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
 
             # Downloading files needed by external detection tests in package
-            if (-not $NoTestApplicable -and -not $NoTestInstalled -and $packageXML.Package.Files.External) {
+            if (-not ($NoTestApplicable -and $NoTestInstalled) -and $packageXML.Package.Files.External) {
                 # Packages like https://download.lenovo.com/pccbbs/mobiles/r0qch05w_2_.xml show we have to download the XML itself too
                 [string]$DownloadDest = Join-Path -Path $env:Temp -ChildPath ($packageURL.location -replace "^.*/")
                 $webClient.DownloadFile($packageURL.location, $DownloadDest)
