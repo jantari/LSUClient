@@ -67,7 +67,7 @@
         }
 
         if ($NoTestApplicable -or $NoTestInstalled -and -not $All) {
-            throw "You cam only use -NoTestApplicable or -NoTestInstalled together with -All"
+            throw "You can only use -NoTestApplicable or -NoTestInstalled together with -All"
         }
 
         if (-not (Test-RunningAsAdmin)) {
