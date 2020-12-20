@@ -28,28 +28,46 @@ Install-Module -Name 'LSUClient'
 
 ## Examples and tips
 
-<b>Typical use for one's own computer:</b>
+<b>See available updates:</b>
+```powershell
+Get-LSUpdate
+```
+
+<b>Find, download and install available updates:</b>
 ```powershell
 $updates = Get-LSUpdate
 $updates | Save-LSUpdate -ShowProgress
 $updates | Install-LSUpdate -Verbose
 ```
 
-<b>To get only packages that can be installed silently and non-interactively:</b>
+<b>Install only packages that can be installed silently and non-interactively:</b>
 ```powershell
 $updates = Get-LSUpdate | Where-Object { $_.Installer.Unattended }
 $updates | Save-LSUpdate -Verbose
 $updates | Install-LSUpdate -Verbose
 ```
 
+Filtering out non-unattended packages like this is recommended when using this module in MDT, SCCM,
+remote execution via PowerShell Remoting, ssh or any other situation in which you run these commands remotely
+or as part of an automated process. Packages with installers that are not unattended may attempt to
+start a GUI setup on the machine and, if successful, wait until someone clicks through the dialogs.
+
 <b>To get all available packages:</b>
 ```powershell
 $updates = Get-LSUpdate -All
 ```
-By default, `Get-LSUpdate` only returns "needed" updates. Needed updates are those that are applicable to the system
-and not yet installed. If you want to see all available packages instead, use `Get-LSUpdate -All`. To filter out
-unneeded packages later, just look at the `IsApplicable` and `IsInstalled` properties. The default logic is equivalent to:
+By default, `Get-LSUpdate` only returns "needed" updates. Needed updates are those that are applicable to
+the system and not yet installed. If you want to see all available packages instead, use `Get-LSUpdate -All`.
+To filter out unneeded packages later, just look at the `IsApplicable` and `IsInstalled` properties.
+The default logic is equivalent to:
 `Get-LSUpdate -All | Where-Object { $_.IsApplicable -and -not $_.IsInstalled }`
+
+<b>Download drivers for another computer:</b>
+```powershell
+Get-LSUpdate -Model 20LS -All | Save-LSUpdate -Path 'C:\20LS_Drivers' -ShowProgress
+```
+Using the `-Model` parameter of `Get-LSUpdate` you can retrieve packages for another computer model.
+In this case you almost always want to use `-All` too so that the packages found are not filtered against your computer and all packages are downloaded.
 
 ### Dealing with BIOS/UEFI updates
 
