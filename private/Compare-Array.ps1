@@ -17,9 +17,7 @@
         This can also be achieved with Compare-Object, but that function
         is slower and returns unnecessarily complex objects.
 
-        Return values:
-        False : The two arrays elements are not equal
-        True : The two arrays elements are equal
+        Return values: True or False
     #>
 
     [OutputType('System.Boolean')]
@@ -40,7 +38,7 @@
         }
     }
 
-    if ($PSCmdlet.ParameterSetName -eq 'CONTAINSONLY') {
+    if ($containsonly) {
         foreach ($ElementOfTwo in $ArrayTwo) {
             if ($ElementOfTwo -notin $ArrayOne) {
                 return $false
