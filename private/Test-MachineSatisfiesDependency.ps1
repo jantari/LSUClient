@@ -67,9 +67,13 @@
                     }
 
                     $DriverVersion = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
-                    $DriverDate = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
+                    $DriverDate    = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
+                    $TestResults   = @()
 
                     # Documentation for this: https://docs.microsoft.com/en-us/windows-hardware/drivers/install/identifier-score--windows-vista-and-later-
+                    # To be clear, this is a 'pretty good / best effort' approach, but it can detect false positives or miss generic drivers.
+                    # AFAIK it is not possible to detect with 100% certainty that a driver is generic/inbox and even if - as that's not always a problem.
+                    # So this information should only be used as an aid in making non-critical decisions, do not rely on this detection/boolean to be accurate!
                     [byte]$DriverMatchTypeScore = (Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverRank').Data -shr 12 -band 0xF
                     if ($DriverMatchTypeScore -ge 2) {
                         Write-Verbose "Device '$($Device.Name)' may be using a generic or inbox driver, which could lead to wrong results for this package."
@@ -80,8 +84,14 @@
                         $LenovoDate = [DateTime]::new(0)
                         if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
                             Write-Debug "$('- ' * $DebugIndent)[Got: $DriverDate, Expected: $LenovoDate]"
-                            if ($DriverDate -eq $LenovoDate) {
-                                return 0 # SUCCESS
+                            if ($DriverDate -ge $LenovoDate) {
+                                Write-Debug "$('- ' * $DebugIndent)Passed DriverDate test"
+                                $TestResults += $true
+                                #return 0 # SUCCESS
+                            } else {
+                                Write-Debug "$('- ' * $DebugIndent)Failed DriverDate test"
+                                $TestResults += $false
+                                #return -1 # Failure, installed driver is older than what we want/expect
                             }
                         } else {
                             Write-Verbose "Got unsupported date format from Lenovo: '$($Dependency.Date)' (expected yyyy-MM-dd)"
@@ -92,12 +102,24 @@
                         Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Version"
                         # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
                         if ($DriverVersion) {
-                            Write-Debug "$('- ' * $DebugIndent)Testing installed driver version: $DriverVersion against required $($Dependency.Version)"
-                            return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion)
+                            Write-Debug "$('- ' * $DebugIndent)[Got: $DriverVersion, Expected: $($Dependency.Version)]"
+                            if ((Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion) -eq 0) {
+                                $TestResults += $true
+                            } else {
+                                $TestResults += $false
+                            }
                         } else {
-                            Write-Verbose "Device '$HardwareIDFound' does not report its driver version. Returning unsupported (-2)"
-                            return -2
+                            #Write-Verbose "Device '$HardwareIDFound' does not report its driver version. Returning unsupported (-2)"
+                            Write-Verbose "Device '$HardwareIDFound' does not report its driver version."
+                            #return -2
                         }
+                    }
+
+                    # Process test results and decide faith
+                    if ($TestResults -contains $false) {
+                        return -1
+                    } else {
+                        return 0 #SUCCESS
                     }
                 } else {
                     Write-Debug "$('- ' * $DebugIndent)No installed device matched the driver check"
