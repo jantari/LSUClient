@@ -24,7 +24,7 @@
     }
     [console]::SetCursorPosition(1, $InitialCursorYPos)
     if ($Transfers.Status -contains "Faulted" -or $Transfers.Status -contains "Canceled") {
-        Write-Host ("$ESC[91m {0} !! {0} $ESC[0m] Downloaded {1} / {2} packages" -f (' ' * ($TransferCountChars + 1)),
+        Write-Host ("$ESC[91m {0} !! {0} $ESC[0m] Downloaded {1} of {2} packages" -f (' ' * ($TransferCountChars + 1)),
             $Transfers.Where{ $_.Status -notin 'Faulted', 'Canceled'}.Count,
             $Transfers.Count)
     } else {
