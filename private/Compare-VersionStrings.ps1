@@ -5,6 +5,7 @@
         version requirements and does the comparison. Returns 0, -1 or -2.
     #>
 
+    [CmdletBinding()]
     [OutputType('System.Int32')]
     Param (
         [ValidateNotNullOrEmpty()]
@@ -30,16 +31,22 @@
         }
     } else {
         # Lenovo string contains additional directive (^-symbol likely)
-        if (-not ($LenovoString -match '^\^?[\d\.]+$' -xor $LenovoString -match '^[\d\.]+\^?$')) {
+        # It also sometimes contains spaces, like in package r07iw22w_8260
+        $LenovoStringSanitized = $LenovoString -replace '^\^|\s|\^$'
+        if (-not ([Version]::TryParse( $LenovoStringSanitized, [ref]$null ))) {
             # Unknown character in version string or ^ at both the first and last positions
             Write-Verbose "Got unsupported version format from Lenovo: '$LenovoString'"
             return -2
         }
 
-        [Version]$LenovoVersion = $LenovoString -replace '\^'
+        [Version]$LenovoVersion = $LenovoStringSanitized
         [Version]$SystemVersion = $SystemString
 
         switch -Wildcard ($LenovoString) {
+            "^*^" {
+                Write-Verbose "Got unsupported version format from Lenovo: '$LenovoString'"
+                return -2
+            }
             "^*" {
                 # Means up to and including
                 if ($SystemVersion -le $LenovoVersion) {
