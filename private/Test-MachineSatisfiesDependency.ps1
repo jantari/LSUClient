@@ -147,6 +147,9 @@
         }
         '_EmbeddedControllerVersion' {
             if ($CachedHardwareTable['_EmbeddedControllerVersion']) {
+                if ($CachedHardwareTable['_EmbeddedControllerVersion'] -eq '255.255') {
+                    Write-Warning "This computers EC firmware is not upgradable but is being used to evaluate a package"
+                }
                 return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $CachedHardwareTable['_EmbeddedControllerVersion'])
             }
             return -1
