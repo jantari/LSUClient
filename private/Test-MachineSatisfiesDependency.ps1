@@ -77,7 +77,7 @@
                     # do not rely on this detection/boolean to be accurate!
                     [byte]$DriverMatchTypeScore = (Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverRank').Data -shr 12 -band 0xF
                     if ($DriverMatchTypeScore -ge 2) {
-                        Write-Verbose "Device '$($Device.Name)' may be using a generic or inbox driver, which could lead to wrong results for this package."
+                        Write-Verbose "Device '$($Device.Name)' may currently be using a generic or inbox driver"
                     }
 
                     if ($DriverChildNodes -contains 'Date') {
