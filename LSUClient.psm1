@@ -87,6 +87,16 @@ class BiosUpdateInfo {
     [string]$ActionNeeded
 }
 
+class ProcessReturnInformation {
+    [ValidateNotNullOrEmpty()]
+    [string]   $FilePath
+    [string[]] $StandardOutput
+    [string[]] $StandardError
+    [Nullable[int64]] $ExitCode
+    [TimeSpan] $RunTime
+    hidden [bool] $ProcessStarted
+}
+
 # Import all private functions
 foreach ($function in (Get-ChildItem "$PSScriptRoot\private" -File -ErrorAction Ignore)) {
     . $function.FullName
