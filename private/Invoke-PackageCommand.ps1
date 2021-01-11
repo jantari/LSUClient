@@ -17,7 +17,7 @@
     # Lenovo sometimes forgets to put a directory separator betweeen %PACKAGEPATH% and the executable so make sure it's there
     # If we end up with two backslashes, Split-ExecutableAndArguments removes the duplicate from the executable path, but
     # we could still end up with a double-backslash after %PACKAGEPATH% somewhere in the arguments for now.
-    $Command               = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "$Path\"}
+    [string]$Command       = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "${Path}\"}
     [bool]$processStarted  = $false
     [string[]]$StdOutLines = @()
     [string[]]$StdErrLines = @()
@@ -62,6 +62,9 @@
 
     if ($processStarted) {
         if (-not $FallbackToShellExecute) {
+            # When redirecting StandardOutput or StandardError you have to start reading the streams asynchronously, or else it can cause
+            # programs that output a lot (like package u3aud03w_w10 - Conexant USB Audio) to fill a stream and deadlock/hang indefinitely.
+            # See issue #25 and https://stackoverflow.com/questions/11531068/powershell-capturing-standard-out-and-error-with-process-object
             $stdoutAsync = $process.StandardOutput.ReadToEndAsync()
             $stderrAsync = $process.StandardError.ReadToEndAsync()
         }
