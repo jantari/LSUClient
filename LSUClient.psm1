@@ -89,7 +89,8 @@ class BiosUpdateInfo {
 
 class ProcessReturnInformation {
     [ValidateNotNullOrEmpty()]
-    [string]   $FilePath
+    [string] $FilePath
+    [string] $Arguments
     [string[]] $StandardOutput
     [string[]] $StandardError
     [Nullable[int64]] $ExitCode

@@ -28,7 +28,7 @@
         return $null
     }
 
-    $ExeAndArgs.Arguments = Assert-CmdAmpersandEscaped -String $ExeAndArgs.Arguments
+    $ExeAndArgs.Arguments = Remove-CmdEscapeCharacter -String $ExeAndArgs.Arguments
 
     $process                                  = [System.Diagnostics.Process]::new()
     $process.StartInfo.WindowStyle            = [System.Diagnostics.ProcessWindowStyle]::Hidden
@@ -89,6 +89,7 @@
 
     $returnInfo = [ProcessReturnInformation]@{
         "FilePath"       = $ExeAndArgs.Executable
+        "Arguments"      = $ExeAndArgs.Arguments
         "StandardOutput" = $StdOutLines
         "StandardError"  = $StdErrLines
         "ExitCode"       = $process.ExitCode
