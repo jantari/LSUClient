@@ -65,22 +65,22 @@
             # When redirecting StandardOutput or StandardError you have to start reading the streams asynchronously, or else it can cause
             # programs that output a lot (like package u3aud03w_w10 - Conexant USB Audio) to fill a stream and deadlock/hang indefinitely.
             # See issue #25 and https://stackoverflow.com/questions/11531068/powershell-capturing-standard-out-and-error-with-process-object
-            $stdoutAsync = $process.StandardOutput.ReadToEndAsync()
-            $stderrAsync = $process.StandardError.ReadToEndAsync()
+            $StdOutAsync = $process.StandardOutput.ReadToEndAsync()
+            $StdErrAsync = $process.StandardError.ReadToEndAsync()
         }
 
         $process.WaitForExit()
 
         if (-not $FallbackToShellExecute) {
-            $STDOUTinOneString = $stdoutAsync.GetAwaiter().GetResult()
-            $STDERRinOneString = $stderrAsync.GetAwaiter().GetResult()
+            $StdOutInOneString = $StdOutAsync.GetAwaiter().GetResult()
+            $StdErrInOneString = $StdErrAsync.GetAwaiter().GetResult()
 
-            [string[]]$StdOutLines = $STDOUTinOneString.Split(
+            [string[]]$StdOutLines = $StdOutInOneString.Split(
                 [string[]]("`r`n", "`r", "`n"),
                 [StringSplitOptions]::None
             )
 
-            [string[]]$StdErrLines = $STDERRinOneString.Split(
+            [string[]]$StdErrLines = $StdErrInOneString.Split(
                 [string[]]("`r`n", "`r", "`n"),
                 [StringSplitOptions]::None
             )
