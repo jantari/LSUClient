@@ -40,11 +40,14 @@
     $process.StartInfo.UseShellExecute  = $true
     $process.StartInfo.WorkingDirectory = $Path
     $process.StartInfo.FileName         = "${env:SystemRoot}\system32\cmd.exe"
-    # We can't have a space after the arguments (before the redirection operator) because it'd
-    # be passed through to the executable arguments and that causes GitHub#15
+    # We can't have a space after the executable arguments because it'd be passed
+    # through with the executable arguments and that causes GitHub#15
     # We do need a space between the quoted executable path and the arguments though or else
     # the arguments are interpreted as part of the file name in some cases (GitHub#19)
-    $process.StartInfo.Arguments        = '/D /C ""{0}" {1}>"{2}" 2>&1"' -f $ExeAndArgs.Executable, $ExeAndArgs.Arguments, $LogFilePath
+    # AND we cannot put the redirection operator(s) at the end or else arguments that are just
+    # the number "1" or "2" get misinterpreted as part of the shell redirection operation e.g.
+    # 'command.exe 1' gets turned into 'command.exe 1>logfile.txt' and we'd run 'command.exe' without arguments
+    $process.StartInfo.Arguments        = '/D /C ">"{2}" 2>&1 "{0}" {1}"' -f $ExeAndArgs.Executable, $ExeAndArgs.Arguments, $LogFilePath
 
     try {
         $processStarted = $process.Start()
