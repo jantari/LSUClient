@@ -23,7 +23,7 @@
         [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages",
         [switch]$SaveBIOSUpdateInfoToRegistry
     )
-    
+
     process {
         foreach ($PackageToProcess in $Package) {
             $PackageDirectory = Join-Path -Path $Path -ChildPath $PackageToProcess.id
@@ -33,7 +33,7 @@
             }
 
             Expand-LSUpdate -Package $PackageToProcess -Path $PackageDirectory
-            
+
             Write-Verbose "Installing package $($PackageToProcess.ID) ...`r`n"
 
             if ($PackageToProcess.Category -eq 'BIOS UEFI') {
