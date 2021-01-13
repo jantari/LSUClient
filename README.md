@@ -93,7 +93,7 @@ For more details, available parameters and guidance on how to use them run `Get-
 
 - Only Windows 10 is supported
 - This module does not clean up downloaded packages at any point. This is by design as it checks for previously downloaded packages and skips them. The default download location is `$env:TEMP\LSUPackages` - you may delete it yourself
-- This module requires internet access to https://download.lenovo.com, and must be able to download `.xml`, `.exe` and `.inf` files from that domain - there is no official offline mode yet (see [#17][issue17])
+- This module requires internet access to https://download.lenovo.com and must be able to download `.xml`, `.exe` and `.inf` files from that domain - there is no official offline mode yet (see [#17][issue17])
 - If you explicitly `Save-LSUpdate` before using `Install-LSUpdate` the whole operation will be faster because when calling `Save-LSUpdate` explicitly it downloads the packages in parallel, but calling `Install-LSUpdate` first will download then install each package after the other
 
 [issue17]: https://github.com/jantari/lsuclient/issues/17
