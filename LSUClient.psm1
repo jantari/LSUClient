@@ -95,7 +95,8 @@ class ProcessReturnInformation {
     [string[]] $StandardError
     [Nullable[int64]] $ExitCode
     [TimeSpan] $RunTime
-    hidden [bool] $ProcessStarted
+    #hidden [bool] $ProcessStarted
+    [bool] $ProcessStarted
 }
 
 # Import all private functions
