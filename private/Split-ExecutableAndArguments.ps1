@@ -16,8 +16,10 @@
     $pathParts = $Command -split ' '
 
     for ($i = $pathParts.Count - 1; $i -ge 0; $i--) {
-        $testPath            = [String]::Join(' ', $pathParts[0..$i])
-        $testPathWasRelative = Join-Path -Path $WorkingDirectory -ChildPath $testPath
+        $testPath = [String]::Join(' ', $pathParts[0..$i])
+
+        # We have to trim quotes because they mess up GetFullPath() and Join-Path
+        $testPath = $testPath.Trim('"')
 
         if ( [System.IO.File]::Exists($testPath) ) {
             return [PSCustomObject]@{
@@ -26,9 +28,11 @@
             }
         }
 
-        if ( [System.IO.File]::Exists($testPathWasRelative) ) {
+        $testPathRelative = Join-Path -Path $WorkingDirectory -ChildPath $testPath
+
+        if ( [System.IO.File]::Exists($testPathRelative) ) {
             return [PSCustomObject]@{
-                "Executable" =  [System.IO.Path]::GetFullPath($testPathWasRelative)
+                "Executable" = [System.IO.Path]::GetFullPath($testPathRelative)
                 "Arguments"  = "$($pathParts | Select-Object -Skip ($i + 1))"
             }
         }
