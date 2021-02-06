@@ -7,13 +7,19 @@ function Remove-CmdEscapeCharacter {
 
         Since this module does not run commands through cmd.exe anymore we mustn't escape these characters
         and in cases where a command contains a metacharacter prepended by a caret, we most likely have to
-        remove the caret (like cmd would) prior to running the command 
+        remove the caret (like cmd would) prior to running the command.
 
         In module versions 1.2.1 and below, commands were still run through cmd.exe and this logic was inverted -
         escaped metacharacters were what we wanted and unescaped ones had to be manually escaped as best as possible
     #>
 
     [OutputType('System.String')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions',
+        '',
+        Scope='Function',
+        Justification='This function does not change system state, it only edits a string'
+    )]
     Param (
         [string]$String
     )

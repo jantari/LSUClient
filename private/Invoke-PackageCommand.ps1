@@ -18,7 +18,6 @@
     # If we end up with two backslashes, Split-ExecutableAndArguments removes the duplicate from the executable path, but
     # we could still end up with a double-backslash after %PACKAGEPATH% somewhere in the arguments for now.
     [string]$Command       = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "${Path}\"}
-    [bool]$processStarted  = $false
     [string[]]$StdOutLines = @()
     [string[]]$StdErrLines = @()
     $ExeAndArgs            = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
@@ -97,10 +96,8 @@
         "StandardOutput"   = $StdOutLines
         "StandardError"    = $StdErrLines
         "ExitCode"         = $process.ExitCode
-        "RunTime"          = $process.ExitTime - $process.StartTime
+        "Runtime"          = $process.ExitTime - $process.StartTime
     }
-
-    $returnInfo | Format-List | Out-Host
 
     return $returnInfo
 }
