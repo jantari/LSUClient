@@ -9,7 +9,7 @@ function Remove-CmdEscapeCharacter {
         and in cases where a command contains a metacharacter prepended by a caret, we most likely have to
         remove the caret (like cmd would) prior to running the command.
 
-        In module versions 1.2.1 and below, commands were still run through cmd.exe and this logic was inverted -
+        In module versions 1.2.2 and below, commands were still run through cmd.exe and this logic was inverted -
         escaped metacharacters were what we wanted and unescaped ones had to be manually escaped as best as possible
     #>
 
