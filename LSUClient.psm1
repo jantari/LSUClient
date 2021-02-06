@@ -59,7 +59,7 @@ class PackageInstallInfo {
     [int64[]]$SuccessCodes
     [string]$InfFile
     [string]$Command
-    
+
     PackageInstallInfo ([System.Xml.XmlElement]$PackageXML, [string]$Category) {
         $this.InstallType    = $PackageXML.Install.type
         $this.SuccessCodes   = $PackageXML.Install.rc -split ','
@@ -85,6 +85,17 @@ class BiosUpdateInfo {
     [string]$LogMessage
     [ValidateNotNullOrEmpty()]
     [string]$ActionNeeded
+}
+
+class ProcessReturnInformation {
+    [ValidateNotNullOrEmpty()]
+    [string] $FilePath
+    [string] $Arguments
+    [string] $WorkingDirectory
+    [string[]] $StandardOutput
+    [string[]] $StandardError
+    [Nullable[int64]] $ExitCode
+    [TimeSpan] $Runtime
 }
 
 # Import all private functions

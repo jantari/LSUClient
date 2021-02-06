@@ -43,7 +43,7 @@
                 return [BiosUpdateInfo]@{
                     'Timestamp'    = [datetime]::Now.ToFileTime()
                     'ExitCode'     = $installProcess.ExitCode
-                    'LogMessage'   = $installProcess.Output
+                    'LogMessage'   = $installProcess.StandardOutput
                     'ActionNeeded' = 'SHUTDOWN'
                 }
             }

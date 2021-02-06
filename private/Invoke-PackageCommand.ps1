@@ -10,73 +10,94 @@
         [string]$Path,
         [ValidateNotNullOrEmpty()]
         [Parameter( Mandatory = $true )]
-        [string]$Command
+        [string]$Command,
+        [switch]$FallbackToShellExecute
     )
 
     # Lenovo sometimes forgets to put a directory separator betweeen %PACKAGEPATH% and the executable so make sure it's there
     # If we end up with two backslashes, Split-ExecutableAndArguments removes the duplicate from the executable path, but
     # we could still end up with a double-backslash after %PACKAGEPATH% somewhere in the arguments for now.
-    $Command        = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "$Path\"}
-    $output         = [String]::Empty
-    $processStarted = $false
-    $ExeAndArgs     = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
+    [string]$Command       = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "${Path}\"}
+    [string[]]$StdOutLines = @()
+    [string[]]$StdErrLines = @()
+    $ExeAndArgs            = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
     # Split-ExecutableAndArguments returns NULL if no executable could be found
     if (-not $ExeAndArgs) {
         Write-Warning "The command or file '$Command' could not be found from '$Path' and was not run"
         return $null
     }
 
-    $ExeAndArgs.Arguments = Assert-CmdAmpersandEscaped -String $ExeAndArgs.Arguments
+    $ExeAndArgs.Arguments = Remove-CmdEscapeCharacter -String $ExeAndArgs.Arguments
 
-    # Get a random non-existant file name to capture cmd output to
-    do {
-        [string]$LogFilePath = Join-Path -Path $Path -ChildPath ( [System.IO.Path]::GetRandomFileName() )
-    } until ( -not [System.IO.File]::Exists($LogFilePath) )
+    $process                                  = [System.Diagnostics.Process]::new()
+    $process.StartInfo.WindowStyle            = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    $process.StartInfo.UseShellExecute        = $false
+    $process.StartInfo.WorkingDirectory       = $Path
+    $process.StartInfo.FileName               = $ExeAndArgs.Executable
+    $process.StartInfo.Arguments              = $ExeAndArgs.Arguments
+    $process.StartInfo.RedirectStandardOutput = $true
+    $process.StartInfo.RedirectStandardError  = $true
 
-    # We cannot simply use CreateProcess API and redirect the output handles
-    # because that causes packages like u3aud03w_w10 (Conexant USB Audio) to hang indefinitely
-    $process                            = [System.Diagnostics.Process]::new()
-    $process.StartInfo.WindowStyle      = [System.Diagnostics.ProcessWindowStyle]::Hidden
-    $process.StartInfo.UseShellExecute  = $true
-    $process.StartInfo.WorkingDirectory = $Path
-    $process.StartInfo.FileName         = "${env:SystemRoot}\system32\cmd.exe"
-    # We can't have a space after the executable arguments because it'd be passed
-    # through with the executable arguments and that causes GitHub#15
-    # We do need a space between the quoted executable path and the arguments though or else
-    # the arguments are interpreted as part of the file name in some cases (GitHub#19)
-    # AND we cannot put the redirection operator(s) at the end or else arguments that are just
-    # the number "1" or "2" get misinterpreted as part of the shell redirection operation e.g.
-    # 'command.exe 1' gets turned into 'command.exe 1>logfile.txt' and we'd run 'command.exe' without arguments
-    $process.StartInfo.Arguments        = '/D /C ">"{2}" 2>&1 "{0}" {1}"' -f $ExeAndArgs.Executable, $ExeAndArgs.Arguments, $LogFilePath
+    if ($FallbackToShellExecute) {
+        Write-Warning "Running with ShellExecute - process output cannot be captured!"
+        $process.StartInfo.UseShellExecute        = $true
+        $process.StartInfo.RedirectStandardOutput = $false
+        $process.StartInfo.RedirectStandardError  = $false
+    }
 
     try {
-        $processStarted = $process.Start()
+        if (-not $process.Start()) {
+            Write-Warning "No new process was created or a handle to it could not be obtained."
+            Write-Warning "Executable was: '$($ExeAndArgs.Executable)' - this should *probably* not have happened"
+            return $null
+        }
     }
     catch {
-        Write-Warning $_
-    }
-
-    if ($processStarted) {
-        $process.WaitForExit()
-    } else {
-        Write-Warning "A process failed to start."
-        return $null
-    }
-
-    if ([System.IO.File]::Exists($LogFilePath)) {
-        $output = Get-Content -LiteralPath $LogFilePath -Raw
-        if ($output) {
-            $output = $output.Trim()
+        if ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException.NativeErrorCode -eq 740) {
+            Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
+            if (-not $FallbackToShellExecute) {
+                return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
+            }
+        } else {
+            Write-Warning $_
+            return $null
         }
-        Remove-Item -LiteralPath $LogFilePath
     }
 
-    Write-Debug "Process '$($ExeAndArgs.Executable)' finished with ExitCode $($process.ExitCode)"
-
-    $return = [PSCustomObject]@{
-        'Output'   = $output
-        'ExitCode' = $process.ExitCode
+    if (-not $FallbackToShellExecute) {
+        # When redirecting StandardOutput or StandardError you have to start reading the streams asynchronously, or else it can cause
+        # programs that output a lot (like package u3aud03w_w10 - Conexant USB Audio) to fill a stream and deadlock/hang indefinitely.
+        # See issue #25 and https://stackoverflow.com/questions/11531068/powershell-capturing-standard-out-and-error-with-process-object
+        $StdOutAsync = $process.StandardOutput.ReadToEndAsync()
+        $StdErrAsync = $process.StandardError.ReadToEndAsync()
     }
 
-    return $return
+    $process.WaitForExit()
+
+    if (-not $FallbackToShellExecute) {
+        $StdOutInOneString = $StdOutAsync.GetAwaiter().GetResult()
+        $StdErrInOneString = $StdErrAsync.GetAwaiter().GetResult()
+
+        [string[]]$StdOutLines = $StdOutInOneString.Split(
+            [string[]]("`r`n", "`r", "`n"),
+            [StringSplitOptions]::None
+        )
+
+        [string[]]$StdErrLines = $StdErrInOneString.Split(
+            [string[]]("`r`n", "`r", "`n"),
+            [StringSplitOptions]::None
+        )
+    }
+
+    $returnInfo = [ProcessReturnInformation]@{
+        "FilePath"         = $ExeAndArgs.Executable
+        "Arguments"        = $ExeAndArgs.Arguments
+        "WorkingDirectory" = $Path
+        "StandardOutput"   = $StdOutLines
+        "StandardError"    = $StdErrLines
+        "ExitCode"         = $process.ExitCode
+        "Runtime"          = $process.ExitTime - $process.StartTime
+    }
+
+    return $returnInfo
 }

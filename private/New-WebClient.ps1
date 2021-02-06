@@ -1,4 +1,10 @@
 ﻿function New-WebClient {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions',
+        '',
+        Scope='Function',
+        Justification='This function does not change system state, it only creates and returns an in-memory object'
+    )]
     [OutputType('System.Net.WebClient')]
     Param (
         [Uri]$Proxy,
