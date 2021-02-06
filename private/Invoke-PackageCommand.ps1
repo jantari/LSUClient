@@ -40,61 +40,64 @@
     $process.StartInfo.RedirectStandardError  = $true
 
     if ($FallbackToShellExecute) {
-        Write-Warning "Running with ShellExecute - any process output cannot be captured!"
+        Write-Warning "Running with ShellExecute - process output cannot be captured!"
         $process.StartInfo.UseShellExecute        = $true
         $process.StartInfo.RedirectStandardOutput = $false
         $process.StartInfo.RedirectStandardError  = $false
     }
 
     try {
-        $processStarted = $process.Start()
+        if (-not $process.Start()) {
+            Write-Warning "No new process was created or a handle to it could not be obtained."
+            Write-Warning "Executable was: '$($ExeAndArgs.Executable)' - this should *probably* not have happened"
+            return $null
+        }
     }
     catch {
         if ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException.NativeErrorCode -eq 740) {
-            Write-Warning "This process requires elevated privileges - falling back to ShellExecute"
+            Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
             if (-not $FallbackToShellExecute) {
                 return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
             }
         } else {
             Write-Warning $_
+            return $null
         }
     }
 
-    if ($processStarted) {
-        if (-not $FallbackToShellExecute) {
-            # When redirecting StandardOutput or StandardError you have to start reading the streams asynchronously, or else it can cause
-            # programs that output a lot (like package u3aud03w_w10 - Conexant USB Audio) to fill a stream and deadlock/hang indefinitely.
-            # See issue #25 and https://stackoverflow.com/questions/11531068/powershell-capturing-standard-out-and-error-with-process-object
-            $StdOutAsync = $process.StandardOutput.ReadToEndAsync()
-            $StdErrAsync = $process.StandardError.ReadToEndAsync()
-        }
+    if (-not $FallbackToShellExecute) {
+        # When redirecting StandardOutput or StandardError you have to start reading the streams asynchronously, or else it can cause
+        # programs that output a lot (like package u3aud03w_w10 - Conexant USB Audio) to fill a stream and deadlock/hang indefinitely.
+        # See issue #25 and https://stackoverflow.com/questions/11531068/powershell-capturing-standard-out-and-error-with-process-object
+        $StdOutAsync = $process.StandardOutput.ReadToEndAsync()
+        $StdErrAsync = $process.StandardError.ReadToEndAsync()
+    }
 
-        $process.WaitForExit()
+    $process.WaitForExit()
 
-        if (-not $FallbackToShellExecute) {
-            $StdOutInOneString = $StdOutAsync.GetAwaiter().GetResult()
-            $StdErrInOneString = $StdErrAsync.GetAwaiter().GetResult()
+    if (-not $FallbackToShellExecute) {
+        $StdOutInOneString = $StdOutAsync.GetAwaiter().GetResult()
+        $StdErrInOneString = $StdErrAsync.GetAwaiter().GetResult()
 
-            [string[]]$StdOutLines = $StdOutInOneString.Split(
-                [string[]]("`r`n", "`r", "`n"),
-                [StringSplitOptions]::None
-            )
+        [string[]]$StdOutLines = $StdOutInOneString.Split(
+            [string[]]("`r`n", "`r", "`n"),
+            [StringSplitOptions]::None
+        )
 
-            [string[]]$StdErrLines = $StdErrInOneString.Split(
-                [string[]]("`r`n", "`r", "`n"),
-                [StringSplitOptions]::None
-            )
-        }
+        [string[]]$StdErrLines = $StdErrInOneString.Split(
+            [string[]]("`r`n", "`r", "`n"),
+            [StringSplitOptions]::None
+        )
     }
 
     $returnInfo = [ProcessReturnInformation]@{
-        "FilePath"       = $ExeAndArgs.Executable
-        "Arguments"      = $ExeAndArgs.Arguments
-        "StandardOutput" = $StdOutLines
-        "StandardError"  = $StdErrLines
-        "ExitCode"       = $process.ExitCode
-        "ProcessStarted" = $processStarted
-        "RunTime"        = $process.ExitTime - $process.StartTime
+        "FilePath"         = $ExeAndArgs.Executable
+        "Arguments"        = $ExeAndArgs.Arguments
+        "WorkingDirectory" = $Path
+        "StandardOutput"   = $StdOutLines
+        "StandardError"    = $StdErrLines
+        "ExitCode"         = $process.ExitCode
+        "RunTime"          = $process.ExitTime - $process.StartTime
     }
 
     $returnInfo | Format-List | Out-Host
