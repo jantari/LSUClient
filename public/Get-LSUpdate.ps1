@@ -172,6 +172,14 @@
                 Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -TreatUnsupportedAsPassed:(-not $FailUnsupportedDependencies)
             }
 
+            # Calculate package size
+            [Int64]$PackageSize = 0
+            $packageXML.Package.Files.SelectNodes('*[not(self::External)]/descendant-or-self::Size') | Foreach-Object {
+                [Int64]$Number = 0
+                $null = [Int64]::TryParse($_.'#text', [ref]$Number)
+                $PackageSize += $Number
+            }
+
             $packageObject = [LenovoPackage]@{
                 'ID'           = $packageXML.Package.id
                 'Title'        = $packageXML.Package.Title.Desc.'#text'
@@ -181,6 +189,7 @@
                 'ReleaseDate'  = [DateTime]::ParseExact($packageXML.Package.ReleaseDate, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None')
                 'RebootType'   = $packageXML.Package.Reboot.type
                 'Vendor'       = $packageXML.Package.Vendor
+                'Size'         = $PackageSize
                 'URL'          = $packageURL.location
                 'Extracter'    = $packageXML.Package
                 'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $packageURL.category)

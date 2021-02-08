@@ -32,6 +32,7 @@ class LenovoPackage {
     [DateTime]$ReleaseDate
     [int]$RebootType
     [string]$Vendor
+    [Int64]$Size
     [Uri]$URL
     [PackageExtractInfo]$Extracter
     [PackageInstallInfo]$Installer
