@@ -29,6 +29,7 @@ class LenovoPackage {
     [string]$Category
     [version]$Version
     [Severity]$Severity
+    [DateTime]$ReleaseDate
     [int]$RebootType
     [string]$Vendor
     [Uri]$URL

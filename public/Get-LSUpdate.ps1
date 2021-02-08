@@ -178,6 +178,7 @@
                 'Category'     = $packageURL.category
                 'Version'      = if ([Version]::TryParse($packageXML.Package.version, [ref]$null)) { $packageXML.Package.version } else { '0.0.0.0' }
                 'Severity'     = $packageXML.Package.Severity.type
+                'ReleaseDate'  = [DateTime]::ParseExact($packageXML.Package.ReleaseDate, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None')
                 'RebootType'   = $packageXML.Package.Reboot.type
                 'Vendor'       = $packageXML.Package.Vendor
                 'URL'          = $packageURL.location
