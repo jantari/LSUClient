@@ -25,6 +25,7 @@ $script:CachedHardwareTable = @{}
 
 class LenovoPackage {
     [string]$ID
+    hidden [string]$Name
     [string]$Title
     [string]$Category
     [version]$Version

@@ -182,6 +182,7 @@
 
             $packageObject = [LenovoPackage]@{
                 'ID'           = $packageXML.Package.id
+                'Name'         = $packageXML.Package.name
                 'Title'        = $packageXML.Package.Title.Desc.'#text'
                 'Category'     = $packageURL.category
                 'Version'      = if ([Version]::TryParse($packageXML.Package.version, [ref]$null)) { $packageXML.Package.version } else { '0.0.0.0' }
