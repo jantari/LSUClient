@@ -97,7 +97,7 @@ class ProcessReturnInformation {
     [string] $WorkingDirectory
     [string[]] $StandardOutput
     [string[]] $StandardError
-    [Nullable[int64]] $ExitCode
+    [Int64] $ExitCode
     [TimeSpan] $Runtime
 }
 
