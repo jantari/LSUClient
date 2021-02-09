@@ -24,28 +24,28 @@ $script:CachedHardwareTable = @{}
 [int]$script:XMLTreeDepth = 0
 
 class LenovoPackage {
-    [string]$ID
-    hidden [string]$Name
-    [string]$Title
-    [string]$Category
-    [version]$Version
-    [Severity]$Severity
-    [DateTime]$ReleaseDate
-    [int]$RebootType
-    [string]$Vendor
-    [Int64]$Size
-    [Uri]$URL
-    [PackageExtractInfo]$Extracter
-    [PackageInstallInfo]$Installer
-    [Nullable[bool]]$IsApplicable
-    [Nullable[bool]]$IsInstalled
+    [string] $ID
+    hidden [string] $Name
+    [string] $Title
+    [string] $Category
+    [version] $Version
+    [Severity] $Severity
+    [DateTime] $ReleaseDate
+    [int] $RebootType
+    [string] $Vendor
+    [Int64] $Size
+    [Uri] $URL
+    [PackageExtractInfo] $Extracter
+    [PackageInstallInfo] $Installer
+    [Nullable[bool]] $IsApplicable
+    [Nullable[bool]] $IsInstalled
 }
 
 class PackageExtractInfo {
-    [string]$Command
-    [string]$FileName
-    [int64]$FileSize
-    [string]$FileSHA
+    [string] $Command
+    [string] $FileName
+    [int64] $FileSize
+    [string] $FileSHA
 
     PackageExtractInfo ([System.Xml.XmlElement]$PackageXML) {
         $this.Command  = $PackageXML.ExtractCommand
@@ -56,12 +56,12 @@ class PackageExtractInfo {
 }
 
 class PackageInstallInfo {
-    [bool]$Unattended
+    [bool] $Unattended
     [ValidateNotNullOrEmpty()]
-    [string]$InstallType
-    [int64[]]$SuccessCodes
-    [string]$InfFile
-    [string]$Command
+    [string] $InstallType
+    [int64[]] $SuccessCodes
+    [string] $InfFile
+    [string] $Command
 
     PackageInstallInfo ([System.Xml.XmlElement]$PackageXML, [string]$Category) {
         $this.InstallType    = $PackageXML.Install.type
@@ -81,13 +81,13 @@ class PackageInstallInfo {
 
 class BiosUpdateInfo {
     [ValidateNotNullOrEmpty()]
-    [bool]$WasRun
-    [int64]$Timestamp
+    [bool] $WasRun
+    [int64] $Timestamp
     [ValidateNotNullOrEmpty()]
-    [int64]$ExitCode
-    [string]$LogMessage
+    [int64] $ExitCode
+    [string] $LogMessage
     [ValidateNotNullOrEmpty()]
-    [string]$ActionNeeded
+    [string] $ActionNeeded
 }
 
 class ProcessReturnInformation {
