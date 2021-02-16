@@ -182,7 +182,6 @@
             }
 
             # Calculate package size
-
             [Int64]$PackageSize = 0
             $packageFiles | Where-Object { $_.Kind -ne 'External'} | Foreach-Object {
                 [Int64]$Number = 0
