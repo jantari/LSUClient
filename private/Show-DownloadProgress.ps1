@@ -10,7 +10,7 @@
     [int]$InitialCursorYPos  = $host.UI.RawUI.CursorPosition.Y
     [console]::CursorVisible = $false
     [int]$TransferCountChars = $TotalTransfers.ToString().Length
-    [console]::Write("[ {0}   ] Downloading packages ...`r[ " -f (' ' * ($TransferCountChars * 2 + 4)))
+    [console]::Write("[ {0}   ] Downloading files ...`r[ " -f (' ' * ($TransferCountChars * 2 + 4)))
     while ($Transfers.IsCompleted -contains $false) {
         $i = $Transfers.Where{ $_.IsCompleted }.Count
         [console]::Write("`r[ {0,$TransferCountChars} of $TotalTransfers /" -f $i)
