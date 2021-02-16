@@ -35,6 +35,7 @@ class LenovoPackage {
     [string] $Vendor
     [Int64] $Size
     [Uri] $URL
+    [Object[]] $Files
     [PackageExtractInfo] $Extracter
     [PackageInstallInfo] $Installer
     [Nullable[bool]] $IsApplicable

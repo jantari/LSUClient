@@ -54,15 +54,25 @@
                 $null = New-Item -Path $DownloadDirectory -Force -ItemType Directory
             }
 
-            $PackageDownload = $PackageToGet.URL -replace "[^/]*$"
-            $PackageDownload = [String]::Concat($PackageDownload, $PackageToGet.Extracter.FileName)
-            $DownloadPath    = Join-Path -Path $DownloadDirectory -ChildPath $PackageToGet.Extracter.FileName
+            $PackageUrlRoot = $PackageToGet.URL -replace "[^/]*$"
 
-            if ($Force -or -not (Test-Path -Path $DownloadPath -PathType Leaf) -or (
-               (Get-FileHash -Path $DownloadPath -Algorithm SHA256).Hash -ne $PackageToGet.Extracter.FileSHA)) {
-                # Checking if this package was already downloaded, if yes skipping redownload
-                $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
-                $transfers.Add( $webClient.DownloadFileTaskAsync($PackageDownload, $DownloadPath) )
+            # The packages XML file
+            $DownloadSrc  = $PackageToGet.URL.AbsoluteUri
+            $DownloadPath = Join-Path -Path $DownloadDirectory -ChildPath ($DownloadSrc -replace "^.*/")
+            $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+            $transfers.Add( $webClient.DownloadFileTaskAsync($DownloadSrc, $DownloadPath) )
+
+            # Installer and other files
+            foreach ($file in $PackageToGet.Files) {
+                $DownloadSrc  = [String]::Concat($PackageUrlRoot, $file.Name)
+                $DownloadPath = Join-Path -Path $DownloadDirectory -ChildPath $file.Name
+
+                if ($Force -or -not (Test-Path -Path $DownloadPath -PathType Leaf) -or (
+                   (Get-FileHash -Path $DownloadPath -Algorithm SHA256).Hash -ne $file.CRC)) {
+                    # Checking if this package was already downloaded, if yes skipping redownload
+                    $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+                    $transfers.Add( $webClient.DownloadFileTaskAsync($DownloadSrc, $DownloadPath) )
+                }
             }
         }
     }

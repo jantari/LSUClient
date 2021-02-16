@@ -130,15 +130,24 @@
                 continue
             }
 
+            [array]$packageFiles = $packageXML.Package.Files.SelectNodes('descendant-or-self::File') | Foreach-Object {
+                [PSCustomObject]@{
+                    'Kind' = $_.ParentNode.SchemaInfo.Name
+                    'Name' = $_.Name
+                    'CRC'  = $_.CRC
+                    'Size' = $_.Size
+                }
+            }
+
             $DownloadedExternalFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
 
             # Downloading files needed by external detection tests in package
-            if (-not ($NoTestApplicable -and $NoTestInstalled) -and $packageXML.Package.Files.External) {
+            if (-not ($NoTestApplicable -and $NoTestInstalled) -and $packageFiles.Where{ $_.Kind -eq 'External'}) {
                 # Packages like https://download.lenovo.com/pccbbs/mobiles/r0qch05w_2_.xml show we have to download the XML itself too
                 [string]$DownloadDest = Join-Path -Path $env:Temp -ChildPath ($packageURL.location -replace "^.*/")
                 $webClient.DownloadFile($packageURL.location, $DownloadDest)
                 $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
-                foreach ($externalFile in $packageXML.Package.Files.External.ChildNodes) {
+                foreach ($externalFile in $packageFiles.Where{ $_.Kind -eq 'External'}) {
                     [string]$DownloadDest = Join-Path -Path $env:Temp -ChildPath $externalFile.Name
                     [string]$DownloadSrc = ($packageURL.location -replace "[^/]*$") + $externalFile.Name
                     try {
@@ -173,10 +182,11 @@
             }
 
             # Calculate package size
+
             [Int64]$PackageSize = 0
-            $packageXML.Package.Files.SelectNodes('*[not(self::External)]/descendant-or-self::Size') | Foreach-Object {
+            $packageFiles | Where-Object { $_.Kind -ne 'External'} | Foreach-Object {
                 [Int64]$Number = 0
-                $null = [Int64]::TryParse($_.'#text', [ref]$Number)
+                $null = [Int64]::TryParse($_.Size, [ref]$Number)
                 $PackageSize += $Number
             }
 
@@ -192,6 +202,7 @@
                 'Vendor'       = $packageXML.Package.Vendor
                 'Size'         = $PackageSize
                 'URL'          = $packageURL.location
+                'Files'        = $packageFiles
                 'Extracter'    = $packageXML.Package
                 'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $packageURL.category)
                 'IsApplicable' = $PackageIsApplicable
