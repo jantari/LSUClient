@@ -54,7 +54,7 @@
         [pscredential]$ProxyCredential,
         [switch]$ProxyUseDefaultCredentials,
         [switch]$All,
-        [System.IO.DirectoryInfo]$Path,
+        [System.IO.DirectoryInfo]$ScratchDirectory = "${env:TEMP}\LSUPackages",
         [switch]$NoTestApplicable,
         [switch]$NoTestInstalled,
         [switch]$FailUnsupportedDependencies,
@@ -94,12 +94,6 @@
             '_EmbeddedControllerVersion' = @($SMBiosInformation.EmbeddedControllerMajorVersion, $SMBiosInformation.EmbeddedControllerMinorVersion) -join '.'
         }
 
-        if (-not $Path) {
-            $Path = "$env:TEMP\LSUPackages"
-        } else {
-            [bool]$OfflineMode = $true
-        }
-
         $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
 
         try {
@@ -137,7 +131,7 @@
                 continue
             }
 
-            $PackageRoot = Join-Path -Path $Path -ChildPath $packageXML.Package.id
+            $PackageRoot = Join-Path -Path $ScratchDirectory -ChildPath $packageXML.Package.id
 
             [array]$packageFiles = $packageXML.Package.Files.SelectNodes('descendant-or-self::File') | Foreach-Object {
                 [PSCustomObject]@{
@@ -148,9 +142,9 @@
                 }
             }
 
+            # Download files needed by external detection tests in package
             $DownloadedExternalFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
 
-            # Downloading files needed by external detection tests in package
             if (-not ($NoTestApplicable -and $NoTestInstalled) -and $packageFiles.Where{ $_.Kind -eq 'External'}) {
                 if (-not (Test-Path -Path $PackageRoot -PathType Container)) {
                     $null = New-Item -Path $PackageRoot -Force -ItemType Directory
@@ -161,23 +155,17 @@
                 $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
 
                 foreach ($externalFile in $packageFiles.Where{ $_.Kind -eq 'External'}) {
-                    $DownloadSrc  = ($packageURL.location -replace "[^/]*$") + $externalFile.Name
-                    $DownloadDest = Join-Path -Path $PackageRoot -ChildPath $externalFile.Name
+                    [string]$DownloadSrc  = ($packageURL.location -replace "[^/]*$") + $externalFile.Name
+                    [string]$DownloadDest = Join-Path -Path $PackageRoot -ChildPath $externalFile.Name
 
-                    if (-not (Test-Path -Path $DownloadDest -PathType Leaf) -or (
-                       (Get-FileHash -Path $DownloadDest -Algorithm SHA256).Hash -ne $externalFile.CRC)) {
-                        if (Test-Path -Path $DownloadDest -PathType Leaf) {
-                            Write-Verbose "'$DownloadDest' exists already but hash didn't match"
-                        }
-                        try {
-                            Write-Verbose "Downloading '$DownloadSrc'"
-                            $webClient.DownloadFile($DownloadSrc, $DownloadDest)
-                        }
-                        catch {
-                            Write-Error "Download of '$DownloadSrc' failed, dependency resolution for package '$($packageXML.Package.id)' will be impaired:`r`n$($_.Exception)"
-                        }
-                        $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
+                    try {
+                        Write-Debug "Downloading external file '$($externalFile.Name)' to '$DownloadDest'"
+                        $webClient.DownloadFile($DownloadSrc, $DownloadDest)
                     }
+                    catch {
+                        Write-Error "Download of '$($externalFile.Name)' failed, dependency resolution for package '$($packageXML.Package.id)' will be impaired:`r`n$($_.Exception)"
+                    }
+                    $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
                 }
             }
 
