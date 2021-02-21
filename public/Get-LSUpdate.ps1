@@ -54,7 +54,7 @@
         [pscredential]$ProxyCredential,
         [switch]$ProxyUseDefaultCredentials,
         [switch]$All,
-        [System.IO.DirectoryInfo]$ScratchDirectory = "${env:TEMP}\LSUPackages",
+        [System.IO.DirectoryInfo]$ScratchDirectory = $env:TEMP,
         [switch]$NoTestApplicable,
         [switch]$NoTestInstalled,
         [switch]$FailUnsupportedDependencies,
@@ -94,6 +94,12 @@
             '_EmbeddedControllerVersion' = @($SMBiosInformation.EmbeddedControllerMajorVersion, $SMBiosInformation.EmbeddedControllerMinorVersion) -join '.'
         }
 
+        # Create a random subdirectory inside ScratchDirectory and use that instead, so we can safely delete it later without taking user data with us
+        do {
+            $ScratchSubDirectory = Join-Path -Path $ScratchDirectory -ChildPath ( [System.IO.Path]::GetRandomFileName() )
+        } until (-not (Test-Path -Path $ScratchSubDirectory))
+        $null = New-Item -Path $ScratchSubDirectory -Force -ItemType Directory -ErrorAction Stop
+
         $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
 
         try {
@@ -131,7 +137,7 @@
                 continue
             }
 
-            $PackageRoot = Join-Path -Path $ScratchDirectory -ChildPath $packageXML.Package.id
+            $PackageRoot = Join-Path -Path $ScratchSubDirectory -ChildPath $packageXML.Package.id
 
             [array]$packageFiles = $packageXML.Package.Files.SelectNodes('descendant-or-self::File') | Foreach-Object {
                 [PSCustomObject]@{
@@ -231,5 +237,6 @@
 
     end {
         $webClient.Dispose()
+        Remove-Item -LiteralPath $ScratchSubDirectory -Recurse -Force -Confirm:$false
     }
 }
