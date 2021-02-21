@@ -54,6 +54,7 @@
         [pscredential]$ProxyCredential,
         [switch]$ProxyUseDefaultCredentials,
         [switch]$All,
+        [System.IO.DirectoryInfo]$ScratchDirectory = $env:TEMP,
         [switch]$NoTestApplicable,
         [switch]$NoTestInstalled,
         [switch]$FailUnsupportedDependencies,
@@ -93,6 +94,12 @@
             '_EmbeddedControllerVersion' = @($SMBiosInformation.EmbeddedControllerMajorVersion, $SMBiosInformation.EmbeddedControllerMinorVersion) -join '.'
         }
 
+        # Create a random subdirectory inside ScratchDirectory and use that instead, so we can safely delete it later without taking user data with us
+        do {
+            $ScratchSubDirectory = Join-Path -Path $ScratchDirectory -ChildPath ( [System.IO.Path]::GetRandomFileName() )
+        } until (-not (Test-Path -Path $ScratchSubDirectory))
+        $null = New-Item -Path $ScratchSubDirectory -Force -ItemType Directory -ErrorAction Stop
+
         $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
 
         try {
@@ -111,7 +118,7 @@
         # Downloading with Net.WebClient seems to remove the BOM automatically, this only seems to be neccessary when downloading with IWR. Still I'm leaving it in to be safe
         [xml]$PARSEDXML = $COMPUTERXML -replace "^$UTF8ByteOrderMark"
 
-        Write-Verbose "A total of $($PARSEDXML.packages.count) driver packages are available for this computer model."    
+        Write-Verbose "A total of $($PARSEDXML.packages.count) driver packages are available for this computer model."
     }
 
     process {
@@ -130,6 +137,8 @@
                 continue
             }
 
+            $PackageRoot = Join-Path -Path $ScratchSubDirectory -ChildPath $packageXML.Package.id
+
             [array]$packageFiles = $packageXML.Package.Files.SelectNodes('descendant-or-self::File') | Foreach-Object {
                 [PSCustomObject]@{
                     'Kind' = $_.ParentNode.SchemaInfo.Name
@@ -139,22 +148,28 @@
                 }
             }
 
+            # Download files needed by external detection tests in package
             $DownloadedExternalFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
 
-            # Downloading files needed by external detection tests in package
             if (-not ($NoTestApplicable -and $NoTestInstalled) -and $packageFiles.Where{ $_.Kind -eq 'External'}) {
+                if (-not (Test-Path -Path $PackageRoot -PathType Container)) {
+                    $null = New-Item -Path $PackageRoot -Force -ItemType Directory
+                }
                 # Packages like https://download.lenovo.com/pccbbs/mobiles/r0qch05w_2_.xml show we have to download the XML itself too
-                [string]$DownloadDest = Join-Path -Path $env:Temp -ChildPath ($packageURL.location -replace "^.*/")
+                [string]$DownloadDest = Join-Path -Path $PackageRoot -ChildPath ($packageURL.location -replace "^.*/")
                 $webClient.DownloadFile($packageURL.location, $DownloadDest)
                 $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
+
                 foreach ($externalFile in $packageFiles.Where{ $_.Kind -eq 'External'}) {
-                    [string]$DownloadDest = Join-Path -Path $env:Temp -ChildPath $externalFile.Name
-                    [string]$DownloadSrc = ($packageURL.location -replace "[^/]*$") + $externalFile.Name
+                    [string]$DownloadSrc  = ($packageURL.location -replace "[^/]*$") + $externalFile.Name
+                    [string]$DownloadDest = Join-Path -Path $PackageRoot -ChildPath $externalFile.Name
+
                     try {
+                        Write-Debug "Downloading external file '$($externalFile.Name)' to '$DownloadDest'"
                         $webClient.DownloadFile($DownloadSrc, $DownloadDest)
                     }
                     catch {
-                        Write-Error "Download of '$DownloadSrc' failed, dependency resolution for package '$($packageXML.Package.id)' will be impaired:`r`n$($_.Exception)"
+                        Write-Error "Download of '$($externalFile.Name)' failed, dependency resolution for package '$($packageXML.Package.id)' will be impaired:`r`n$($_.Exception)"
                     }
                     $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
                 }
@@ -166,9 +181,9 @@
             } else {
                 if ($packageXML.Package.DetectInstall) {
                     Write-Verbose "Detecting install status of package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
-                    Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -TreatUnsupportedAsPassed:$PassUnsupportedInstallTests
+                    Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -TreatUnsupportedAsPassed:$PassUnsupportedInstallTests -PackagePath $PackageRoot
                 } else {
-                    Write-Verbose "Package $($packageURL.location) doesn't have a DetectInstall section"
+                    Write-Verbose "Package $($packageXML.Package.id) doesn't have a DetectInstall section"
                     0
                 }
             }
@@ -178,7 +193,7 @@
                 $null
             } else {
                 Write-Verbose "Parsing dependencies for package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
-                Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -TreatUnsupportedAsPassed:(-not $FailUnsupportedDependencies)
+                Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -TreatUnsupportedAsPassed:(-not $FailUnsupportedDependencies) -PackagePath $PackageRoot
             }
 
             # Calculate package size
@@ -222,5 +237,6 @@
 
     end {
         $webClient.Dispose()
+        Remove-Item -LiteralPath $ScratchSubDirectory -Recurse -Force -Confirm:$false
     }
 }

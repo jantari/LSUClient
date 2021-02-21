@@ -4,6 +4,8 @@
     Param (
         [ValidateNotNullOrEmpty()]
         [System.Xml.XmlElement]$Dependency,
+        [Parameter( Mandatory = $true )]
+        [string]$PackagePath,
         [int]$DebugIndent = 0
     )
 
@@ -155,7 +157,7 @@
             return -1
         }
         '_ExternalDetection' {
-            $externalDetection = Invoke-PackageCommand -Command $Dependency.'#text' -Path $env:TEMP
+            $externalDetection = Invoke-PackageCommand -Command $Dependency.'#text' -Path $PackagePath
             Write-Debug "$('- ' * $DebugIndent)[ Got ExitCode: $($externalDetection.ExitCode), Expected: $($Dependency.rc) ]"
             if ($externalDetection -and $externalDetection.ExitCode -in ($Dependency.rc -split ',')) {
                 return 0

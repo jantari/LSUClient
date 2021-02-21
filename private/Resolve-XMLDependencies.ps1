@@ -3,6 +3,8 @@
         [Parameter( Mandatory = $true )]
         [ValidateNotNullOrEmpty()]
         $XMLIN,
+        [Parameter( Mandatory = $true )]
+        [string]$PackagePath,
         [switch]$TreatUnsupportedAsPassed
     )
 
@@ -18,7 +20,7 @@
         }
 
         $Result = if ($XMLTREE.SchemaInfo.Name -like "_*") {
-            switch (Test-MachineSatisfiesDependency -Dependency $XMLTREE -DebugIndent $XMLTreeDepth) {
+            switch (Test-MachineSatisfiesDependency -Dependency $XMLTREE -PackagePath $PackagePath -DebugIndent $XMLTreeDepth) {
                 0 {
                     $true
                 }
@@ -31,7 +33,7 @@
                 }
             }
         } else {
-            $SubtreeResults = Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -TreatUnsupportedAsPassed:$TreatUnsupportedAsPassed
+            $SubtreeResults = Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -PackagePath $PackagePath -TreatUnsupportedAsPassed:$TreatUnsupportedAsPassed
             switch ($XMLTREE.SchemaInfo.Name) {
                 'And' {
                     Write-Debug "$('- ' * $XMLTreeDepth)Tree was AND: Results: $subtreeresults"

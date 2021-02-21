@@ -58,20 +58,21 @@
 
             # The packages XML file
             $DownloadSrc  = $PackageToGet.URL.AbsoluteUri
-            $DownloadPath = Join-Path -Path $DownloadDirectory -ChildPath ($DownloadSrc -replace "^.*/")
+            $DownloadDest = Join-Path -Path $DownloadDirectory -ChildPath ($DownloadSrc -replace "^.*/")
             $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
-            $transfers.Add( $webClient.DownloadFileTaskAsync($DownloadSrc, $DownloadPath) )
+            $transfers.Add( $webClient.DownloadFileTaskAsync($DownloadSrc, $DownloadDest) )
 
             # Installer and other files
             foreach ($file in $PackageToGet.Files) {
                 $DownloadSrc  = [String]::Concat($PackageUrlRoot, $file.Name)
-                $DownloadPath = Join-Path -Path $DownloadDirectory -ChildPath $file.Name
+                $DownloadDest = Join-Path -Path $DownloadDirectory -ChildPath $file.Name
 
-                if ($Force -or -not (Test-Path -Path $DownloadPath -PathType Leaf) -or (
-                   (Get-FileHash -Path $DownloadPath -Algorithm SHA256).Hash -ne $file.CRC)) {
+                if ($Force -or -not (Test-Path -Path $DownloadDest -PathType Leaf) -or (
+                   (Get-FileHash -Path $DownloadDest -Algorithm SHA256).Hash -ne $file.CRC)) {
                     # Checking if this package was already downloaded, if yes skipping redownload
                     $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
-                    $transfers.Add( $webClient.DownloadFileTaskAsync($DownloadSrc, $DownloadPath) )
+                    Write-Verbose "Starting download of '$DownloadSrc'"
+                    $transfers.Add( $webClient.DownloadFileTaskAsync($DownloadSrc, $DownloadDest) )
                 }
             }
         }
