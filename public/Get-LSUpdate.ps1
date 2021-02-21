@@ -98,7 +98,10 @@
         do {
             $ScratchSubDirectory = Join-Path -Path $ScratchDirectory -ChildPath ( [System.IO.Path]::GetRandomFileName() )
         } until (-not (Test-Path -Path $ScratchSubDirectory))
-        $null = New-Item -Path $ScratchSubDirectory -Force -ItemType Directory -ErrorAction Stop
+        # Using the FullName path returned by New-Item ensures we have an absolute path even if the ScratchDirectory passed by the user was relative.
+        # This is important because $PWD and System.Environment.CurrentDirectory can differ in PowerShell, so not all path-related APIs/Cmdlets treat relative
+        # paths as relative to the same base-directory which would cause errors later, particularly during path resolution in Split-ExecutableAndArguments
+        $ScratchSubDirectory = New-Item -Path $ScratchSubDirectory -Force -ItemType Directory -ErrorAction Stop | Select-Object -ExpandProperty FullName
 
         $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
 
