@@ -23,6 +23,9 @@
         E.g. this will return LTE-Modem drivers even on machines that do not have the optional LTE-Modem installed, or 32-bit drivers on a 64-bit OS.
         Attempting to install such drivers will likely fail.
 
+        .PARAMETER ScratchDirectory
+        The path to a directory where temporary files are downloaded to for use during the search for packages. Defaults to $env:TEMP.
+
         .PARAMETER NoTestApplicable
         Do not check whether packages are applicable to the computer. The IsApplicable property of the package objects will be set to $null.
         This switch is only available together with -All.
