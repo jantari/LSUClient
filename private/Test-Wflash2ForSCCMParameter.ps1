@@ -22,7 +22,7 @@
         [string]$PathToWFLASH2EXE
     )
 
-    Add-Type -TypeDefinition @'
+    Add-Type -Debug:$false -TypeDefinition @'
     using System;
     using System.Runtime.InteropServices;
 
