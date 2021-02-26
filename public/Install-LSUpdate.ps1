@@ -24,6 +24,13 @@
         [switch]$SaveBIOSUpdateInfoToRegistry
     )
 
+    begin {
+        if ($PSBoundParameters['Debug'] -and $DebugPreference -eq 'Inquire') {
+            Write-Verbose "Adjusting the DebugPreference to 'Continue'."
+            $DebugPreference = 'Continue'
+        }
+    }
+
     process {
         foreach ($PackageToProcess in $Package) {
             $PackageDirectory = Join-Path -Path $Path -ChildPath $PackageToProcess.id

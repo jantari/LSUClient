@@ -42,6 +42,10 @@
     )
 
     begin {
+        if ($PSBoundParameters['Debug'] -and $DebugPreference -eq 'Inquire') {
+            Write-Verbose "Adjusting the DebugPreference to 'Continue'."
+            $DebugPreference = 'Continue'
+        }
         $transfers = [System.Collections.Generic.List[System.Threading.Tasks.Task]]::new()
     }
 
