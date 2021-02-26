@@ -62,21 +62,31 @@
                         $InstallCMD     = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
                         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
                         if (-not $installProcess) {
-                            Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED"
+                            Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED - the installation could not start"
                         } elseif ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
-                            Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List | Out-String)"
+                            if ($installProcess.StandardOutput -or $installProcess.StandardError) {
+                                Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List ExitCode, StandardOutput, StandardError | Out-String)"
+                            } else {
+                                Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with ExitCode $($installProcess.ExitCode)"
+                            }
                         }
                     }
                     'INF' {
-                        $installProcess = Start-Process -FilePath pnputil.exe -Wait -Verb RunAs -WorkingDirectory $PackageDirectory -PassThru -ArgumentList "/add-driver $($PackageToProcess.Installer.InfFile) /install"
-                        # pnputil is a documented Microsoft tool and Exit code 0 means SUCCESS while 3010 means SUCCESS but reboot required,
-                        # however Lenovo does not always include 3010 as an OK return code - that's why we manually check against it here
-                        if ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes -and $installProcess.ExitCode -notin 0, 3010) {
-                            Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List | Out-String)"
+                        $installProcess = Start-Process -FilePath 'pnputil.exe' -Wait -Verb RunAs -WorkingDirectory $PackageDirectory -PassThru -ArgumentList "/add-driver $($PackageToProcess.Installer.InfFile) /install"
+                        if (-not $installProcess) {
+                            Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED - the installation could not start"
+                        } elseif ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes -and $installProcess.ExitCode -notin 0, 3010) {
+                            # pnputil is a documented Microsoft tool and Exit code 0 means SUCCESS while 3010 means SUCCESS but reboot required,
+                            # however Lenovo does not always include 3010 as an OK return code - that's why we manually check against it here
+                            if ($installProcess.StandardOutput -or $installProcess.StandardError) {
+                                Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List ExitCode, StandardOutput, StandardError | Out-String)"
+                            } else {
+                                Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with ExitCode $($installProcess.ExitCode)"
+                            }
                         }
                     }
                     default {
-                        Write-Warning "Unsupported package installtype '$_', skipping installation ...`r`n"
+                        Write-Warning "Unsupported package installtype '$_', skipping installation!"
                     }
                 }
             }
