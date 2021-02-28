@@ -104,7 +104,13 @@
         # Using the FullName path returned by New-Item ensures we have an absolute path even if the ScratchDirectory passed by the user was relative.
         # This is important because $PWD and System.Environment.CurrentDirectory can differ in PowerShell, so not all path-related APIs/Cmdlets treat relative
         # paths as relative to the same base-directory which would cause errors later, particularly during path resolution in Split-ExecutableAndArguments
-        $ScratchSubDirectory = New-Item -Path $ScratchSubDirectory -Force -ItemType Directory -ErrorAction Stop | Select-Object -ExpandProperty FullName
+        try {
+            # throw is needed to really stop and exit the whole script/cmdlet on an error, ErrorAction Stop would only terminate the current pipeline/statement
+            $ScratchSubDirectory = New-Item -Path $ScratchSubDirectory -Force -ItemType Directory -ErrorAction Stop | Select-Object -ExpandProperty FullName
+        }
+        catch {
+            throw $_
+        }
 
         $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
 
