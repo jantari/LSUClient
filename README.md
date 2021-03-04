@@ -47,17 +47,17 @@ $updates | Save-LSUpdate -Verbose
 $updates | Install-LSUpdate -Verbose
 ```
 
-Filtering out non-unattended packages like this is recommended when using this module in MDT, SCCM,
+Filtering out non-unattended packages like this is strongly recommended when using this module in MDT, SCCM,
 remote execution via PowerShell Remoting, ssh or any other situation in which you run these commands remotely
-or as part of an automated process. Packages with installers that are not unattended may attempt to
-start a GUI setup on the machine and, if successful, wait until someone clicks through the dialogs.
+or as part of an automated process. Packages with installers that are not unattended may force reboots or
+attempt to start a GUI setup on the machine and, if successful, halt until someone clicks through the dialogs.
 
 <b>To get all available packages:</b>
 ```powershell
 $updates = Get-LSUpdate -All
 ```
 By default, `Get-LSUpdate` only returns "needed" updates. Needed updates are those that are applicable to
-the system and not yet installed. If you want to see all available packages instead, use `Get-LSUpdate -All`.
+the system and not yet installed. If you want to retrieve all available packages instead, use `Get-LSUpdate -All`.
 To filter out unneeded packages later, just look at the `IsApplicable` and `IsInstalled` properties.
 The default logic is equivalent to:
 `Get-LSUpdate -All | Where-Object { $_.IsApplicable -and -not $_.IsInstalled }`
