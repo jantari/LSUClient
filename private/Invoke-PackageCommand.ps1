@@ -106,5 +106,7 @@
         "Runtime"          = $process.ExitTime - $process.StartTime
     }
 
+    $returnInfo | Format-List | Out-Host
+
     return $returnInfo
 }

@@ -26,6 +26,9 @@
         .PARAMETER ScratchDirectory
         The path to a directory where temporary files are downloaded to for use during the search for packages. Defaults to $env:TEMP.
 
+        .PARAMETER CustomRepository
+        The path to a custom update package repository. This has to be a filesystem path, local or UNC. A package repository can be created with Save-LSUpdate.
+
         .PARAMETER NoTestApplicable
         Do not check whether packages are applicable to the computer. The IsApplicable property of the package objects will be set to $null.
         This switch is only available together with -All.
@@ -49,7 +52,7 @@
         This switch will make all tests we can't really check pass instead, which could lead to a missing update being detected as installed instead.
     #>
 
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'HttpRepository')]
     Param (
         [ValidatePattern('^\w{4}$')]
         [string]$Model,
@@ -57,7 +60,10 @@
         [pscredential]$ProxyCredential,
         [switch]$ProxyUseDefaultCredentials,
         [switch]$All,
+        [Parameter( ParameterSetName = 'HttpRepository' )]
         [System.IO.DirectoryInfo]$ScratchDirectory = $env:TEMP,
+        [Parameter( ParameterSetName = 'FilesystemRepository' )]
+        [System.IO.DirectoryInfo]$CustomRepository,
         [switch]$NoTestApplicable,
         [switch]$NoTestInstalled,
         [switch]$FailUnsupportedDependencies,
@@ -97,59 +103,71 @@
             '_EmbeddedControllerVersion' = @($SMBiosInformation.EmbeddedControllerMajorVersion, $SMBiosInformation.EmbeddedControllerMinorVersion) -join '.'
         }
 
-        # Create a random subdirectory inside ScratchDirectory and use that instead, so we can safely delete it later without taking user data with us
-        do {
-            $ScratchSubDirectory = Join-Path -Path $ScratchDirectory -ChildPath ( [System.IO.Path]::GetRandomFileName() )
-        } until (-not (Test-Path -Path $ScratchSubDirectory))
-        # Using the FullName path returned by New-Item ensures we have an absolute path even if the ScratchDirectory passed by the user was relative.
-        # This is important because $PWD and System.Environment.CurrentDirectory can differ in PowerShell, so not all path-related APIs/Cmdlets treat relative
-        # paths as relative to the same base-directory which would cause errors later, particularly during path resolution in Split-ExecutableAndArguments
-        try {
-            # throw is needed to really stop and exit the whole script/cmdlet on an error, ErrorAction Stop would only terminate the current pipeline/statement
-            $ScratchSubDirectory = New-Item -Path $ScratchSubDirectory -Force -ItemType Directory -ErrorAction Stop | Select-Object -ExpandProperty FullName
-        }
-        catch {
-            throw $_
-        }
-
-        $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
-
-        try {
-            $COMPUTERXML = $webClient.DownloadString("https://download.lenovo.com/catalog/${Model}_Win10.xml")
-        }
-        catch {
-            if ($_.Exception.innerException.Response.StatusCode -eq [System.Net.HttpStatusCode]::NotFound) {
-                throw "No information was found on this model of computer (invalid model number or not supported by Lenovo?)"
-            } else {
-                throw "An error occured when contacting download.lenovo.com:`r`n$($_.Exception.Message)"
+        if ($PSCmdlet.ParameterSetName -eq 'HttpRepository') {
+            # Create a random subdirectory inside ScratchDirectory and use that instead, so we can safely delete it later without taking user data with us
+            do {
+                $ScratchSubDirectory = Join-Path -Path $ScratchDirectory -ChildPath ( [System.IO.Path]::GetRandomFileName() )
+            } until (-not (Test-Path -Path $ScratchSubDirectory))
+            # Using the FullName path returned by New-Item ensures we have an absolute path even if the ScratchDirectory passed by the user was relative.
+            # This is important because $PWD and System.Environment.CurrentDirectory can differ in PowerShell, so not all path-related APIs/Cmdlets treat relative
+            # paths as relative to the same base-directory which would cause errors later, particularly during path resolution in Split-ExecutableAndArguments
+            try {
+                # throw is needed to really stop and exit the whole script/cmdlet on an error, ErrorAction Stop would only terminate the current pipeline/statement
+                $ScratchSubDirectory = New-Item -Path $ScratchSubDirectory -Force -ItemType Directory -ErrorAction Stop | Select-Object -ExpandProperty FullName
             }
+            catch {
+                throw $_
+            }
+
+            $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+
+            try {
+                $COMPUTERXML = $webClient.DownloadString("https://download.lenovo.com/catalog/${Model}_Win10.xml")
+            }
+            catch {
+                if ($_.Exception.innerException.Response.StatusCode -eq [System.Net.HttpStatusCode]::NotFound) {
+                    throw "No information was found on this model of computer (invalid model number or not supported by Lenovo?)"
+                } else {
+                    throw "An error occured when contacting download.lenovo.com:`r`n$($_.Exception.Message)"
+                }
+            }
+
+            $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
+
+            # Downloading with Net.WebClient seems to remove the BOM automatically, this only seems to be neccessary when downloading with IWR. Still I'm leaving it in to be safe
+            [xml]$PARSEDXML = $COMPUTERXML -replace "^$UTF8ByteOrderMark"
+            [XmlElement[]]$PackageXMLs = $PARSEDXML.packages.package
+        } elseif ($PSCmdlet.ParameterSetName -eq 'FilesystemRepository') {
+            [System.IO.DirectoryInfo[]]$PackageXMLs = Get-ChildItem -LiteralPath $CustomRepository -Directory
+        } else {
+            throw "Unsupported parameter set."
         }
 
-        $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
-
-        # Downloading with Net.WebClient seems to remove the BOM automatically, this only seems to be neccessary when downloading with IWR. Still I'm leaving it in to be safe
-        [xml]$PARSEDXML = $COMPUTERXML -replace "^$UTF8ByteOrderMark"
-
-        Write-Verbose "A total of $($PARSEDXML.packages.count) driver packages are available for this computer model."
+        Write-Verbose "A total of $($PackageXMLs.Count) driver packages are available for this computer model."
     }
 
     process {
-        foreach ($packageURL in $PARSEDXML.packages.package) {
-            # This is in place to prevent packages like 'k2txe01us17' that have invalid XML from stopping the entire function with an error
-            try {
-                $rawPackageXML   = $webClient.DownloadString($packageURL.location)
-                [xml]$packageXML = $rawPackageXML -replace "^$UTF8ByteOrderMark"
-            }
-            catch {
-                if ($_.FullyQualifiedErrorId -eq 'InvalidCastToXmlDocument') {
-                    Write-Warning "Could not parse package '$($packageURL.location)' (invalid XML)"
-                } else {
-                    Write-Warning "Could not retrieve or parse package '$($packageURL.location)':`r`n$($_.Exception.Message)"
+        foreach ($packageURL in $PackageXMLs) {
+            if ($PSCmdlet.ParameterSetName -eq 'HttpRepository') {
+                # This is in place to prevent packages like 'k2txe01us17' that have invalid XML from stopping the entire function with an error
+                try {
+                    $rawPackageXML   = $webClient.DownloadString($packageURL.location)
+                    [xml]$packageXML = $rawPackageXML -replace "^$UTF8ByteOrderMark"
                 }
-                continue
-            }
+                catch {
+                    if ($_.FullyQualifiedErrorId -eq 'InvalidCastToXmlDocument') {
+                        Write-Warning "Could not parse package '$($packageURL.location)' (invalid XML)"
+                    } else {
+                        Write-Warning "Could not retrieve or parse package '$($packageURL.location)':`r`n$($_.Exception.Message)"
+                    }
+                    continue
+                }
 
-            $PackageRoot = Join-Path -Path $ScratchSubDirectory -ChildPath $packageXML.Package.id
+                $PackageRoot = Join-Path -Path $ScratchSubDirectory -ChildPath $packageXML.Package.id
+            } elseif ($PSCmdlet.ParameterSetName -eq 'FilesystemRepository') {
+                [xml]$packageXML = Get-ChildItem -LiteralPath $packageURL.FullName -File -Filter "$($packageURL.Name)*.xml" | Get-Content -Raw
+                $PackageRoot = $packageURL.FullName
+            }
 
             [array]$packageFiles = $packageXML.Package.Files.SelectNodes('descendant-or-self::File') | Foreach-Object {
                 [PSCustomObject]@{
@@ -161,29 +179,31 @@
             }
 
             # Download files needed by external detection tests in package
-            $DownloadedExternalFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
+            if ($PSCmdlet.ParameterSetName -eq 'HttpRepository') {
+                $DownloadedExternalFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
 
-            if (-not ($NoTestApplicable -and $NoTestInstalled) -and $packageFiles.Where{ $_.Kind -eq 'External'}) {
-                if (-not (Test-Path -Path $PackageRoot -PathType Container)) {
-                    $null = New-Item -Path $PackageRoot -Force -ItemType Directory
-                }
-                # Packages like https://download.lenovo.com/pccbbs/mobiles/r0qch05w_2_.xml show we have to download the XML itself too
-                [string]$DownloadDest = Join-Path -Path $PackageRoot -ChildPath ($packageURL.location -replace "^.*/")
-                $webClient.DownloadFile($packageURL.location, $DownloadDest)
-                $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
-
-                foreach ($externalFile in $packageFiles.Where{ $_.Kind -eq 'External'}) {
-                    [string]$DownloadSrc  = ($packageURL.location -replace "[^/]*$") + $externalFile.Name
-                    [string]$DownloadDest = Join-Path -Path $PackageRoot -ChildPath $externalFile.Name
-
-                    try {
-                        Write-Debug "Downloading external file '$($externalFile.Name)' to '$DownloadDest'"
-                        $webClient.DownloadFile($DownloadSrc, $DownloadDest)
+                if (-not ($NoTestApplicable -and $NoTestInstalled) -and $packageFiles.Where{ $_.Kind -eq 'External'}) {
+                    if (-not (Test-Path -Path $PackageRoot -PathType Container)) {
+                        $null = New-Item -Path $PackageRoot -Force -ItemType Directory
                     }
-                    catch {
-                        Write-Error "Download of '$($externalFile.Name)' failed, dependency resolution for package '$($packageXML.Package.id)' will be impaired:`r`n$($_.Exception)"
-                    }
+                    # Packages like https://download.lenovo.com/pccbbs/mobiles/r0qch05w_2_.xml show we have to download the XML itself too
+                    [string]$DownloadDest = Join-Path -Path $PackageRoot -ChildPath ($packageURL.location -replace "^.*/")
+                    $webClient.DownloadFile($packageURL.location, $DownloadDest)
                     $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
+
+                    foreach ($externalFile in $packageFiles.Where{ $_.Kind -eq 'External'}) {
+                        [string]$DownloadSrc  = ($packageURL.location -replace "[^/]*$") + $externalFile.Name
+                        [string]$DownloadDest = Join-Path -Path $PackageRoot -ChildPath $externalFile.Name
+
+                        try {
+                            Write-Debug "Downloading external file '$($externalFile.Name)' to '$DownloadDest'"
+                            $webClient.DownloadFile($DownloadSrc, $DownloadDest)
+                        }
+                        catch {
+                            Write-Error "Download of '$($externalFile.Name)' failed, dependency resolution for package '$($packageXML.Package.id)' will be impaired:`r`n$($_.Exception)"
+                        }
+                        $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
+                    }
                 }
             }
 
@@ -239,16 +259,20 @@
                 $packageObject
             }
 
-            foreach ($tempFile in $DownloadedExternalFiles) {
-                if ($tempFile.Exists) {
-                    $tempFile.Delete()
+            if ($PSCmdlet.ParameterSetName -eq 'HttpRepository') {
+                foreach ($tempFile in $DownloadedExternalFiles) {
+                    if ($tempFile.Exists) {
+                        $tempFile.Delete()
+                    }
                 }
             }
         }
     }
 
     end {
-        $webClient.Dispose()
-        Remove-Item -LiteralPath $ScratchSubDirectory -Recurse -Force -Confirm:$false
+        if ($PSCmdlet.ParameterSetName -eq 'HttpRepository') {
+            $webClient.Dispose()
+            Remove-Item -LiteralPath $ScratchSubDirectory -Recurse -Force -Confirm:$false
+        }
     }
 }
