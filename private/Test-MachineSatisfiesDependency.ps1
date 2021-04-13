@@ -104,7 +104,7 @@
                         # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
                         if ($DriverVersion) {
                             Write-Debug "$('- ' * $DebugIndent)[Got: $DriverVersion, Expected: $($Dependency.Version)]"
-                            if ((Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $DriverVersion) -eq 0) {
+                            if ((Test-VersionPattern -LenovoString $Dependency.Version -SystemString $DriverVersion) -eq 0) {
                                 $TestResults.Add($true)
                             } else {
                                 $TestResults.Add($false)
@@ -130,11 +130,11 @@
                 [string]$Path = Resolve-CmdVariable -String $Dependency.File -ExtraVariables @{'WINDOWS' = $env:SystemRoot}
                 if (Test-Path -LiteralPath $Path -PathType Leaf) {
                     $filProductVersion = (Get-Item -LiteralPath $Path).VersionInfo.ProductVersion
-                    $FileVersionCompare = Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $filProductVersion
+                    $FileVersionCompare = Test-VersionPattern -LenovoString $Dependency.Version -SystemString $filProductVersion
                     if ($FileVersionCompare -eq -2) {
                         Write-Debug "$('- ' * $DebugIndent)Got unsupported with ProductVersion, trying comparison with FileVersion"
                         $filFileVersion = (Get-Item -LiteralPath $Path).VersionInfo.FileVersion
-                        return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $filFileVersion)
+                        return (Test-VersionPattern -LenovoString $Dependency.Version -SystemString $filFileVersion)
                     } else {
                         return $FileVersionCompare
                     }
@@ -152,7 +152,7 @@
                 if ($CachedHardwareTable['_EmbeddedControllerVersion'] -eq '255.255') {
                     Write-Warning "This computers EC firmware is not upgradable but is being used to evaluate a package"
                 }
-                return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $CachedHardwareTable['_EmbeddedControllerVersion'])
+                return (Test-VersionPattern -LenovoString $Dependency.Version -SystemString $CachedHardwareTable['_EmbeddedControllerVersion'])
             }
             return -1
         }
@@ -175,11 +175,11 @@
             [string]$Path = Resolve-CmdVariable -String $Dependency.File -ExtraVariables @{'WINDOWS' = $env:SystemRoot}
             if (Test-Path -LiteralPath $Path -PathType Leaf) {
                 $filProductVersion = (Get-Item -LiteralPath $Path).VersionInfo.ProductVersion
-                $FileVersionCompare = Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $filProductVersion
+                $FileVersionCompare = Test-VersionPattern -LenovoString $Dependency.Version -SystemString $filProductVersion
                 if ($FileVersionCompare -eq -2) {
                     Write-Debug "$('- ' * $DebugIndent)Got unsupported with ProductVersion, trying comparison with FileVersion"
                     $filFileVersion = (Get-Item -LiteralPath $Path).VersionInfo.FileVersion
-                    return (Compare-VersionStrings -LenovoString $Dependency.Version -SystemString $filFileVersion)
+                    return (Test-VersionPattern -LenovoString $Dependency.Version -SystemString $filFileVersion)
                 } else {
                     return $FileVersionCompare
                 }
@@ -241,11 +241,10 @@
                     return -2
                 }
 
-                return (Compare-VersionStrings -LenovoString $DependencyVersion -SystemString $regVersion)
+                return (Test-VersionPattern -LenovoString $DependencyVersion -SystemString $regVersion)
             } else {
                 return -1
             }
-
         }
         default {
             Write-Verbose "Unsupported dependency encountered: $_"
