@@ -246,6 +246,10 @@
                 return -1
             }
         }
+        '_WindowsBuildVersion' {
+            $Build = (Get-WindowsVersion).Build
+            return (Test-VersionPattern -LenovoString $Dependency.Version -SystemString $Build)
+        }
         default {
             Write-Verbose "Unsupported dependency encountered: $_"
             return -2
