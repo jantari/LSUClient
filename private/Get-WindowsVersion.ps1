@@ -36,7 +36,7 @@ function Get-WindowsVersion {
     [Version]$EnvVersion = [Environment]::OSVersion.Version
     $Versions.Add('env', $EnvVersion)
 
-    [Version]$WmiData = (Get-CimInstance -ClassName CIM_OperatingSystem -Property Version).Version
+    [Version]$WmiData = (Get-CimInstance -ClassName CIM_OperatingSystem -Property Version -Verbose:$false).Version
     $WmiVersion = [Version]::new()
     if ([Version]::TryParse($WmiData, [ref]$WmiVersion)) {
         $Versions.Add('wmi', $WmiVersion)
