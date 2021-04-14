@@ -248,6 +248,7 @@
         }
         '_WindowsBuildVersion' {
             $Build = (Get-WindowsVersion).Build
+            Write-Debug "$('- ' * $DebugIndent)[ Got: $Build, Expected: $($Dependency.Version) ]"
             return (Test-VersionPattern -LenovoString $Dependency.Version -SystemString $Build)
         }
         default {
