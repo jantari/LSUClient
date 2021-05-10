@@ -99,6 +99,8 @@
             throw "Repository '${Repository}' could not be accessed or refers to an invalid location"
         }
 
+        $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
+
         $SMBiosInformation = Get-CimInstance -ClassName Win32_BIOS -Verbose:$false
         $script:CachedHardwareTable = @{
             '_OS'                        = 'WIN' + (Get-CimInstance Win32_OperatingSystem).Version -replace "\..*"
@@ -167,10 +169,12 @@
                 }
             }
 
-             # Download files needed by external detection tests in package
-            foreach ($externalFile in $packageFiles.Where{ $_.Kind -eq 'External'}) {
-                $GetFile = $Package.Directory + '/' + $externalFile.Name
-                $DownloadedExternalFile = Get-PackageFile -SourceFile $GetFile -DestinationDirectory $LocalPackageRoot
+            # Download the files needed by external detection tests in package
+            if (-not ($NoTestApplicable -and $NoTestInstalled)) {
+                foreach ($externalFile in $packageFiles.Where{ $_.Kind -eq 'External'}) {
+                    $GetFile = $Package.Directory + '/' + $externalFile.Name
+                    $null = Get-PackageFile -SourceFile $GetFile -DestinationDirectory $LocalPackageRoot
+                }
             }
 
             # The explicit $null is to avoid powershell/powershell#13651
