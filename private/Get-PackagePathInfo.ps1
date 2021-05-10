@@ -46,7 +46,7 @@
             $Type = 'HTTP'
             $Valid = $true
 
-            $Request = [System.Net.HttpWebRequest]::CreateDefault($UriToUse)
+            $Request = [System.Net.HttpWebRequest]::CreateHttp($UriToUse)
             $Request.Method = 'HEAD'
             $Request.Timeout = 5000
             $Request.KeepAlive = $false
@@ -76,26 +76,32 @@
             catch {
                 $null = 'Do nothing'
             }
+            finally {
+                $response.Dispose()
+            }
         }
     }
 
     # is Wellformedstring relative
 
     # Test for filesystem path
-    if (Test-Path -LiteralPath "Microsoft.PowerShell.Core\FileSystem::${Path}") {
-        $Valid = $true
-        $Reachable = $true
-        $Type = 'FILE'
-        $AbsoluteLocation = (Get-Item -LiteralPath "Microsoft.PowerShell.Core\FileSystem::${Path}").FullName
+    Write-Host "testing: $Path"
+    if ((Test-Path -LiteralPath $Path) -and
+        (Get-Item -LiteralPath $Path).PSProvider.ToString() -eq 'Microsoft.PowerShell.Core\FileSystem') {
+            $Valid = $true
+            $Reachable = $true
+            $Type = 'FILE'
+            $AbsoluteLocation = (Get-Item -LiteralPath $Path).FullName
     } else {
         # Try again assuming that $Path is relative to $BasePath
         if (-not $BasePath) { $BasePath = (Get-Location -PSProvider 'Microsoft.PowerShell.Core\FileSystem').Path }
         $JoinedPath = Join-Path -Path $BasePath -ChildPath $Path -ErrorAction SilentlyContinue
-        if ($JoinedPath -and (Test-Path -LiteralPath "Microsoft.PowerShell.Core\FileSystem::${JoinedPath}")) {
+        if ($JoinedPath -and (Test-Path -LiteralPath $JoinedPath) -and 
+            (Get-Item -LiteralPath $Path).PSProvider -eq 'Microsoft.PowerShell.Core\FileSystem') {
             $Valid = $true
             $Reachable = $true
             $Type = 'FILE'
-            $AbsoluteLocation = (Get-Item -LiteralPath "Microsoft.PowerShell.Core\FileSystem::${JoinedPath}").FullName
+            $AbsoluteLocation = (Get-Item -LiteralPath $JoinedPath).FullName
         }
     }
 
