@@ -72,12 +72,10 @@
                     $Reachable = $true
                     $AbsoluteLocation = $UriToUse
                 }
+                $response.Dispose()
             }
             catch {
                 $null = 'Do nothing'
-            }
-            finally {
-                $response.Dispose()
             }
         }
     }
