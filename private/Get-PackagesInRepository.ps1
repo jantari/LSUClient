@@ -18,10 +18,13 @@ function Get-PackagesInRepository {
     Write-Debug "Finding packages in repository '${Repository}' (Type: ${RepositoryType})"
 
     if ($RepositoryType -eq 'HTTP') {
-        $ModelXmlPath = Join-Url -BaseUri $Repository -ChildUri "${Model}_Win10.xml"
+        $ModelXmlPath    = Join-Url -BaseUri $Repository -ChildUri "${Model}_Win10.xml"
+        $DatabaseXmlPath = Join-Url -BaseUri $Repository -ChildUri "database.xml"
     } elseif ($RepositoryType -eq 'FILE') {
-        $ModelXmlPath = Join-Path -Path $Repository -ChildPath "${Model}_Win10.xml"
+        $ModelXmlPath    = Join-Path -Path $Repository -ChildPath "${Model}_Win10.xml"
+        $DatabaseXmlPath = Join-Path -Path $Repository -ChildPath "database.xml"
     }
+
     if ((Get-PackagePathInfo -Path $ModelXmlPath).Reachable) {
         Write-Debug "Getting packages from the model xml file ${ModelXmlPath}"
         if ($RepositoryType -eq 'HTTP') {
@@ -45,7 +48,7 @@ function Get-PackagesInRepository {
             foreach ($Package in $PARSEDXML.packages.package) {
                 $PathInfo = Get-PackagePathInfo -Path $Package.location -BasePath $Repository
                 if ($PathInfo.Reachable) {
-                    Write-Debug "Found package from parsing model XML file: $($Package.location -replace '^.*[\\/]')"
+                    Write-Debug "Found package: $($PathInfo.AbsoluteLocation)"
                     [PSCustomObject]@{
                         XMLFullPath  = $PathInfo.AbsoluteLocation
                         XMLFile      = $Package.location -replace '^.*[\\/]'
@@ -68,7 +71,7 @@ function Get-PackagesInRepository {
                 foreach ($Package in $PARSEDXML.packages.package) {
                     $PathInfo = Get-PackagePathInfo -Path $Package.location -BasePath $Repository
                     if ($PathInfo.Reachable) {
-                        Write-Debug "Found package from parsing model XML file: $($Package.location -replace '^.*[\\/]')"
+                        Write-Debug "Found packag: $($PathInfo.AbsoluteLocation)"
                         [PSCustomObject]@{
                             XMLFullPath  = $PathInfo.AbsoluteLocation
                             XMLFile      = $Package.location -replace '^.*[\\/]'
@@ -82,28 +85,28 @@ function Get-PackagesInRepository {
                 }
             }
         }
-    }
-
-    # database.xml method
-    # NOT IMPLEMENTED
-
-    # "Simply searching for subfolders with XMLs inside them"-method
-    # This should be a fallback method only - it only works for filesystem
-    # repositories and it cannot recover the categories of the packages.
-    if ($RepositoryType -eq 'FILE') {
-        Get-ChildItem -LiteralPath $Repository -Directory |
-            ForEach-Object {
-                Get-ChildItem -LiteralPath $_.FullName -File -Filter "$($_.Name)*.xml"
-            } |
-            ForEach-Object {
-                Write-Debug "Found package by traversing directories: $($_.Name)"
-                [PSCustomObject]@{
-                    XMLFullPath  = $_.FullName
-                    XMLFile      = $_.Name
-                    Directory    = $_.DirectoryName
-                    Category     = ""
-                    LocationType = 'FILE'
+    } elseif ((Get-PackagePathInfo -Path $DatabaseXmlPath).Reachable) {
+        # database.xml method
+        # NOT IMPLEMENTED
+    } else {
+        # "Simply searching for subfolders with XMLs inside them"-method
+        # This should be a fallback method only - it only works for filesystem
+        # repositories and it cannot recover the categories of the packages.
+        if ($RepositoryType -eq 'FILE') {
+            Get-ChildItem -LiteralPath $Repository -Directory |
+                ForEach-Object {
+                    Get-ChildItem -LiteralPath $_.FullName -File -Filter "$($_.Name)*.xml"
+                } |
+                ForEach-Object {
+                    Write-Debug "Found package by traversing directories: $($_.Name)"
+                    [PSCustomObject]@{
+                        XMLFullPath  = $_.FullName
+                        XMLFile      = $_.Name
+                        Directory    = $_.DirectoryName
+                        Category     = ""
+                        LocationType = 'FILE'
+                    }
                 }
-            }
+        }
     }
 }

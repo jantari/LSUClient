@@ -85,7 +85,6 @@
     # is Wellformedstring relative
 
     # Test for filesystem path
-    Write-Host "testing: $Path"
     if ((Test-Path -LiteralPath $Path) -and
         (Get-Item -LiteralPath $Path).PSProvider.ToString() -eq 'Microsoft.PowerShell.Core\FileSystem') {
             $Valid = $true

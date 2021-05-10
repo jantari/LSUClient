@@ -171,7 +171,6 @@
             foreach ($externalFile in $packageFiles.Where{ $_.Kind -eq 'External'}) {
                 $GetFile = $Package.Directory + '/' + $externalFile.Name
                 $DownloadedExternalFile = Get-PackageFile -SourceFile $GetFile -DestinationDirectory $LocalPackageRoot
-                Write-Verbose "DOWNLOADED EXTERNAL FILE: ${DownloadedExternalFile}"
             }
 
             # The explicit $null is to avoid powershell/powershell#13651
