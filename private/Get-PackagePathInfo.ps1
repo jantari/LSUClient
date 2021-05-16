@@ -92,7 +92,7 @@
         # Try again assuming that $Path is relative to $BasePath
         if (-not $BasePath) { $BasePath = (Get-Location -PSProvider 'Microsoft.PowerShell.Core\FileSystem').Path }
         $JoinedPath = Join-Path -Path $BasePath -ChildPath $Path -ErrorAction SilentlyContinue
-        if ($JoinedPath -and (Test-Path -LiteralPath $JoinedPath) -and 
+        if ($JoinedPath -and (Test-Path -LiteralPath $JoinedPath) -and
             (Get-Item -LiteralPath $JoinedPath).PSProvider.ToString() -eq 'Microsoft.PowerShell.Core\FileSystem') {
             $Valid = $true
             $Reachable = $true

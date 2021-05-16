@@ -52,7 +52,7 @@
         This switch will make all tests we can't really check pass instead, which could lead to a missing update being detected as installed instead.
     #>
 
-    [CmdletBinding(DefaultParameterSetName = 'HttpRepository')]
+    [CmdletBinding()]
     Param (
         [ValidatePattern('^\w{4}$')]
         [string]$Model,
@@ -61,8 +61,6 @@
         [switch]$ProxyUseDefaultCredentials,
         [switch]$All,
         [System.IO.DirectoryInfo]$ScratchDirectory = $env:TEMP,
-        #[Parameter( ParameterSetName = 'FilesystemRepository' )]
-        #[System.IO.DirectoryInfo]$CustomRepository,
         [string]$Repository = 'https://download.lenovo.com/catalog',
         [switch]$NoTestApplicable,
         [switch]$NoTestInstalled,

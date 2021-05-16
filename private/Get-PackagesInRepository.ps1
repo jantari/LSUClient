@@ -53,7 +53,7 @@ function Get-PackagesInRepository {
 
         foreach ($Package in $PARSEDXML.packages.package) {
             $PathInfo = Get-PackagePathInfo -Path $Package.location -BasePath $Repository
-            Write-Host "Repo: $Repository, PkgLocation: $($Package.location), PkgInfo: $PathInfo"
+            Write-Debug "Repo: $Repository, PkgLocation: $($Package.location), PkgInfo: $PathInfo"
             if ($PathInfo.Reachable) {
                 [PackagePointer]@{
                     XMLFullPath  = $PathInfo.AbsoluteLocation
@@ -94,7 +94,7 @@ function Get-PackagesInRepository {
         foreach ($Package in $PARSEDXML.Database.package) {
             if ($Package.SystemCompatibility.System.mtm -contains $Model) {
                 $PathInfo = Get-PackagePathInfo -Path $Package.LocalPath -BasePath $Repository
-                Write-Host "Repo: $Repository, PkgLocation: $($Package.LocalPath), PkgInfo: $PathInfo"
+                Write-Debug "Repo: $Repository, PkgLocation: $($Package.LocalPath), PkgInfo: $PathInfo"
                 if ($PathInfo.Reachable) {
                     [PackagePointer]@{
                         XMLFullPath  = $PathInfo.AbsoluteLocation
