@@ -23,6 +23,20 @@ $script:CachedHardwareTable = @{}
 
 [int]$script:XMLTreeDepth = 0
 
+# Internal
+class PackagePointer {
+    [ValidateNotNullOrEmpty()]
+    [string] $XMLFullPath
+    [ValidateNotNullOrEmpty()]
+    [string] $XMLFile
+    [ValidateNotNullOrEmpty()]
+    [string] $Directory
+    [string] $Category
+    [ValidateNotNullOrEmpty()]
+    [string] $LocationType
+}
+
+# Public
 class LenovoPackage {
     [string] $ID
     hidden [string] $Name
@@ -42,6 +56,7 @@ class LenovoPackage {
     [Nullable[bool]] $IsInstalled
 }
 
+# Public
 class PackageExtractInfo {
     [string] $Command
     [string] $FileName
@@ -56,6 +71,7 @@ class PackageExtractInfo {
     }
 }
 
+# Public
 class PackageInstallInfo {
     [bool] $Unattended
     [ValidateNotNullOrEmpty()]
@@ -80,6 +96,7 @@ class PackageInstallInfo {
     }
 }
 
+# Internal
 class BiosUpdateInfo {
     [ValidateNotNullOrEmpty()]
     [bool] $WasRun
@@ -91,6 +108,7 @@ class BiosUpdateInfo {
     [string] $ActionNeeded
 }
 
+# Internal
 class ProcessReturnInformation {
     [ValidateNotNullOrEmpty()]
     [string] $FilePath

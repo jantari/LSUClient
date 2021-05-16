@@ -32,6 +32,7 @@
     [System.Uri]$Uri = $null
     [string]$UriToUse = $null
 
+    # Test the path as an absolute and as a relative URL
     if ([System.Uri]::IsWellFormedUriString($Path, [System.UriKind]::Absolute)) {
         $UriToUse = $Path
     } elseif ($BasePath) {
@@ -79,8 +80,6 @@
             }
         }
     }
-
-    # is Wellformedstring relative
 
     # Test for filesystem path
     if ((Test-Path -LiteralPath $Path) -and

@@ -14,8 +14,7 @@ function Get-PackagesInRepository {
 
     $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
 
-    # Model XML method
-    Write-Debug "Finding packages in repository '${Repository}' (Type: ${RepositoryType})"
+    Write-Debug "Looking for packages in repository '${Repository}' (Type: ${RepositoryType})"
 
     if ($RepositoryType -eq 'HTTP') {
         $ModelXmlPath    = Join-Url -BaseUri $Repository -ChildUri "${Model}_Win10.xml"
@@ -32,7 +31,7 @@ function Get-PackagesInRepository {
             $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
 
             try {
-                $COMPUTERXML = $webClient.DownloadString( (Join-Url -BaseUri $Repository -ChildUri "${Model}_Win10.xml") )
+                $COMPUTERXML = $webClient.DownloadString($ModelXmlPath)
             }
             catch {
                 if ($_.Exception.innerException.Response.StatusCode -eq [System.Net.HttpStatusCode]::NotFound) {
@@ -46,7 +45,7 @@ function Get-PackagesInRepository {
             [xml]$PARSEDXML = $COMPUTERXML -replace "^$UTF8ByteOrderMark"
         } elseif ($RepositoryType -eq 'FILE') {
             # Model XML method for file based repositories
-            $COMPUTERXML = Get-Content (Join-Path -Path $Repository -ChildPath "${Model}_Win10.xml") -Raw
+            $COMPUTERXML = Get-Content -LiteralPath $ModelXmlPath -Raw
 
             # Strings with a BOM cannot be cast to an XmlElement, so we make sure to remove it if present
             [xml]$PARSEDXML = $COMPUTERXML -replace "^$UTF8ByteOrderMark"
@@ -56,8 +55,7 @@ function Get-PackagesInRepository {
             $PathInfo = Get-PackagePathInfo -Path $Package.location -BasePath $Repository
             Write-Host "Repo: $Repository,PkgLocation: $($Package.location), PkgInfo: $PathInfo"
             if ($PathInfo.Reachable) {
-                Write-Debug "Found package: $($PathInfo.AbsoluteLocation)"
-                [PSCustomObject]@{
+                [PackagePointer]@{
                     XMLFullPath  = $PathInfo.AbsoluteLocation
                     XMLFile      = $Package.location -replace '^.*[\\/]'
                     Directory    = $PathInfo.AbsoluteLocation -replace '[^\\/]*$'
@@ -69,28 +67,50 @@ function Get-PackagesInRepository {
             }
         }
     } elseif ((Get-PackagePathInfo -Path $DatabaseXmlPath).Reachable) {
-        # database.xml method
-        # NOT IMPLEMENTED YET
-        throw [System.NotImplementedException]::new()
-    } else {
-        # "Simply searching for subfolders with XMLs inside them" fallback method.
-        # This should be a last ditch effort method only - it only works for filesystem
-        # repositories and it cannot recover the categories of the packages.
-        if ($RepositoryType -eq 'FILE') {
-            Get-ChildItem -LiteralPath $Repository -Directory |
-                ForEach-Object {
-                    Get-ChildItem -LiteralPath $_.FullName -File -Filter "$($_.Name)*.xml"
-                } |
-                ForEach-Object {
-                    Write-Debug "Found package by traversing directories: $($_.Name)"
-                    [PSCustomObject]@{
-                        XMLFullPath  = $_.FullName
-                        XMLFile      = $_.Name
-                        Directory    = $_.DirectoryName
-                        Category     = ""
-                        LocationType = 'FILE'
-                    }
+        Write-Debug "Getting packages from the database xml file ${DatabaseXmlPath}"
+        if ($RepositoryType -eq 'HTTP') {
+            $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+
+            try {
+                $XmlString = $webClient.DownloadString($DatabaseXmlPath)
+            }
+            catch {
+                if ($_.Exception.innerException.Response.StatusCode -eq [System.Net.HttpStatusCode]::NotFound) {
+                    throw "No information was found on this model of computer (invalid model number or not supported by Lenovo?)"
+                } else {
+                    throw "An error occured when contacting ${Repository}:`r`n$($_.Exception.Message)"
                 }
+            }
+
+            # Downloading with Net.WebClient seems to remove the BOM automatically, this only seems to be neccessary when downloading with IWR. Still I'm leaving it in to be safe
+            [xml]$PARSEDXML = $XmlString -replace "^$UTF8ByteOrderMark"
+        } elseif ($RepositoryType -eq 'FILE') {
+            $XmlString = Get-Content -LiteralPath $DatabaseXmlPath -Raw
+
+            # Strings with a BOM cannot be cast to an XmlElement, so we make sure to remove it if present
+            [xml]$PARSEDXML = $XmlString -replace "^$UTF8ByteOrderMark"
         }
+
+        foreach ($Package in $PARSEDXML.Database.package) {
+            if ($Package.SystemCompatibility.System.mtm -contains $Model) {
+                $PathInfo = Get-PackagePathInfo -Path $Package.LocalPath -BasePath $Repository
+                Write-Host "Repo: $Repository, PkgLocation: $($Package.LocalPath), PkgInfo: $PathInfo"
+                if ($PathInfo.Reachable) {
+                    [PackagePointer]@{
+                        XMLFullPath  = $PathInfo.AbsoluteLocation
+                        XMLFile      = $Package.LocalPath -replace '^.*[\\/]'
+                        Directory    = $PathInfo.AbsoluteLocation -replace '[^\\/]*$'
+                        Category     = ""
+                        LocationType = $PathInfo.Type
+                    }
+                } else {
+                    Write-Error "The package definition at $($Package.LocalPath) could not be found or accessed"
+                }
+            } else {
+                Write-Debug "Package $($Package.LocalPath) is not applicable to the computer model"
+            }
+        }
+    } else {
+        throw "Could not find '${Model}_Win10.xml' or 'database.xml' package index files inside the repository - cannot retrieve any packages"
     }
 }
