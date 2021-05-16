@@ -127,18 +127,18 @@
 
         Write-Debug "Created temporary scratch directory: $ScratchSubDirectory"
 
-        [array]$PackageXMLs = Get-PackagesInRepository -Repository $Repository -RepositoryType $RepositoryInfo.Type -Model $Model
+        [array]$PackagePointers = Get-PackagesInRepository -Repository $Repository -RepositoryType $RepositoryInfo.Type -Model $Model
 
-        Write-Verbose "A total of $($PackageXMLs.Count) driver packages are available for this computer model."
+        Write-Verbose "A total of $($PackagePointers.Count) driver packages are available for this computer model."
     }
 
     process {
-        foreach ($Package in $PackageXMLs) {
-            $Package | Format-List | Out-Host
+        foreach ($Package in $PackagePointers) {
+            Write-Debug "Processing package $($Package.XMLFullPath)"
             if ($Package.LocationType -eq 'FILE') {
                 $LocalPackageRoot = $Package.Directory
             } elseif ($Package.LocationType -eq 'HTTP') {
-                # Creata a random subdirectory for the package
+                # Creata a random subdirectory for the packages temporary files
                 do {
                     $LocalPackageRoot = Join-Path -Path $ScratchSubDirectory -ChildPath ( [System.IO.Path]::GetRandomFileName() )
                 } until (-not (Test-Path -Path $LocalPackageRoot))
@@ -155,7 +155,14 @@
                 }
             }
             Write-Debug "Local package root: $LocalPackageRoot"
-            [string]$localFile = Get-PackageFile -SourceFile $Package.XMLFullPath -DestinationDirectory $LocalPackageRoot
+            $SpfParams = @{
+                'SourceFile' = $Package.XMLFullPath
+                'DestinationDirectory' = $LocalPackageRoot
+                'Proxy' = $Proxy
+                'ProxyCredential' = $ProxyCredential
+                'ProxyUseDefaultCredentials' = $ProxyUseDefaultCredentials
+            }
+            [string]$localFile = Save-PackageFile @SpfParams
             $rawPackageXML = Get-Content -LiteralPath $localFile -Raw
 
             try {
@@ -170,7 +177,7 @@
                 continue
             }
 
-            [array]$packageFiles = $packageXML.Package.Files.SelectNodes('descendant-or-self::File') | Foreach-Object {
+            [array]$PackageFiles = $packageXML.Package.Files.SelectNodes('descendant-or-self::File') | Foreach-Object {
                 [PSCustomObject]@{
                     'Kind' = $_.ParentNode.SchemaInfo.Name
                     'Name' = $_.Name
@@ -181,9 +188,15 @@
 
             # Download the files needed by external detection tests in package
             if (-not ($NoTestApplicable -and $NoTestInstalled)) {
-                foreach ($externalFile in $packageFiles.Where{ $_.Kind -eq 'External'}) {
-                    $GetFile = $Package.Directory + '/' + $externalFile.Name
-                    $null = Get-PackageFile -SourceFile $GetFile -DestinationDirectory $LocalPackageRoot
+                foreach ($externalFile in $PackageFiles.Where{ $_.Kind -eq 'External'}) {
+                    $SpfParams = @{
+                        'SourceFile' = $Package.Directory + '/' + $externalFile.Name
+                        'DestinationDirectory' = $LocalPackageRoot
+                        'Proxy' = $Proxy
+                        'ProxyCredential' = $ProxyCredential
+                        'ProxyUseDefaultCredentials' = $ProxyUseDefaultCredentials
+                    }
+                    $null = Save-PackageFile @SpfParams
                 }
             }
 
@@ -210,7 +223,7 @@
 
             # Calculate package size
             [Int64]$PackageSize = 0
-            $packageFiles | Where-Object { $_.Kind -ne 'External'} | Foreach-Object {
+            $PackageFiles | Where-Object { $_.Kind -ne 'External'} | Foreach-Object {
                 [Int64]$Number = 0
                 $null = [Int64]::TryParse($_.Size, [ref]$Number)
                 $PackageSize += $Number
@@ -228,7 +241,7 @@
                 'Vendor'       = $packageXML.Package.Vendor
                 'Size'         = $PackageSize
                 'URL'          = $Package.XMLFullPath
-                'Files'        = $packageFiles
+                'Files'        = $PackageFiles
                 'Extracter'    = $packageXML.Package
                 'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $Package.Category)
                 'IsApplicable' = $PackageIsApplicable

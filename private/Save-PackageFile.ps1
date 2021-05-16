@@ -1,11 +1,19 @@
-﻿function Get-PackageFile {
+﻿function Save-PackageFile {
+    <#
+        .DESCRIPTION
+        Returns the full filesystem path to a file.
+        If the path to the file is a HTTP/S URL the file is downloaded first.
+    #>
     [CmdletBinding()]
     [OutputType('System.String')]
     Param (
         [Parameter( Mandatory = $true, ValueFromPipeline = $true )]
         [string[]]$SourceFile,
         [Parameter( Mandatory = $true )]
-        [string]$DestinationDirectory
+        [string]$DestinationDirectory,
+        [Uri]$Proxy,
+        [pscredential]$ProxyCredential,
+        [switch]$ProxyUseDefaultCredentials
     )
 
     begin {

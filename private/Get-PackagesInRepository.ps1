@@ -53,7 +53,7 @@ function Get-PackagesInRepository {
 
         foreach ($Package in $PARSEDXML.packages.package) {
             $PathInfo = Get-PackagePathInfo -Path $Package.location -BasePath $Repository
-            Write-Host "Repo: $Repository,PkgLocation: $($Package.location), PkgInfo: $PathInfo"
+            Write-Host "Repo: $Repository, PkgLocation: $($Package.location), PkgInfo: $PathInfo"
             if ($PathInfo.Reachable) {
                 [PackagePointer]@{
                     XMLFullPath  = $PathInfo.AbsoluteLocation
