@@ -69,7 +69,7 @@
 
             try {
                 $response = $Request.GetResponse()
-                if ([System.Net.Http.HttpResponseMessage]::new($response.StatusCode).IsSuccessStatusCode) {
+                if ([int]$response.StatusCode -ge 200 -and [int]$response.StatusCode -le 299) {
                     $Reachable = $true
                     $AbsoluteLocation = $UriToUse
                 }
@@ -77,6 +77,12 @@
             }
             catch {
                 $null = 'Do nothing'
+            }
+            finally {
+                #if (Test-Path -LiteralPath 'Variable:\response') {
+                #    Write-Host "response contained something! >> DISPOSING"
+                #    $response.Dispose()
+                #}
             }
         }
     }
