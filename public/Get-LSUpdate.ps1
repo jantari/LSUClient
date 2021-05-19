@@ -26,8 +26,8 @@
         .PARAMETER ScratchDirectory
         The path to a directory where temporary files are downloaded to for use during the search for packages. Defaults to $env:TEMP.
 
-        .PARAMETER CustomRepository
-        The path to a custom update package repository. This has to be a filesystem path, local or UNC. A package repository can be created with Save-LSUpdate.
+        .PARAMETER Repository
+        The path to a package repository. This can either be a HTTP/S URL pointing to a webserver or a filesystem path to a directory.
 
         .PARAMETER NoTestApplicable
         Do not check whether packages are applicable to the computer. The IsApplicable property of the package objects will be set to $null.
