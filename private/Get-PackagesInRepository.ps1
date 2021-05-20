@@ -14,7 +14,7 @@ function Get-PackagesInRepository {
 
     $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
 
-    Write-Debug "Looking for packages in repository '${Repository}' (Type: ${RepositoryType})"
+    Write-Verbose "Looking for packages in repository '${Repository}' (Type: ${RepositoryType})"
 
     if ($RepositoryType -eq 'HTTP') {
         $ModelXmlPath    = Join-Url -BaseUri $Repository -ChildUri "${Model}_Win10.xml"
@@ -25,7 +25,7 @@ function Get-PackagesInRepository {
     }
 
     if ((Get-PackagePathInfo -Path $ModelXmlPath).Reachable) {
-        Write-Debug "Getting packages from the model xml file ${ModelXmlPath}"
+        Write-Verbose "Getting packages from the model xml file ${ModelXmlPath}"
         if ($RepositoryType -eq 'HTTP') {
             # Model XML method for web based repositories
             $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
