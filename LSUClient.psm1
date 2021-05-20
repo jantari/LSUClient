@@ -48,7 +48,7 @@ class LenovoPackage {
     [int] $RebootType
     [string] $Vendor
     [Int64] $Size
-    [Uri] $URL
+    [string] $URL
     hidden [Object[]] $Files
     [PackageExtractInfo] $Extracter
     [PackageInstallInfo] $Installer
