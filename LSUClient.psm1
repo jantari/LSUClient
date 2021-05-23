@@ -24,17 +24,109 @@ $script:CachedHardwareTable = @{}
 [int]$script:XMLTreeDepth = 0
 
 # Internal
-class PackagePointer {
+class PackageFilePointer {
     [ValidateNotNullOrEmpty()]
-    [string] $XMLFullPath
+    [string] $Name
     [ValidateNotNullOrEmpty()]
-    [string] $XMLFile
+    [string] $Container
     [ValidateNotNullOrEmpty()]
-    [string] $Directory
+    [string] $AbsoluteLocation
+    [ValidateNotNullOrEmpty()]
+    [string] $Kind
+    [string] $Checksum
+    [Int64] $Size
+
+    # Constructor from Filename and Container
+    # TODO: This currently bugs out when you pass an absolute path to the Name argument
+    PackageFilePointer (
+        [string] $Name,
+        [string] $Container,
+        [string] $Kind,
+        [string] $Checksum,
+        [Int64] $Size
+    ) {
+        $this.Name = $Name
+        $this.Container = $Container
+        $this.AbsoluteLocation = (Get-PackagePathInfo -Path $Name -BasePath $Container).AbsoluteLocation
+        $this.Kind = $Kind
+        $this.Checksum = $Checksum
+        $this.Size = $Size
+    }
+
+    # Constructor from absolute path
+    PackageFilePointer (
+        [string] $AbsoluteLocation,
+        [string] $Kind,
+        [string] $Checksum,
+        [Int64] $Size
+    ) {
+        $this.Name = $AbsoluteLocation -replace '^.*[\\/]'
+        $this.Container = $AbsoluteLocation -replace '[^\\/]*$'
+        $this.AbsoluteLocation = $AbsoluteLocation
+        $this.Kind = $Kind
+        $this.Checksum = $Checksum
+        $this.Size = $Size
+    }
+}
+
+# Internal
+class PackageXmlPointer : PackageFilePointer {
     [string] $Category
     [ValidateNotNullOrEmpty()]
     [string] $LocationType
+
+    # Constructor from Filename and Container
+    # TODO: This currently bugs out when you pass an absolute path to the Name argument
+    PackageXmlPointer (
+        [string] $Name,
+        [string] $Container,
+        [string] $Kind,
+        [string] $Checksum,
+        [Int64] $Size,
+        [string] $Category,
+        [string] $LocationType
+    ) : base (
+        $Name,
+        $Container,
+        $Kind,
+        $Checksum,
+        $Size
+    ) {
+        $this.Category = $Category
+        $this.LocationType = $LocationType
+    }
+
+    # Constructor from absolute path
+    PackageXmlPointer (
+        [string] $AbsoluteLocation,
+        [string] $Kind,
+        [string] $Checksum,
+        [Int64] $Size,
+        [string] $Category,
+        [string] $LocationType
+    ) : base (
+        $AbsoluteLocation,
+        $Kind,
+        $Checksum,
+        $Size
+    ) {
+        $this.Category = $Category
+        $this.LocationType = $LocationType
+    }
 }
+
+# Internal
+#class PackagePointer {
+#    [ValidateNotNullOrEmpty()]
+#    [string] $XMLFullPath
+#    [ValidateNotNullOrEmpty()]
+#    [string] $XMLFile
+#    [ValidateNotNullOrEmpty()]
+#    [string] $Directory
+#    [string] $Category
+#    [ValidateNotNullOrEmpty()]
+#    [string] $LocationType
+#}
 
 # Public
 class LenovoPackage {
@@ -49,7 +141,8 @@ class LenovoPackage {
     [string] $Vendor
     [Int64] $Size
     [string] $URL
-    hidden [Object[]] $Files
+    #hidden [PackageFilePointer[]] $Files
+    hidden [System.Collections.Generic.List[PackageFilePointer]] $Files
     [PackageExtractInfo] $Extracter
     [PackageInstallInfo] $Installer
     [Nullable[bool]] $IsApplicable

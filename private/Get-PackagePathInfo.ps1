@@ -36,7 +36,7 @@
     if ([System.Uri]::IsWellFormedUriString($Path, [System.UriKind]::Absolute)) {
         $UriToUse = $Path
     } elseif ($BasePath) {
-        $JoinedUrl = Join-Url -BaseUri $BasePath -ChildUri $Path
+        $JoinedUrl = Join-LSUrl -BaseUri $BasePath -ChildUri $Path
         if ([System.Uri]::IsWellFormedUriString($JoinedUrl, [System.UriKind]::Absolute)) {
             $UriToUse = $JoinedUrl
         }

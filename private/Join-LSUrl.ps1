@@ -1,4 +1,10 @@
-function Join-Url {
+function Join-LSUrl {
+    <#
+        .NOTES
+        The noun-prefix in this case was only added because Join-Url
+        is a fairly generic function name and it conflicts with some
+        other popular modues' exported commands, e.g. PSSharedGoods.
+    #>
     Param (
         [Parameter( Mandatory = $true )]
         [string]$BaseUri,

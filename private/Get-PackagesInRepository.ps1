@@ -17,8 +17,8 @@ function Get-PackagesInRepository {
     Write-Verbose "Looking for packages in repository '${Repository}' (Type: ${RepositoryType})"
 
     if ($RepositoryType -eq 'HTTP') {
-        $ModelXmlPath    = Join-Url -BaseUri $Repository -ChildUri "${Model}_Win10.xml"
-        $DatabaseXmlPath = Join-Url -BaseUri $Repository -ChildUri "database.xml"
+        $ModelXmlPath    = Join-LSUrl -BaseUri $Repository -ChildUri "${Model}_Win10.xml"
+        $DatabaseXmlPath = Join-LSUrl -BaseUri $Repository -ChildUri "database.xml"
     } elseif ($RepositoryType -eq 'FILE') {
         $ModelXmlPath    = Join-Path -Path $Repository -ChildPath "${Model}_Win10.xml"
         $DatabaseXmlPath = Join-Path -Path $Repository -ChildPath "database.xml"
@@ -55,13 +55,14 @@ function Get-PackagesInRepository {
             $PathInfo = Get-PackagePathInfo -Path $Package.location -BasePath $Repository
             Write-Debug "Repo: $Repository, PkgLocation: $($Package.location), PkgInfo: $PathInfo"
             if ($PathInfo.Reachable) {
-                [PackagePointer]@{
-                    XMLFullPath  = $PathInfo.AbsoluteLocation
-                    XMLFile      = $Package.location -replace '^.*[\\/]'
-                    Directory    = $PathInfo.AbsoluteLocation -replace '[^\\/]*$'
-                    Category     = $Package.category
-                    LocationType = $PathInfo.Type
-                }
+                [PackageXmlPointer]::new(
+                    $PathInfo.AbsoluteLocation,
+                    'XmlDefinition',
+                    $Package.checksum.'#text',
+                    0,
+                    $Package.category,
+                    $PathInfo.Type
+                )
             } else {
                 Write-Error "The package definition at $($Package.location) could not be found or accessed"
             }
@@ -96,13 +97,14 @@ function Get-PackagesInRepository {
                 $PathInfo = Get-PackagePathInfo -Path $Package.LocalPath -BasePath $Repository
                 Write-Debug "Repo: $Repository, PkgLocation: $($Package.LocalPath), PkgInfo: $PathInfo"
                 if ($PathInfo.Reachable) {
-                    [PackagePointer]@{
-                        XMLFullPath  = $PathInfo.AbsoluteLocation
-                        XMLFile      = $Package.LocalPath -replace '^.*[\\/]'
-                        Directory    = $PathInfo.AbsoluteLocation -replace '[^\\/]*$'
-                        Category     = ""
-                        LocationType = $PathInfo.Type
-                    }
+                    [PackageXmlPointer]::new(
+                        $PathInfo.AbsoluteLocation,
+                        'XmlDefinition',
+                        $Package.checksum.'#text',
+                        0,
+                        $Package.category,
+                        $PathInfo.Type
+                    )
                 } else {
                     Write-Error "The package definition at $($Package.LocalPath) could not be found or accessed"
                 }

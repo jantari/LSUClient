@@ -33,13 +33,30 @@
 
     process {
         foreach ($PackageToProcess in $Package) {
-            $PackageDirectory = Join-Path -Path $Path -ChildPath $PackageToProcess.id
-            if (-not (Test-Path -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $PackageToProcess.Extracter.FileName) -PathType Leaf)) {
+            $Extracter = $PackageToProcess.Files.Where{ $_.Kind -eq 'Installer' }
+            if (-not (Test-Path -LiteralPath (Join-Path -Path $Extracter.Container -ChildPath $Extracter.Name) -PathType Leaf)) {
                 Write-Verbose "Package '$($PackageToProcess.id)' was not yet downloaded or deleted, downloading ...`r`n"
-                Save-LSUpdate -Package $PackageToProcess -Path $Path
+                $SpfParams = @{
+                    'SourceFile' = $Extracter.Name
+                    'DestinationDirectory' = $Extracter.Container
+                    'Proxy' = $Proxy
+                    'ProxyCredential' = $ProxyCredential
+                    'ProxyUseDefaultCredentials' = $ProxyUseDefaultCredentials
+                }
+                $null = Save-PackageFile @SpfParams
             }
 
-            Expand-LSUpdate -Package $PackageToProcess -Path $PackageDirectory
+            $PackageDirectory = Join-Path -Path $Path -ChildPath $PackageToProcess.id
+            if (-not (Test-Path -LiteralPath $PackageDirectory -PathType Container)) {
+                $null = New-Item -Path $PackageDirectory -Force -ItemType Directory
+            }
+
+            #if (-not (Test-Path -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $PackageToProcess.Extracter.FileName) -PathType Leaf)) {
+            #    Write-Verbose "Package '$($PackageToProcess.id)' was not yet downloaded or deleted, downloading ...`r`n"
+            #    Save-LSUpdate -Package $PackageToProcess -Path $Path
+            #}
+
+            Expand-LSUpdate -Package $PackageToProcess -ExtractTo $PackageDirectory
 
             Write-Verbose "Installing package $($PackageToProcess.ID) ...`r`n"
 
@@ -56,7 +73,7 @@
                         # BIOS Update successful
                         Write-Output "BIOS UPDATE SUCCESS: An immediate full $($BIOSUpdateExit.ActionNeeded) is strongly recommended to allow the BIOS update to complete!`r`n"
                         if ($SaveBIOSUpdateInfoToRegistry) {
-                            Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $Package.Extracter.FileName)).Hash
+                            Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash $Extracter.Checksum
                         }
                     }
                 } else {

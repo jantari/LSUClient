@@ -58,21 +58,14 @@
                 $null = New-Item -Path $DownloadDirectory -Force -ItemType Directory
             }
 
-            $PackageUrlRoot = $PackageToGet.URL -replace "[^/]*$"
+            # Ensure all the packages' files are present locally, download if not
+            foreach ($File in $PackageToGet.Files) {
+                $DownloadSrc  = $File.AbsoluteLocation
+                $DownloadDest = Join-Path -Path $DownloadDirectory -ChildPath $File.Name
 
-            # The packages XML file
-            $DownloadSrc  = $PackageToGet.URL.AbsoluteUri
-            $DownloadDest = Join-Path -Path $DownloadDirectory -ChildPath ($DownloadSrc -replace "^.*/")
-            $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
-            $transfers.Add( $webClient.DownloadFileTaskAsync($DownloadSrc, $DownloadDest) )
-
-            # Installer and other files
-            foreach ($file in $PackageToGet.Files) {
-                $DownloadSrc  = [String]::Concat($PackageUrlRoot, $file.Name)
-                $DownloadDest = Join-Path -Path $DownloadDirectory -ChildPath $file.Name
-
+                Write-Debug "Testing whether PkgFile ${DownloadDest} is already cached, downloading if not"
                 if ($Force -or -not (Test-Path -Path $DownloadDest -PathType Leaf) -or (
-                   (Get-FileHash -Path $DownloadDest -Algorithm SHA256).Hash -ne $file.CRC)) {
+                   (Get-FileHash -Path $DownloadDest -Algorithm SHA256).Hash -ne $File.Checksum)) {
                     # Checking if this package was already downloaded, if yes skipping redownload
                     $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
                     Write-Verbose "Starting download of '$DownloadSrc'"

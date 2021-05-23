@@ -11,13 +11,16 @@
         [ValidateNotNullOrEmpty()]
         [Parameter( Mandatory = $true )]
         [string]$Command,
+        [string]$PackagePath = $Path,
         [switch]$FallbackToShellExecute
     )
+
+    $PSBoundParameters | Out-Host
 
     # Lenovo sometimes forgets to put a directory separator betweeen %PACKAGEPATH% and the executable so make sure it's there
     # If we end up with two backslashes, Split-ExecutableAndArguments removes the duplicate from the executable path, but
     # we could still end up with a double-backslash after %PACKAGEPATH% somewhere in the arguments for now.
-    [string]$Command       = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "${Path}\"}
+    [string]$Command       = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "${PackagePath}\"}
     [string[]]$StdOutLines = @()
     [string[]]$StdErrLines = @()
     $ExeAndArgs            = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path

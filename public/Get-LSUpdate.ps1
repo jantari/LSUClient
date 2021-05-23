@@ -132,9 +132,10 @@
 
     process {
         foreach ($Package in $PackagePointers) {
-            Write-Debug "Processing package $($Package.XMLFullPath)"
+            Write-Debug "Processing package $($Package.AbsoluteLocation)"
+            $Package | Format-List | Out-Host
             if ($Package.LocationType -eq 'FILE') {
-                $LocalPackageRoot = $Package.Directory
+                $LocalPackageRoot = $Package.Container
             } elseif ($Package.LocationType -eq 'HTTP') {
                 # Creata a random subdirectory for the packages temporary files
                 do {
@@ -154,7 +155,7 @@
             }
             Write-Debug "Local package root: $LocalPackageRoot"
             $SpfParams = @{
-                'SourceFile' = $Package.XMLFullPath
+                'SourceFile' = $Package.AbsoluteLocation
                 'DestinationDirectory' = $LocalPackageRoot
                 'Proxy' = $Proxy
                 'ProxyCredential' = $ProxyCredential
@@ -168,27 +169,32 @@
             }
             catch {
                 if ($_.FullyQualifiedErrorId -eq 'InvalidCastToXmlDocument') {
-                    Write-Warning "Could not parse package '$($Package.XMLFile)' (invalid XML)"
+                    Write-Warning "Could not parse package '$($Package.Name)' (invalid XML)"
                 } else {
-                    Write-Warning "Could not parse package '$($Package.XMLFile)':`r`n$($_.Exception.Message)"
+                    Write-Warning "Could not parse package '$($Package.Name)':`r`n$($_.Exception.Message)"
                 }
                 continue
             }
 
-            [array]$PackageFiles = $packageXML.Package.Files.SelectNodes('descendant-or-self::File') | Foreach-Object {
-                [PSCustomObject]@{
-                    'Kind' = $_.ParentNode.SchemaInfo.Name
-                    'Name' = $_.Name
-                    'CRC'  = $_.CRC
-                    'Size' = $_.Size
-                }
+            $PackageFiles = [System.Collections.Generic.List[PackageFilePointer]]::new()
+            $PackageFiles.Add($Package)
+            $packageXML.Package.Files.SelectNodes('descendant-or-self::File') | Foreach-Object {
+                $PackageFiles.Add(
+                    [PackageFilePointer]::new(
+                        $_.Name,
+                        $Package.Container,
+                        $_.ParentNode.SchemaInfo.Name,
+                        $_.CRC,
+                        $_.Size
+                    )
+                )
             }
 
             # Download the files needed by external detection tests in package
             if (-not ($NoTestApplicable -and $NoTestInstalled)) {
                 foreach ($externalFile in $PackageFiles.Where{ $_.Kind -eq 'External'}) {
                     $SpfParams = @{
-                        'SourceFile' = $Package.Directory + '/' + $externalFile.Name
+                        'SourceFile' = $Package.Container + '/' + $externalFile.Name
                         'DestinationDirectory' = $LocalPackageRoot
                         'Proxy' = $Proxy
                         'ProxyCredential' = $ProxyCredential
@@ -238,7 +244,7 @@
                 'RebootType'   = $packageXML.Package.Reboot.type
                 'Vendor'       = $packageXML.Package.Vendor
                 'Size'         = $PackageSize
-                'URL'          = $Package.XMLFullPath
+                'URL'          = $Package.AbsoluteLocation
                 'Files'        = $PackageFiles
                 'Extracter'    = $packageXML.Package
                 'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $Package.Category)
