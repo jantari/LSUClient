@@ -94,7 +94,7 @@
 
         $RepositoryInfo = Get-PackagePathInfo -Path $Repository
         if (-not $RepositoryInfo.Valid) {
-            throw "Repository '${Repository}' could not be accessed or refers to an invalid location"
+            throw "Repository '${Repository}' refers to an invalid location. Only filesystem paths and https(s) URLs are supported."
         }
 
         $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
@@ -145,7 +145,6 @@
                 # This is important because $PWD and System.Environment.CurrentDirectory can differ in PowerShell, so not all path-related APIs/Cmdlets treat relative
                 # paths as relative to the same base-directory which would cause errors later, particularly during path resolution in Split-ExecutableAndArguments
                 try {
-                    # throw is needed to really stop and exit the whole script/cmdlet on an error, ErrorAction Stop would only terminate the current pipeline/statement
                     $LocalPackageRoot = New-Item -Path $LocalPackageRoot -Force -ItemType Directory -ErrorAction Stop | Select-Object -ExpandProperty FullName
                 }
                 catch {
