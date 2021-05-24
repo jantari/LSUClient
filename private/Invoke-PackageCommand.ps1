@@ -58,7 +58,7 @@
     catch {
         # In case we get ERROR_ELEVATION_REQUIRED (740) retry with ShellExecute to elevate with UAC
         if ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException.NativeErrorCode -eq 740) {
-            Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
+            Write-Warning "This process requires elevated privileges - falling back to ShellExecute to elevate with UAC, consider running PowerShell as Administrator"
             if (-not $FallbackToShellExecute) {
                 return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
             }

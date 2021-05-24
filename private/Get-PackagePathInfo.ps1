@@ -78,12 +78,6 @@
             catch {
                 $null = 'Do nothing'
             }
-            finally {
-                #if (Test-Path -LiteralPath 'Variable:\response') {
-                #    Write-Host "response contained something! >> DISPOSING"
-                #    $response.Dispose()
-                #}
-            }
         }
     }
 

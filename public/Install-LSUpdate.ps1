@@ -15,7 +15,7 @@
         The created registry values will not be deleted by this module, only overwritten on the next installed BIOS Update.
     #>
 
-	[CmdletBinding()]
+    [CmdletBinding()]
     Param (
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
         [pscustomobject]$Package,

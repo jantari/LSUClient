@@ -43,12 +43,14 @@
 
             $File = Get-Item -LiteralPath $FileToGet -ErrorAction SilentlyContinue
             if ($?) {
+                Write-Debug "Found '$($File.Name)' by its absolute path"
                 $File.FullName
                 continue
             } else {
                 [string]$Path = Join-Path -Path $DestinationDirectory -ChildPath $FileToGet
                 $File = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
                 if ($?) {
+                    Write-Debug "Found '$($File.Name)' by its relative path"
                     $File.FullName
                     continue
                 }
