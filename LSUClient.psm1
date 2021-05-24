@@ -115,19 +115,6 @@ class PackageXmlPointer : PackageFilePointer {
     }
 }
 
-# Internal
-#class PackagePointer {
-#    [ValidateNotNullOrEmpty()]
-#    [string] $XMLFullPath
-#    [ValidateNotNullOrEmpty()]
-#    [string] $XMLFile
-#    [ValidateNotNullOrEmpty()]
-#    [string] $Directory
-#    [string] $Category
-#    [ValidateNotNullOrEmpty()]
-#    [string] $LocationType
-#}
-
 # Public
 class LenovoPackage {
     [string] $ID
@@ -141,7 +128,6 @@ class LenovoPackage {
     [string] $Vendor
     [Int64] $Size
     [string] $URL
-    #hidden [PackageFilePointer[]] $Files
     hidden [System.Collections.Generic.List[PackageFilePointer]] $Files
     [PackageExtractInfo] $Extracter
     [PackageInstallInfo] $Installer

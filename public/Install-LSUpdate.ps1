@@ -51,11 +51,6 @@
                 $null = New-Item -Path $PackageDirectory -Force -ItemType Directory
             }
 
-            #if (-not (Test-Path -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $PackageToProcess.Extracter.FileName) -PathType Leaf)) {
-            #    Write-Verbose "Package '$($PackageToProcess.id)' was not yet downloaded or deleted, downloading ...`r`n"
-            #    Save-LSUpdate -Package $PackageToProcess -Path $Path
-            #}
-
             Expand-LSUpdate -Package $PackageToProcess -ExtractTo $PackageDirectory
 
             Write-Verbose "Installing package $($PackageToProcess.ID) ...`r`n"
