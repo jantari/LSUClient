@@ -144,9 +144,9 @@ class PackageExtractInfo {
 
     PackageExtractInfo ([System.Xml.XmlElement]$PackageXML) {
         $this.Command  = $PackageXML.ExtractCommand
-        $this.FileName = $PackageXML.Files.Installer.File.Name
-        $this.FileSize = $PackageXML.Files.Installer.File.Size
-        $this.FileSHA  = $PackageXML.Files.Installer.File.CRC
+        $this.FileName = $PackageXML.Files.Installer.File.Name # Unused, kept for backwards compatibility
+        $this.FileSize = $PackageXML.Files.Installer.File.Size # Unused, kept for backwards compatibility
+        $this.FileSHA  = $PackageXML.Files.Installer.File.CRC  # Unused, kept for backwards compatibility
     }
 }
 
@@ -159,13 +159,13 @@ class PackageInstallInfo {
     [string] $InfFile
     [string] $Command
 
-    PackageInstallInfo ([System.Xml.XmlElement]$PackageXML, [string]$Category) {
+    PackageInstallInfo ([System.Xml.XmlElement]$PackageXML) {
         $this.InstallType    = $PackageXML.Install.type
         $this.SuccessCodes   = $PackageXML.Install.rc -split ','
         $this.InfFile        = $PackageXML.Install.INFCmd.INFfile
         $this.Command        = $PackageXML.Install.Cmdline.'#text'
         if (($PackageXML.Reboot.type -in 0, 3) -or
-            ($Category -eq 'BIOS UEFI') -or
+            ($PackageXML.Install.Cmdline.'#text' -match 'winuptp\.exe|Flash\.cmd') -or
             ($PackageXML.Install.type -eq 'INF'))
         {
             $this.Unattended = $true

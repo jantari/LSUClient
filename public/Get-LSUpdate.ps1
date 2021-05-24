@@ -246,7 +246,7 @@
                 'URL'          = $Package.AbsoluteLocation
                 'Files'        = $PackageFiles
                 'Extracter'    = $packageXML.Package
-                'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $Package.Category)
+                'Installer'    = [PackageInstallInfo]::new($packageXML.Package)
                 'IsApplicable' = $PackageIsApplicable
                 'IsInstalled'  = $PackageIsInstalled
             }
