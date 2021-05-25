@@ -15,10 +15,7 @@
     Param (
         [Parameter( Mandatory = $true )]
         [string]$Path,
-        [string]$BasePath,
-        [Uri]$Proxy,
-        [pscredential]$ProxyCredential,
-        [switch]$ProxyUseDefaultCredentials
+        [string]$BasePath
     )
 
     [string]$Type = 'Unknown'
@@ -76,7 +73,7 @@
                 $response.Dispose()
             }
             catch {
-                $null = 'Do nothing'
+                Write-Debug "Could not connect to URL ${UriToUse}: $_"
             }
         }
     }

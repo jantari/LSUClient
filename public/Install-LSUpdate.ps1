@@ -42,7 +42,7 @@
                 $null = New-Item -Path $PackageDirectory -Force -ItemType Directory
             }
 
-            $ExtracterInfo = Get-PackagePathInfo -Path $Extracter.AbsoluteLocation -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+            $ExtracterInfo = Get-PackagePathInfo -Path $Extracter.AbsoluteLocation
             if ($ExtracterInfo.Type -eq 'HTTP') {
                 if (-not (Test-Path -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $Extracter.Name) -PathType Leaf)) {
                     Write-Verbose "Installer of package '$($PackageToProcess.id)' not yet downloaded, downloading ...`r`n"
