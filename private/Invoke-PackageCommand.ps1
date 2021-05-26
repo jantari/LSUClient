@@ -15,8 +15,6 @@
         [switch]$FallbackToShellExecute
     )
 
-    $PSBoundParameters | Out-Host
-
     # Lenovo sometimes forgets to put a directory separator betweeen %PACKAGEPATH% and the executable so make sure it's there
     # If we end up with two backslashes, Split-ExecutableAndArguments removes the duplicate from the executable path, but
     # we could still end up with a double-backslash after %PACKAGEPATH% somewhere in the arguments for now.
@@ -108,8 +106,6 @@
         "ExitCode"         = $process.ExitCode
         "Runtime"          = $process.ExitTime - $process.StartTime
     }
-
-    $returnInfo | Format-List | Out-Host
 
     return $returnInfo
 }
