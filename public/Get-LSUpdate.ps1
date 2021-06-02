@@ -133,7 +133,6 @@
     process {
         foreach ($Package in $PackagePointers) {
             Write-Debug "Processing package $($Package.AbsoluteLocation)"
-            $Package | Format-List | Out-Host
             if ($Package.LocationType -eq 'FILE') {
                 $LocalPackageRoot = $Package.Container
             } elseif ($Package.LocationType -eq 'HTTP') {
