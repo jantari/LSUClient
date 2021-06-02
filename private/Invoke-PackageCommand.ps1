@@ -65,10 +65,10 @@
             if (-not $FallbackToShellExecute) {
                 return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
             }
-        } else {
-            Write-Warning $_
-            return $null
         }
+
+        Write-Warning $_
+        return $null
     }
 
     if (-not $FallbackToShellExecute) {
