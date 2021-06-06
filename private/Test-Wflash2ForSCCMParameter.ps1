@@ -122,7 +122,14 @@
     $process.StartInfo.RedirectStandardError  = $true
     $process.StartInfo.Arguments              = "/quiet /sccm"
     $process.StartInfo.WorkingDirectory       = "$env:USERPROFILE"
-    $null = $process.Start()
+
+    try {
+        $null = $process.Start()
+    }
+    catch {
+        Write-Warning "Could not test this ThinkCentre BIOS-Update for the /sccm (suppress reboot) parameter: The process did not start: $_"
+        return $SupportsSCCMSwitch
+    }
 
     do {
         Start-Sleep -Seconds 1
@@ -130,7 +137,7 @@
         if ($APICALL.WCIReturnValue   -ne $true -or
             $APICALL.WCIEventsWritten -ne 1 -or
             $APICALL.LastWin32Error   -ne 0) {
-                Write-Warning "Could not test this ThinkCentre BIOS-Update for the /sccm (suppress reboot) parameter: A problem occured when calling the native API 'WriteConsoleInput'. Try running this script in a terminal that supports it, such as the default conhost or anything that builds atop of ConPTY."
+                Write-Warning "Could not test this ThinkCentre BIOS-Update for the /sccm (suppress reboot) parameter: A problem occured when calling the native API 'WriteConsoleInput': $($APICALL.LastWin32Error)"
                 $process.Kill()
         }
     } until ($process.HasExited)
