@@ -55,14 +55,14 @@
     catch {
         # In case we get ERROR_ELEVATION_REQUIRED (740) retry with ShellExecute to elevate with UAC
         if ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException.NativeErrorCode -eq 740) {
-            Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
             if (-not $FallbackToShellExecute) {
+                Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
                 return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
             }
         # In case we get ERROR_BAD_EXE_FORMAT (193) retry with ShellExecute to open files like MSI
         } elseif ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException.NativeErrorCode -eq 193) {
-            Write-Warning "The file to be run is not an executable - falling back to ShellExecute"
             if (-not $FallbackToShellExecute) {
+                Write-Warning "The file to be run is not an executable - falling back to ShellExecute"
                 return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
             }
         }
