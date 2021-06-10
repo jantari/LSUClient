@@ -50,10 +50,10 @@
             $Request.KeepAlive = $false
             $Request.AllowAutoRedirect = $true
 
-            if (Test-Path -LiteralPath "Variable:\Proxy") {
+            if ((Test-Path -LiteralPath "Variable:\Proxy") -and $Proxy) {
                 $webProxy = [System.Net.WebProxy]::new($Proxy)
                 $webProxy.BypassProxyOnLocal = $false
-                if (Test-Path -LiteralPath "Variable:\ProxyCredential") {
+                if ((Test-Path -LiteralPath "Variable:\ProxyCredential") -and $ProxyCredential) {
                     $webProxy.Credentials = $ProxyCredential.GetNetworkCredential()
                 } elseif ((Test-Path -LiteralPath "Variable:\ProxyUseDefaultCredentials") -and $ProxyUseDefaultCredentials) {
                     # If both ProxyCredential and ProxyUseDefaultCredentials are passed,
