@@ -50,12 +50,12 @@
             $Request.KeepAlive = $false
             $Request.AllowAutoRedirect = $true
 
-            if ($Proxy) {
+            if (Test-Path -LiteralPath "Variable:\Proxy") {
                 $webProxy = [System.Net.WebProxy]::new($Proxy)
                 $webProxy.BypassProxyOnLocal = $false
-                if ($ProxyCredential) {
+                if (Test-Path -LiteralPath "Variable:\ProxyCredential") {
                     $webProxy.Credentials = $ProxyCredential.GetNetworkCredential()
-                } elseif ($ProxyUseDefaultCredentials) {
+                } elseif ((Test-Path -LiteralPath "Variable:\ProxyUseDefaultCredentials") -and $ProxyUseDefaultCredentials) {
                     # If both ProxyCredential and ProxyUseDefaultCredentials are passed,
                     # UseDefaultCredentials will overwrite the supplied credentials.
                     # This behaviour, comment and code are replicated from Invoke-WebRequest
