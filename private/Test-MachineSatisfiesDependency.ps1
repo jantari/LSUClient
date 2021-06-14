@@ -68,8 +68,8 @@
                         return -1
                     }
 
-                    $DriverVersion = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverVersion').Data
-                    $DriverDate    = ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverDate').Data.Date
+                    $DriverVersion = ($Device | Invoke-CimMethod -MethodName GetDeviceProperties -Arguments @{'devicePropertyKeys' = @('DEVPKEY_Device_DriverVersion')} -Verbose:$false).deviceProperties.Data
+                    $DriverDate    = ($Device | Invoke-CimMethod -MethodName GetDeviceProperties -Arguments @{'devicePropertyKeys' = @('DEVPKEY_Device_DriverDate')} -Verbose:$false).deviceProperties.Data.Date
                     $TestResults   = [System.Collections.Generic.List[bool]]::new()
 
                     # Documentation for this: https://docs.microsoft.com/en-us/windows-hardware/drivers/install/identifier-score--windows-vista-and-later-
