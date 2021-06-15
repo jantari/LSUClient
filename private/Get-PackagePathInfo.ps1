@@ -42,6 +42,7 @@
     if ($UriToUse -and [System.Uri]::TryCreate($UriToUse, [System.UriKind]::Absolute, [ref]$Uri)) {
         if ($Uri.Scheme -in 'http', 'https') {
             $Type = 'HTTP'
+            $AbsoluteLocation = $UriToUse
             $Valid = $true
 
             $Request = [System.Net.HttpWebRequest]::CreateHttp($UriToUse)
@@ -68,7 +69,6 @@
                 $response = $Request.GetResponse()
                 if ([int]$response.StatusCode -ge 200 -and [int]$response.StatusCode -le 299) {
                     $Reachable = $true
-                    $AbsoluteLocation = $UriToUse
                 }
                 $response.Dispose()
             }
