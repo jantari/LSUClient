@@ -68,8 +68,36 @@
                         return -1
                     }
 
-                    $DriverVersion = ($Device | Invoke-CimMethod -MethodName GetDeviceProperties -Arguments @{'devicePropertyKeys' = @('DEVPKEY_Device_DriverVersion')} -Verbose:$false).deviceProperties.Data
-                    $DriverDate    = ($Device | Invoke-CimMethod -MethodName GetDeviceProperties -Arguments @{'devicePropertyKeys' = @('DEVPKEY_Device_DriverDate')} -Verbose:$false).deviceProperties.Data.Date
+                    $icmParams = @{
+                        'InputObject' = $Device
+                        'MethodName'  = 'GetDeviceProperties'
+                        'Arguments'   = @{'devicePropertyKeys' = @('DEVPKEY_Device_DriverVersion')}
+                        'Verbose'     = $false
+                        'ErrorAction' = 'SilentlyContinue'
+                    }
+
+                    $DriverVersionObject = Invoke-CimMethod @icmParams | Select-Object -ExpandProperty deviceProperties
+                    if (-not $DriverVersionObject) {
+                        # Fall back to the much slower Get-PnpDeviceProperty cmdlet in cases where GetDeviceProperties fails (e.g. disconnected "phantom" devices)
+                        $DriverVersionObject = Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverVersion'
+                    }
+                    $DriverVersion = $DriverVersionObject.Data
+
+                    $icmParams = @{
+                        'InputObject' = $Device
+                        'MethodName'  = 'GetDeviceProperties'
+                        'Arguments'   = @{'devicePropertyKeys' = @('DEVPKEY_Device_DriverDate')}
+                        'Verbose'     = $false
+                        'ErrorAction' = 'SilentlyContinue'
+                    }
+
+                    $DriverDateObject = Invoke-CimMethod @icmParams | Select-Object -ExpandProperty deviceProperties
+                    if (-not $DriverDateObject) {
+                        # Fall back to the much slower Get-PnpDeviceProperty cmdlet in cases where GetDeviceProperties fails (e.g. disconnected "phantom" devices)
+                        $DriverDateObject = Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverDate'
+                    }
+                    $DriverDate = $DriverDateObject.Data.Date
+
                     $TestResults   = [System.Collections.Generic.List[bool]]::new()
 
                     # Documentation for this: https://docs.microsoft.com/en-us/windows-hardware/drivers/install/identifier-score--windows-vista-and-later-
