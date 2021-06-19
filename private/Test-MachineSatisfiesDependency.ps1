@@ -96,9 +96,14 @@
                         # Fall back to the much slower Get-PnpDeviceProperty cmdlet in cases where GetDeviceProperties fails (e.g. disconnected "phantom" devices)
                         $DriverDateObject = Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverDate'
                     }
-                    $DriverDate = $DriverDateObject.Data.Date
+                    # WMI and therefore CIM stores datetime values in a DMTF string format.
+                    # When these are converted to DateTime objects, they are always converted to the local timezone, aka an offset
+                    # is "artificially" added. For driver dates, this can lead to GitHub#33 where the offset is enough to change the date,
+                    # which leads to false driver results. We have to remove the offset by converting the DateTime of Kind 'Local' back to UTC.
+                    # See GitHub#33 and https://docs.microsoft.com/en-us/dotnet/api/system.management.managementdatetimeconverter.todatetime?view=netframework-4.8#remarks
+                    $DriverDate = $DriverDateObject.Data.ToUniversalTime().Date
 
-                    $TestResults   = [System.Collections.Generic.List[bool]]::new()
+                    $TestResults = [System.Collections.Generic.List[bool]]::new()
 
                     # Documentation for this: https://docs.microsoft.com/en-us/windows-hardware/drivers/install/identifier-score--windows-vista-and-later-
                     # To be clear, this is a 'pretty good / best effort' approach, but it can detect false positives or miss generic drivers.
@@ -113,7 +118,14 @@
                     if ($DriverChildNodes -contains 'Date') {
                         Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Date"
                         $LenovoDate = [DateTime]::new(0)
-                        if ( [DateTime]::TryParseExact($Dependency.Date, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None', [ref]$LenovoDate) ) {
+                        [bool]$LenovoDateIsValid = [DateTime]::TryParseExact(
+                            $Dependency.Date,
+                            'yyyy-MM-dd',
+                            [CultureInfo]::InvariantCulture,
+                            [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor [System.Globalization.DateTimeStyles]::AssumeUniversal,
+                            [ref]$LenovoDate
+                        )
+                        if ($LenovoDateIsValid) {
                             Write-Debug "$('- ' * $DebugIndent)[Got: $DriverDate, Expected: $LenovoDate]"
                             if ($DriverDate -ge $LenovoDate) {
                                 Write-Debug "$('- ' * $DebugIndent)Passed DriverDate test"
