@@ -96,14 +96,7 @@
                         # Fall back to the much slower Get-PnpDeviceProperty cmdlet in cases where GetDeviceProperties fails (e.g. disconnected "phantom" devices)
                         $DriverDateObject = Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverDate'
                     }
-                    # WMI and therefore CIM stores datetime values in a DMTF string format.
-                    # When these are converted to DateTime objects, they are always converted to the local timezone, aka an offset
-                    # is "artificially" added. For driver dates, this can lead to GitHub#33 where the offset is enough to change the date,
-                    # which leads to false driver results. We have to remove the offset by converting the DateTime of Kind 'Local' back to UTC.
-                    # See GitHub#33 and https://docs.microsoft.com/en-us/dotnet/api/system.management.managementdatetimeconverter.todatetime?view=netframework-4.8#remarks
-                    $DriverDate = $DriverDateObject.Data.ToUniversalTime().Date
-
-                    $TestResults = [System.Collections.Generic.List[bool]]::new()
+                    $DriverDate = $DriverDateObject.Data
 
                     # Documentation for this: https://docs.microsoft.com/en-us/windows-hardware/drivers/install/identifier-score--windows-vista-and-later-
                     # To be clear, this is a 'pretty good / best effort' approach, but it can detect false positives or miss generic drivers.
@@ -114,6 +107,8 @@
                     if ($DriverMatchTypeScore -ge 2) {
                         Write-Verbose "Device '$($Device.Name)' may currently be using a generic or inbox driver"
                     }
+
+                    $TestResults = [System.Collections.Generic.List[bool]]::new()
 
                     if ($DriverChildNodes -contains 'Date') {
                         Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Date"
@@ -126,13 +121,23 @@
                             [ref]$LenovoDate
                         )
                         if ($LenovoDateIsValid) {
-                            Write-Debug "$('- ' * $DebugIndent)[Got: $DriverDate, Expected: $LenovoDate]"
-                            if ($DriverDate -ge $LenovoDate) {
-                                Write-Debug "$('- ' * $DebugIndent)Passed DriverDate test"
-                                $TestResults.Add($true)
+                            if ($DriverDate) {
+                                # WMI and therefore CIM stores datetime values in a DMTF string format.
+                                # When these are converted to DateTime objects, they are always converted to the local timezone, aka an offset
+                                # is "artificially" added. For driver dates, this can lead to GitHub#33 where the offset is enough to change the date,
+                                # which leads to false driver results. We have to remove the offset by converting the DateTime of Kind 'Local' back to UTC.
+                                # See GitHub#33 and https://docs.microsoft.com/en-us/dotnet/api/system.management.managementdatetimeconverter.todatetime?view=netframework-4.8#remarks
+                                $DriverDate = $DriverDate.ToUniversalTime().Date
+                                Write-Debug "$('- ' * $DebugIndent)[Got: $DriverDate, Expected: $LenovoDate]"
+                                if ($DriverDate -ge $LenovoDate) {
+                                    Write-Debug "$('- ' * $DebugIndent)Passed DriverDate test"
+                                    $TestResults.Add($true)
+                                } else {
+                                    Write-Debug "$('- ' * $DebugIndent)Failed DriverDate test"
+                                    $TestResults.Add($false)
+                                }
                             } else {
-                                Write-Debug "$('- ' * $DebugIndent)Failed DriverDate test"
-                                $TestResults.Add($false)
+                                Write-Verbose "Device '$HardwareIDFound' does not report its driver date"
                             }
                         } else {
                             Write-Verbose "Got unsupported date format from Lenovo: '$($Dependency.Date)' (expected yyyy-MM-dd)"
