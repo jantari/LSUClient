@@ -163,7 +163,11 @@
                 'ProxyUseDefaultCredentials' = $ProxyUseDefaultCredentials
             }
             [string]$localFile = Save-PackageFile @SpfParams
-            $rawPackageXML = Get-Content -LiteralPath $localFile -Raw
+            $rawPackageXML = Get-Content -LiteralPath $localFile -Raw -ErrorAction Ignore
+            if (-not $?) {
+                Write-Error "The package XML file $($Package.Name) could not be read and will be ignored"
+                continue
+            }
 
             try {
                 [xml]$packageXML = $rawPackageXML -replace "^$UTF8ByteOrderMark"
