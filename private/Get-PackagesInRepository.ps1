@@ -17,8 +17,8 @@ function Get-PackagesInRepository {
     Write-Verbose "Looking for packages in repository '${Repository}' (Type: ${RepositoryType})"
 
     if ($RepositoryType -eq 'HTTP') {
-        $ModelXmlPath    = Join-LSUrl -BaseUri $Repository -ChildUri "${Model}_Win10.xml"
-        $DatabaseXmlPath = Join-LSUrl -BaseUri $Repository -ChildUri "database.xml"
+        $ModelXmlPath    = $Repository.TrimEnd('/', '\') + "/${Model}_Win10.xml"
+        $DatabaseXmlPath = $Repository.TrimEnd('/', '\') + '/database.xml'
     } elseif ($RepositoryType -eq 'FILE') {
         $ModelXmlPath    = Join-Path -Path $Repository -ChildPath "${Model}_Win10.xml"
         $DatabaseXmlPath = Join-Path -Path $Repository -ChildPath "database.xml"
