@@ -46,6 +46,7 @@
         $process.StartInfo.RedirectStandardError  = $false
     }
 
+    Write-Debug "Starting external process:`r`n  File: $($ExeAndArgs.Executable)`r`n  Arguments: $($ExeAndArgs.Arguments)`r`n  WorkingDirectory: $Path"
     try {
         if (-not $process.Start()) {
             Write-Warning "No new process was created or a handle to it could not be obtained."

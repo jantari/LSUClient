@@ -10,15 +10,15 @@
         [Parameter( Mandatory = $true, ValueFromPipeline = $true )]
         [string[]]$SourceFile,
         [Parameter( Mandatory = $true )]
-        [string]$DestinationDirectory,
+        [string]$Directory,
         [Uri]$Proxy,
         [pscredential]$ProxyCredential,
         [switch]$ProxyUseDefaultCredentials
     )
 
     begin {
-        if (-not (Test-Path -Path $DestinationDirectory)) {
-            $null = New-Item -Path $DestinationDirectory -Force -ItemType Directory
+        if (-not (Test-Path -Path $Directory)) {
+            $null = New-Item -Path $Directory -Force -ItemType Directory
         }
     }
 
@@ -31,7 +31,7 @@
                         # Valid URL - Downloading file via HTTP
                         $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
 
-                        [string]$DownloadDest = Join-Path -Path $DestinationDirectory -ChildPath $Uri.Segments[-1]
+                        [string]$DownloadDest = Join-Path -Path $Directory -ChildPath $Uri.Segments[-1]
                         Write-Verbose "Downloading '${Uri}' to '${DownloadDest}'"
                         $webClient.DownloadFile($Uri, $DownloadDest)
 
@@ -47,7 +47,7 @@
                 $File.FullName
                 continue
             } else {
-                [string]$Path = Join-Path -Path $DestinationDirectory -ChildPath $FileToGet
+                [string]$Path = Join-Path -Path $Directory -ChildPath $FileToGet
                 $File = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
                 if ($?) {
                     Write-Debug "Found '$($File.Name)' by its relative path"

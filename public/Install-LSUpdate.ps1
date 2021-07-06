@@ -48,7 +48,7 @@
                     Write-Verbose "Installer of package '$($PackageToProcess.id)' not yet downloaded, downloading ...`r`n"
                     $SpfParams = @{
                         'SourceFile' = $Extracter.AbsoluteLocation
-                        'DestinationDirectory' = $PackageDirectory
+                        'Directory' = $PackageDirectory
                         'Proxy' = $Proxy
                         'ProxyCredential' = $ProxyCredential
                         'ProxyUseDefaultCredentials' = $ProxyUseDefaultCredentials
