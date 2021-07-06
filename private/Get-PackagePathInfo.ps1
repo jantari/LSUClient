@@ -23,7 +23,7 @@
     [bool]$Reachable = $false
     [string]$AbsoluteLocation = ''
 
-    Write-Debug "Testing and getting basic information on package path '$Path'"
+    Write-Debug "Resolving file path '$Path'"
 
     # Testing for http URL
     [System.Uri]$Uri = $null

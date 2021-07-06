@@ -165,7 +165,7 @@
             [string]$localFile = Save-PackageFile @SpfParams
             $rawPackageXML = Get-Content -LiteralPath $localFile -Raw -ErrorAction Ignore
             if (-not $?) {
-                Write-Error "The package XML file $($Package.Name) could not be read and will be ignored"
+                Write-Error "The package $($Package.Name) could not be retrieved or read and will be skipped"
                 continue
             }
 
