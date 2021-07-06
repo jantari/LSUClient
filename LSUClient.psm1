@@ -36,23 +36,6 @@ class PackageFilePointer {
     [string] $Checksum
     [Int64] $Size
 
-    # Constructor from Filename and Container
-    # TODO: This currently bugs out when you pass an absolute path to the Name argument
-    PackageFilePointer (
-        [string] $Name,
-        [string] $Container,
-        [string] $Kind,
-        [string] $Checksum,
-        [Int64] $Size
-    ) {
-        $this.Name = $Name
-        $this.Container = $Container
-        $this.AbsoluteLocation = (Get-PackagePathInfo -Path $Name -BasePath $Container).AbsoluteLocation
-        $this.Kind = $Kind
-        $this.Checksum = $Checksum
-        $this.Size = $Size
-    }
-
     # Constructor from absolute path
     PackageFilePointer (
         [string] $AbsoluteLocation,
@@ -74,27 +57,6 @@ class PackageXmlPointer : PackageFilePointer {
     [string] $Category
     [ValidateNotNullOrEmpty()]
     [string] $LocationType
-
-    # Constructor from Filename and Container
-    # TODO: This currently bugs out when you pass an absolute path to the Name argument
-    PackageXmlPointer (
-        [string] $Name,
-        [string] $Container,
-        [string] $Kind,
-        [string] $Checksum,
-        [Int64] $Size,
-        [string] $Category,
-        [string] $LocationType
-    ) : base (
-        $Name,
-        $Container,
-        $Kind,
-        $Checksum,
-        $Size
-    ) {
-        $this.Category = $Category
-        $this.LocationType = $LocationType
-    }
 
     # Constructor from absolute path
     PackageXmlPointer (
