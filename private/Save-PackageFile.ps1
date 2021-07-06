@@ -8,7 +8,7 @@
     [OutputType('System.String')]
     Param (
         [Parameter( Mandatory = $true, ValueFromPipeline = $true )]
-        [string[]]$SourceFile,
+        [string]$SourceFile,
         [Parameter( Mandatory = $true )]
         [string]$Directory,
         [Uri]$Proxy,
@@ -16,48 +16,39 @@
         [switch]$ProxyUseDefaultCredentials
     )
 
-    begin {
-        if (-not (Test-Path -Path $Directory)) {
-            $null = New-Item -Path $Directory -Force -ItemType Directory
+    if (-not (Test-Path -Path $Directory)) {
+        $null = New-Item -Path $Directory -Force -ItemType Directory
+    }
+
+    [System.Uri]$Uri = $null
+    if ([System.Uri]::IsWellFormedUriString($SourceFile, [System.UriKind]::Absolute)) {
+        if ([System.Uri]::TryCreate($SourceFile, [System.UriKind]::Absolute, [ref]$Uri)) {
+            if ($Uri.Scheme -in 'http', 'https') {
+                # Valid URL - Downloading file via HTTP
+                $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+
+                [string]$DownloadDest = Join-Path -Path $Directory -ChildPath $Uri.Segments[-1]
+                Write-Verbose "Downloading '${Uri}' to '${DownloadDest}'"
+                $webClient.DownloadFile($Uri, $DownloadDest)
+
+                return $DownloadDest
+            }
         }
     }
 
-    process {
-        foreach ($FileToGet in $SourceFile) {
-            [System.Uri]$Uri = $null
-            if ([System.Uri]::IsWellFormedUriString($FileToGet, [System.UriKind]::Absolute)) {
-                if ([System.Uri]::TryCreate($FileToGet, [System.UriKind]::Absolute, [ref]$Uri)) {
-                    if ($Uri.Scheme -in 'http', 'https') {
-                        # Valid URL - Downloading file via HTTP
-                        $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
-
-                        [string]$DownloadDest = Join-Path -Path $Directory -ChildPath $Uri.Segments[-1]
-                        Write-Verbose "Downloading '${Uri}' to '${DownloadDest}'"
-                        $webClient.DownloadFile($Uri, $DownloadDest)
-
-                        $DownloadDest
-                        continue
-                    }
-                }
-            }
-
-            $File = Get-Item -LiteralPath $FileToGet -ErrorAction SilentlyContinue
+    $File = Get-Item -LiteralPath $SourceFile -ErrorAction SilentlyContinue
+    if ($?) {
+        return $File.FullName
+    } else {
+        [string]$Path = Join-Path -Path $Directory -ChildPath $SourceFile
+        if ($?) {
+            $File = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
             if ($?) {
-                Write-Debug "Found '$($File.Name)' by its absolute path"
-                $File.FullName
-                continue
-            } else {
-                [string]$Path = Join-Path -Path $Directory -ChildPath $FileToGet
-                $File = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
-                if ($?) {
-                    Write-Debug "Found '$($File.Name)' by its relative path"
-                    $File.FullName
-                    continue
-                }
+                return $File.FullName
             }
-
-            Write-Error "The file ${FileToGet} could not be accessed or found"
-            $null
         }
     }
+
+    Write-Error "The file ${SourceFile} could not be accessed or found"
+    $null
 }
