@@ -15,6 +15,11 @@
         [switch]$FallbackToShellExecute
     )
 
+    # Remove any trailing backslashes from the PackagePath.
+    # This isn't necessary, because Split-ExecutableAndArguments can handle and trims
+    # extra backslashes, but this will make the path look more sane in errors and warnings.
+    $PackagePath = $PackagePath.TrimEnd('\')
+
     # Lenovo sometimes forgets to put a directory separator betweeen %PACKAGEPATH% and the executable so make sure it's there
     # If we end up with two backslashes, Split-ExecutableAndArguments removes the duplicate from the executable path, but
     # we could still end up with a double-backslash after %PACKAGEPATH% somewhere in the arguments for now.
