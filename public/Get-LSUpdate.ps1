@@ -200,7 +200,7 @@
             if (-not ($NoTestApplicable -and $NoTestInstalled)) {
                 foreach ($externalFile in $PackageFiles.Where{ $_.Kind -eq 'External'}) {
                     $SpfParams = @{
-                        'SourceFile' = $Package.Container + '/' + $externalFile.Name
+                        'SourceFile' = $externalFile.AbsoluteLocation
                         'Directory' = $LocalPackageRoot
                         'Proxy' = $Proxy
                         'ProxyCredential' = $ProxyCredential
