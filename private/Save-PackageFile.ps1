@@ -7,7 +7,7 @@
     [CmdletBinding()]
     [OutputType('System.String')]
     Param (
-        [Parameter( Mandatory = $true, ValueFromPipeline = $true )]
+        [Parameter( Mandatory = $true )]
         [string]$SourceFile,
         [Parameter( Mandatory = $true )]
         [string]$Directory,
