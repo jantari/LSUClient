@@ -188,6 +188,7 @@
                 $PackageFiles.Add(
                     [PackageFilePointer]::new(
                         $FileInfo.AbsoluteLocation,
+                        $FileInfo.Type,
                         $_.ParentNode.SchemaInfo.Name,
                         $_.CRC,
                         $_.Size

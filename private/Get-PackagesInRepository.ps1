@@ -57,11 +57,11 @@ function Get-PackagesInRepository {
             if ($PathInfo.Reachable) {
                 [PackageXmlPointer]::new(
                     $PathInfo.AbsoluteLocation,
+                    $PathInfo.Type,
                     'XmlDefinition',
                     $Package.checksum.'#text',
                     0,
-                    $Package.category,
-                    $PathInfo.Type
+                    $Package.category
                 )
             } else {
                 Write-Error "The package definition at $($Package.location) could not be found or accessed"
@@ -99,11 +99,11 @@ function Get-PackagesInRepository {
                 if ($PathInfo.Reachable) {
                     [PackageXmlPointer]::new(
                         $PathInfo.AbsoluteLocation,
+                        $PathInfo.Type,
                         'XmlDefinition',
                         $Package.checksum.'#text',
                         0,
-                        $Package.category,
-                        $PathInfo.Type
+                        $Package.category
                     )
                 } else {
                     Write-Error "The package definition at $($Package.LocalPath) could not be found or accessed"
