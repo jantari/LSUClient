@@ -42,8 +42,7 @@
                 $null = New-Item -Path $PackageDirectory -Force -ItemType Directory
             }
 
-            $ExtracterInfo = Get-PackagePathInfo -Path $Extracter.AbsoluteLocation
-            if ($ExtracterInfo.Type -eq 'HTTP') {
+            if ($Extracter.LocationType -eq 'HTTP') {
                 if (-not (Test-Path -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $Extracter.Name) -PathType Leaf)) {
                     Write-Verbose "Installer of package '$($PackageToProcess.id)' not yet downloaded, downloading ...`r`n"
                     $SpfParams = @{
@@ -56,7 +55,7 @@
                     $null = Save-PackageFile @SpfParams
                 }
                 $WorkingDirectory = $PackageDirectory
-            } elseif ($ExtracterInfo.Type -eq 'FILE') {
+            } elseif ($Extracter.LocationType -eq 'FILE') {
                 $WorkingDirectory = $Extracter.Container
             } else {
                 Write-Error "The path to the installer file of package $($PackageToProcess.ID) is invalid and it cannot be installed"
