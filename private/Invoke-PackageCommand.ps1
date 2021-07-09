@@ -11,13 +11,19 @@
         [ValidateNotNullOrEmpty()]
         [Parameter( Mandatory = $true )]
         [string]$Command,
+        [string]$PackagePath = $Path,
         [switch]$FallbackToShellExecute
     )
+
+    # Remove any trailing backslashes from the PackagePath.
+    # This isn't necessary, because Split-ExecutableAndArguments can handle and trims
+    # extra backslashes, but this will make the path look more sane in errors and warnings.
+    $PackagePath = $PackagePath.TrimEnd('\')
 
     # Lenovo sometimes forgets to put a directory separator betweeen %PACKAGEPATH% and the executable so make sure it's there
     # If we end up with two backslashes, Split-ExecutableAndArguments removes the duplicate from the executable path, but
     # we could still end up with a double-backslash after %PACKAGEPATH% somewhere in the arguments for now.
-    [string]$Command       = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "${Path}\"}
+    [string]$Command       = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "${PackagePath}\"}
     [string[]]$StdOutLines = @()
     [string[]]$StdErrLines = @()
     $ExeAndArgs            = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
@@ -45,6 +51,7 @@
         $process.StartInfo.RedirectStandardError  = $false
     }
 
+    Write-Debug "Starting external process:`r`n  File: $($ExeAndArgs.Executable)`r`n  Arguments: $($ExeAndArgs.Arguments)`r`n  WorkingDirectory: $Path"
     try {
         if (-not $process.Start()) {
             Write-Warning "No new process was created or a handle to it could not be obtained."
@@ -56,7 +63,7 @@
         # In case we get ERROR_ELEVATION_REQUIRED (740) retry with ShellExecute to elevate with UAC
         if ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException.NativeErrorCode -eq 740) {
             if (-not $FallbackToShellExecute) {
-                Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
+                Write-Warning "This process requires elevated privileges - falling back to ShellExecute to elevate with UAC, consider running PowerShell as Administrator"
                 return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
             }
         # In case we get ERROR_BAD_EXE_FORMAT (193) retry with ShellExecute to open files like MSI

@@ -15,13 +15,16 @@
         The created registry values will not be deleted by this module, only overwritten on the next installed BIOS Update.
     #>
 
-	[CmdletBinding()]
+    [CmdletBinding()]
     Param (
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
         [pscustomobject]$Package,
         [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
         [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages",
-        [switch]$SaveBIOSUpdateInfoToRegistry
+        [switch]$SaveBIOSUpdateInfoToRegistry,
+        [Uri]$Proxy,
+        [pscredential]$ProxyCredential,
+        [switch]$ProxyUseDefaultCredentials
     )
 
     begin {
@@ -33,13 +36,33 @@
 
     process {
         foreach ($PackageToProcess in $Package) {
+            $Extracter = $PackageToProcess.Files.Where{ $_.Kind -eq 'Installer' }
             $PackageDirectory = Join-Path -Path $Path -ChildPath $PackageToProcess.id
-            if (-not (Test-Path -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $PackageToProcess.Extracter.FileName) -PathType Leaf)) {
-                Write-Verbose "Package '$($PackageToProcess.id)' was not yet downloaded or deleted, downloading ...`r`n"
-                Save-LSUpdate -Package $PackageToProcess -Path $Path
+            if (-not (Test-Path -LiteralPath $PackageDirectory -PathType Container)) {
+                $null = New-Item -Path $PackageDirectory -Force -ItemType Directory
             }
 
-            Expand-LSUpdate -Package $PackageToProcess -Path $PackageDirectory
+            if ($Extracter.LocationType -eq 'HTTP') {
+                if (-not (Test-Path -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $Extracter.Name) -PathType Leaf)) {
+                    Write-Verbose "Installer of package '$($PackageToProcess.id)' not yet downloaded, downloading ...`r`n"
+                    $SpfParams = @{
+                        'SourceFile' = $Extracter.AbsoluteLocation
+                        'Directory' = $PackageDirectory
+                        'Proxy' = $Proxy
+                        'ProxyCredential' = $ProxyCredential
+                        'ProxyUseDefaultCredentials' = $ProxyUseDefaultCredentials
+                    }
+                    $null = Save-PackageFile @SpfParams
+                }
+                $WorkingDirectory = $PackageDirectory
+            } elseif ($Extracter.LocationType -eq 'FILE') {
+                $WorkingDirectory = $Extracter.Container
+            } else {
+                Write-Error "The path to the installer file of package $($PackageToProcess.ID) is invalid and it cannot be installed"
+                continue
+            }
+
+            Expand-LSUpdate -Package $PackageToProcess -WorkingDirectory $WorkingDirectory -ExtractTo $PackageDirectory
 
             Write-Verbose "Installing package $($PackageToProcess.ID) ...`r`n"
 
@@ -56,7 +79,7 @@
                         # BIOS Update successful
                         Write-Output "BIOS UPDATE SUCCESS: An immediate full $($BIOSUpdateExit.ActionNeeded) is strongly recommended to allow the BIOS update to complete!`r`n"
                         if ($SaveBIOSUpdateInfoToRegistry) {
-                            Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $Package.Extracter.FileName)).Hash
+                            Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash $Extracter.Checksum
                         }
                     }
                 } else {

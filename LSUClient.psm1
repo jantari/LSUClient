@@ -23,6 +23,63 @@ $script:CachedHardwareTable = @{}
 
 [int]$script:XMLTreeDepth = 0
 
+# Internal
+class PackageFilePointer {
+    [ValidateNotNullOrEmpty()]
+    [string] $Name
+    [ValidateNotNullOrEmpty()]
+    [string] $Container
+    [ValidateNotNullOrEmpty()]
+    [string] $AbsoluteLocation
+    [ValidateNotNullOrEmpty()]
+    [string] $LocationType
+    [ValidateNotNullOrEmpty()]
+    [string] $Kind
+    [string] $Checksum
+    [Int64] $Size
+
+    # Constructor from absolute path
+    PackageFilePointer (
+        [string] $AbsoluteLocation,
+        [string] $LocationType,
+        [string] $Kind,
+        [string] $Checksum,
+        [Int64] $Size
+    ) {
+        $this.Name = $AbsoluteLocation -replace '^.*[\\/]'
+        $this.Container = $AbsoluteLocation -replace '[^\\/]*$'
+        $this.AbsoluteLocation = $AbsoluteLocation
+        $this.LocationType = $LocationType
+        $this.Kind = $Kind
+        $this.Checksum = $Checksum
+        $this.Size = $Size
+    }
+}
+
+# Internal
+class PackageXmlPointer : PackageFilePointer {
+    [string] $Category
+
+    # Constructor from absolute path
+    PackageXmlPointer (
+        [string] $AbsoluteLocation,
+        [string] $LocationType,
+        [string] $Kind,
+        [string] $Checksum,
+        [Int64] $Size,
+        [string] $Category
+    ) : base (
+        $AbsoluteLocation,
+        $LocationType,
+        $Kind,
+        $Checksum,
+        $Size
+    ) {
+        $this.Category = $Category
+    }
+}
+
+# Public
 class LenovoPackage {
     [string] $ID
     hidden [string] $Name
@@ -34,14 +91,15 @@ class LenovoPackage {
     [int] $RebootType
     [string] $Vendor
     [Int64] $Size
-    [Uri] $URL
-    hidden [Object[]] $Files
+    [string] $URL
+    hidden [System.Collections.Generic.List[PackageFilePointer]] $Files
     [PackageExtractInfo] $Extracter
     [PackageInstallInfo] $Installer
     [Nullable[bool]] $IsApplicable
     [Nullable[bool]] $IsInstalled
 }
 
+# Public
 class PackageExtractInfo {
     [string] $Command
     [string] $FileName
@@ -50,12 +108,13 @@ class PackageExtractInfo {
 
     PackageExtractInfo ([System.Xml.XmlElement]$PackageXML) {
         $this.Command  = $PackageXML.ExtractCommand
-        $this.FileName = $PackageXML.Files.Installer.File.Name
-        $this.FileSize = $PackageXML.Files.Installer.File.Size
-        $this.FileSHA  = $PackageXML.Files.Installer.File.CRC
+        $this.FileName = $PackageXML.Files.Installer.File.Name # Unused, kept for backwards compatibility
+        $this.FileSize = $PackageXML.Files.Installer.File.Size # Unused, kept for backwards compatibility
+        $this.FileSHA  = $PackageXML.Files.Installer.File.CRC  # Unused, kept for backwards compatibility
     }
 }
 
+# Public
 class PackageInstallInfo {
     [bool] $Unattended
     [ValidateNotNullOrEmpty()]
@@ -64,13 +123,13 @@ class PackageInstallInfo {
     [string] $InfFile
     [string] $Command
 
-    PackageInstallInfo ([System.Xml.XmlElement]$PackageXML, [string]$Category) {
+    PackageInstallInfo ([System.Xml.XmlElement]$PackageXML) {
         $this.InstallType    = $PackageXML.Install.type
         $this.SuccessCodes   = $PackageXML.Install.rc -split ','
         $this.InfFile        = $PackageXML.Install.INFCmd.INFfile
         $this.Command        = $PackageXML.Install.Cmdline.'#text'
         if (($PackageXML.Reboot.type -in 0, 3) -or
-            ($Category -eq 'BIOS UEFI') -or
+            ($PackageXML.Install.Cmdline.'#text' -match 'winuptp\.exe|Flash\.cmd') -or
             ($PackageXML.Install.type -eq 'INF'))
         {
             $this.Unattended = $true
@@ -80,6 +139,7 @@ class PackageInstallInfo {
     }
 }
 
+# Internal
 class BiosUpdateInfo {
     [ValidateNotNullOrEmpty()]
     [bool] $WasRun
@@ -91,6 +151,7 @@ class BiosUpdateInfo {
     [string] $ActionNeeded
 }
 
+# Internal
 class ProcessReturnInformation {
     [ValidateNotNullOrEmpty()]
     [string] $FilePath

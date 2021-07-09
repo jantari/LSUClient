@@ -26,6 +26,9 @@
         .PARAMETER ScratchDirectory
         The path to a directory where temporary files are downloaded to for use during the search for packages. Defaults to $env:TEMP.
 
+        .PARAMETER Repository
+        The path to a package repository. This can either be a HTTP/S URL pointing to a webserver or a filesystem path to a directory.
+
         .PARAMETER NoTestApplicable
         Do not check whether packages are applicable to the computer. The IsApplicable property of the package objects will be set to $null.
         This switch is only available together with -All.
@@ -58,6 +61,7 @@
         [switch]$ProxyUseDefaultCredentials,
         [switch]$All,
         [System.IO.DirectoryInfo]$ScratchDirectory = $env:TEMP,
+        [string]$Repository = 'https://download.lenovo.com/catalog',
         [switch]$NoTestApplicable,
         [switch]$NoTestInstalled,
         [switch]$FailUnsupportedDependencies,
@@ -88,6 +92,13 @@
 
         Write-Verbose "Lenovo Model is: $Model"
 
+        $RepositoryInfo = Get-PackagePathInfo -Path $Repository
+        if (-not $RepositoryInfo.Valid) {
+            throw "Repository '${Repository}' refers to an invalid location. Only filesystem paths and https(s) URLs are supported."
+        }
+
+        $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
+
         $SMBiosInformation = Get-CimInstance -ClassName Win32_BIOS -Verbose:$false
         $script:CachedHardwareTable = @{
             '_OS'                        = 'WIN' + (Get-CimInstance Win32_OperatingSystem).Version -replace "\..*"
@@ -112,78 +123,90 @@
             throw $_
         }
 
-        $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+        Write-Debug "Created temporary scratch directory: $ScratchSubDirectory"
 
-        try {
-            $COMPUTERXML = $webClient.DownloadString("https://download.lenovo.com/catalog/${Model}_Win10.xml")
-        }
-        catch {
-            if ($_.Exception.innerException.Response.StatusCode -eq [System.Net.HttpStatusCode]::NotFound) {
-                throw "No information was found on this model of computer (invalid model number or not supported by Lenovo?)"
-            } else {
-                throw "An error occured when contacting download.lenovo.com:`r`n$($_.Exception.Message)"
-            }
-        }
+        [array]$PackagePointers = Get-PackagesInRepository -Repository $Repository -RepositoryType $RepositoryInfo.Type -Model $Model
 
-        $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
-
-        # Downloading with Net.WebClient seems to remove the BOM automatically, this only seems to be neccessary when downloading with IWR. Still I'm leaving it in to be safe
-        [xml]$PARSEDXML = $COMPUTERXML -replace "^$UTF8ByteOrderMark"
-
-        Write-Verbose "A total of $($PARSEDXML.packages.count) driver packages are available for this computer model."
+        Write-Verbose "A total of $($PackagePointers.Count) driver packages are available for this computer model."
     }
 
     process {
-        foreach ($packageURL in $PARSEDXML.packages.package) {
-            # This is in place to prevent packages like 'k2txe01us17' that have invalid XML from stopping the entire function with an error
+        foreach ($Package in $PackagePointers) {
+            Write-Debug "Processing package $($Package.AbsoluteLocation)"
+            if ($Package.LocationType -eq 'FILE') {
+                $LocalPackageRoot = $Package.Container
+            } elseif ($Package.LocationType -eq 'HTTP') {
+                # Creata a random subdirectory for the packages temporary files
+                do {
+                    $LocalPackageRoot = Join-Path -Path $ScratchSubDirectory -ChildPath ( [System.IO.Path]::GetRandomFileName() )
+                } until (-not (Test-Path -Path $LocalPackageRoot))
+                # Using the FullName path returned by New-Item ensures we have an absolute path even if the ScratchDirectory passed by the user was relative.
+                # This is important because $PWD and System.Environment.CurrentDirectory can differ in PowerShell, so not all path-related APIs/Cmdlets treat relative
+                # paths as relative to the same base-directory which would cause errors later, particularly during path resolution in Split-ExecutableAndArguments
+                try {
+                    $LocalPackageRoot = New-Item -Path $LocalPackageRoot -Force -ItemType Directory -ErrorAction Stop | Select-Object -ExpandProperty FullName
+                }
+                catch {
+                    Write-Error "Could not create the temporary package directory '$LocalPackageRoot', continuing with the next package."
+                    continue
+                }
+            }
+
+            Write-Debug "Local package scratch directory: $LocalPackageRoot"
+
+            # Packages like https://download.lenovo.com/pccbbs/mobiles/r0qch05w_2_.xml show we have to download the XML itself too
+            $SpfParams = @{
+                'SourceFile' = $Package.AbsoluteLocation
+                'Directory' = $LocalPackageRoot
+                'Proxy' = $Proxy
+                'ProxyCredential' = $ProxyCredential
+                'ProxyUseDefaultCredentials' = $ProxyUseDefaultCredentials
+            }
+            [string]$localFile = Save-PackageFile @SpfParams
+            $rawPackageXML = Get-Content -LiteralPath $localFile -Raw -ErrorAction Ignore
+            if (-not $?) {
+                Write-Error "The package $($Package.Name) could not be retrieved or read and will be skipped"
+                continue
+            }
+
             try {
-                $rawPackageXML   = $webClient.DownloadString($packageURL.location)
                 [xml]$packageXML = $rawPackageXML -replace "^$UTF8ByteOrderMark"
             }
             catch {
                 if ($_.FullyQualifiedErrorId -eq 'InvalidCastToXmlDocument') {
-                    Write-Warning "Could not parse package '$($packageURL.location)' (invalid XML)"
+                    Write-Warning "Could not parse package '$($Package.Name)' (invalid XML)"
                 } else {
-                    Write-Warning "Could not retrieve or parse package '$($packageURL.location)':`r`n$($_.Exception.Message)"
+                    Write-Warning "Could not parse package '$($Package.Name)':`r`n$($_.Exception.Message)"
                 }
                 continue
             }
 
-            $PackageRoot = Join-Path -Path $ScratchSubDirectory -ChildPath $packageXML.Package.id
-
-            [array]$packageFiles = $packageXML.Package.Files.SelectNodes('descendant-or-self::File') | Foreach-Object {
-                [PSCustomObject]@{
-                    'Kind' = $_.ParentNode.SchemaInfo.Name
-                    'Name' = $_.Name
-                    'CRC'  = $_.CRC
-                    'Size' = $_.Size
-                }
+            $PackageFiles = [System.Collections.Generic.List[PackageFilePointer]]::new()
+            $PackageFiles.Add($Package)
+            $packageXML.Package.Files.SelectNodes('descendant-or-self::File') | Foreach-Object {
+                $FileInfo = Get-PackagePathInfo -Path $_.Name -BasePath $Package.Container
+                $PackageFiles.Add(
+                    [PackageFilePointer]::new(
+                        $FileInfo.AbsoluteLocation,
+                        $FileInfo.Type,
+                        $_.ParentNode.SchemaInfo.Name,
+                        $_.CRC,
+                        $_.Size
+                    )
+                )
             }
 
-            # Download files needed by external detection tests in package
-            $DownloadedExternalFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
-
-            if (-not ($NoTestApplicable -and $NoTestInstalled) -and $packageFiles.Where{ $_.Kind -eq 'External'}) {
-                if (-not (Test-Path -Path $PackageRoot -PathType Container)) {
-                    $null = New-Item -Path $PackageRoot -Force -ItemType Directory
-                }
-                # Packages like https://download.lenovo.com/pccbbs/mobiles/r0qch05w_2_.xml show we have to download the XML itself too
-                [string]$DownloadDest = Join-Path -Path $PackageRoot -ChildPath ($packageURL.location -replace "^.*/")
-                $webClient.DownloadFile($packageURL.location, $DownloadDest)
-                $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
-
-                foreach ($externalFile in $packageFiles.Where{ $_.Kind -eq 'External'}) {
-                    [string]$DownloadSrc  = ($packageURL.location -replace "[^/]*$") + $externalFile.Name
-                    [string]$DownloadDest = Join-Path -Path $PackageRoot -ChildPath $externalFile.Name
-
-                    try {
-                        Write-Debug "Downloading external file '$($externalFile.Name)' to '$DownloadDest'"
-                        $webClient.DownloadFile($DownloadSrc, $DownloadDest)
+            # Download the files needed by external detection tests in package
+            if (-not ($NoTestApplicable -and $NoTestInstalled)) {
+                foreach ($externalFile in $PackageFiles.Where{ $_.Kind -eq 'External'}) {
+                    $SpfParams = @{
+                        'SourceFile' = $externalFile.AbsoluteLocation
+                        'Directory' = $LocalPackageRoot
+                        'Proxy' = $Proxy
+                        'ProxyCredential' = $ProxyCredential
+                        'ProxyUseDefaultCredentials' = $ProxyUseDefaultCredentials
                     }
-                    catch {
-                        Write-Error "Download of '$($externalFile.Name)' failed, dependency resolution for package '$($packageXML.Package.id)' will be impaired:`r`n$($_.Exception)"
-                    }
-                    $DownloadedExternalFiles.Add( [System.IO.FileInfo]::new($DownloadDest) )
+                    $null = Save-PackageFile @SpfParams
                 }
             }
 
@@ -193,7 +216,7 @@
             } else {
                 if ($packageXML.Package.DetectInstall) {
                     Write-Verbose "Detecting install status of package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
-                    Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -TreatUnsupportedAsPassed:$PassUnsupportedInstallTests -PackagePath $PackageRoot
+                    Resolve-XMLDependencies -XMLIN $packageXML.Package.DetectInstall -TreatUnsupportedAsPassed:$PassUnsupportedInstallTests -PackagePath $LocalPackageRoot
                 } else {
                     Write-Verbose "Package $($packageXML.Package.id) doesn't have a DetectInstall section"
                     0
@@ -205,12 +228,12 @@
                 $null
             } else {
                 Write-Verbose "Parsing dependencies for package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
-                Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -TreatUnsupportedAsPassed:(-not $FailUnsupportedDependencies) -PackagePath $PackageRoot
+                Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -TreatUnsupportedAsPassed:(-not $FailUnsupportedDependencies) -PackagePath $LocalPackageRoot
             }
 
             # Calculate package size
             [Int64]$PackageSize = 0
-            $packageFiles | Where-Object { $_.Kind -ne 'External'} | Foreach-Object {
+            $PackageFiles | Where-Object { $_.Kind -ne 'External'} | Foreach-Object {
                 [Int64]$Number = 0
                 $null = [Int64]::TryParse($_.Size, [ref]$Number)
                 $PackageSize += $Number
@@ -220,17 +243,17 @@
                 'ID'           = $packageXML.Package.id
                 'Name'         = $packageXML.Package.name
                 'Title'        = $packageXML.Package.Title.Desc.'#text'
-                'Category'     = $packageURL.category
+                'Category'     = $Package.Category
                 'Version'      = if ([Version]::TryParse($packageXML.Package.version, [ref]$null)) { $packageXML.Package.version } else { '0.0.0.0' }
                 'Severity'     = $packageXML.Package.Severity.type
                 'ReleaseDate'  = [DateTime]::ParseExact($packageXML.Package.ReleaseDate, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None')
                 'RebootType'   = $packageXML.Package.Reboot.type
                 'Vendor'       = $packageXML.Package.Vendor
                 'Size'         = $PackageSize
-                'URL'          = $packageURL.location
-                'Files'        = $packageFiles
+                'URL'          = $Package.AbsoluteLocation
+                'Files'        = $PackageFiles
                 'Extracter'    = $packageXML.Package
-                'Installer'    = [PackageInstallInfo]::new($packageXML.Package, $packageURL.category)
+                'Installer'    = [PackageInstallInfo]::new($packageXML.Package)
                 'IsApplicable' = $PackageIsApplicable
                 'IsInstalled'  = $PackageIsInstalled
             }
@@ -238,17 +261,11 @@
             if ($All -or ($packageObject.IsApplicable -and $packageObject.IsInstalled -eq $false)) {
                 $packageObject
             }
-
-            foreach ($tempFile in $DownloadedExternalFiles) {
-                if ($tempFile.Exists) {
-                    $tempFile.Delete()
-                }
-            }
         }
     }
 
     end {
-        $webClient.Dispose()
+        Write-Debug "Removing temporary scratch directory ${ScratchSubDirectory}"
         Remove-Item -LiteralPath $ScratchSubDirectory -Recurse -Force -Confirm:$false
     }
 }
