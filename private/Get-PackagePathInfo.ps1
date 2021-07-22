@@ -10,12 +10,16 @@
 
         .PARAMETER BasePath
         In cases where the Path is relative, this BasePath will be used to resolve the absolute location of the resource.
+
+        .PARAMETER TestURLReachable
+        In case the input Path is a HTTP(S) URL test connectivity with a HEAD request.
     #>
     [CmdletBinding()]
     Param (
         [Parameter( Mandatory = $true )]
         [string]$Path,
-        [string]$BasePath
+        [string]$BasePath,
+        [switch]$TestURLReachable
     )
 
     [string]$Type = 'Unknown'
@@ -45,35 +49,37 @@
             $AbsoluteLocation = $UriToUse
             $Valid = $true
 
-            $Request = [System.Net.HttpWebRequest]::CreateHttp($UriToUse)
-            $Request.Method = 'HEAD'
-            $Request.Timeout = 5000
-            $Request.KeepAlive = $false
-            $Request.AllowAutoRedirect = $true
+            if ($TestURLReachable) {
+                $Request = [System.Net.HttpWebRequest]::CreateHttp($UriToUse)
+                $Request.Method = 'HEAD'
+                $Request.Timeout = 8000
+                $Request.KeepAlive = $false
+                $Request.AllowAutoRedirect = $true
 
-            if ((Test-Path -LiteralPath "Variable:\Proxy") -and $Proxy) {
-                $webProxy = [System.Net.WebProxy]::new($Proxy)
-                $webProxy.BypassProxyOnLocal = $false
-                if ((Test-Path -LiteralPath "Variable:\ProxyCredential") -and $ProxyCredential) {
-                    $webProxy.Credentials = $ProxyCredential.GetNetworkCredential()
-                } elseif ((Test-Path -LiteralPath "Variable:\ProxyUseDefaultCredentials") -and $ProxyUseDefaultCredentials) {
-                    # If both ProxyCredential and ProxyUseDefaultCredentials are passed,
-                    # UseDefaultCredentials will overwrite the supplied credentials.
-                    # This behaviour, comment and code are replicated from Invoke-WebRequest
-                    $webproxy.UseDefaultCredentials = $true
+                if ((Test-Path -LiteralPath "Variable:\Proxy") -and $Proxy) {
+                    $webProxy = [System.Net.WebProxy]::new($Proxy)
+                    $webProxy.BypassProxyOnLocal = $false
+                    if ((Test-Path -LiteralPath "Variable:\ProxyCredential") -and $ProxyCredential) {
+                        $webProxy.Credentials = $ProxyCredential.GetNetworkCredential()
+                    } elseif ((Test-Path -LiteralPath "Variable:\ProxyUseDefaultCredentials") -and $ProxyUseDefaultCredentials) {
+                        # If both ProxyCredential and ProxyUseDefaultCredentials are passed,
+                        # UseDefaultCredentials will overwrite the supplied credentials.
+                        # This behaviour, comment and code are replicated from Invoke-WebRequest
+                        $webproxy.UseDefaultCredentials = $true
+                    }
+                    $Request.Proxy = $webProxy
                 }
-                $Request.Proxy = $webProxy
-            }
 
-            try {
-                $response = $Request.GetResponse()
-                if ([int]$response.StatusCode -ge 200 -and [int]$response.StatusCode -le 299) {
-                    $Reachable = $true
+                try {
+                    $response = $Request.GetResponse()
+                    if ([int]$response.StatusCode -ge 200 -and [int]$response.StatusCode -le 299) {
+                        $Reachable = $true
+                    }
+                    $response.Dispose()
                 }
-                $response.Dispose()
-            }
-            catch {
-                Write-Debug "Could not connect to URL ${UriToUse}: $_"
+                catch {
+                    Write-Debug "Could not connect to URL ${UriToUse}: $_"
+                }
             }
         }
     }
@@ -88,7 +94,7 @@
     } else {
         # Try again assuming that $Path is relative to $BasePath
         if (-not $BasePath) { $BasePath = (Get-Location -PSProvider 'Microsoft.PowerShell.Core\FileSystem').Path }
-        $JoinedPath = Join-Path -Path $BasePath -ChildPath $Path -ErrorAction SilentlyContinue
+        $JoinedPath = Join-Path -Path $BasePath -ChildPath $Path -ErrorAction Ignore
         if ($JoinedPath -and (Test-Path -LiteralPath $JoinedPath) -and
             (Get-Item -LiteralPath $JoinedPath).PSProvider.ToString() -eq 'Microsoft.PowerShell.Core\FileSystem') {
             $Valid = $true

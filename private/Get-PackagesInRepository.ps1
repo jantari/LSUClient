@@ -1,4 +1,4 @@
-function Get-PackagesInRepository {
+﻿function Get-PackagesInRepository {
     <#
 
     #>
@@ -24,7 +24,7 @@ function Get-PackagesInRepository {
         $DatabaseXmlPath = Join-Path -Path $Repository -ChildPath "database.xml"
     }
 
-    if ((Get-PackagePathInfo -Path $ModelXmlPath).Reachable) {
+    if ((Get-PackagePathInfo -Path $ModelXmlPath -TestURLReachable).Reachable) {
         Write-Verbose "Getting packages from the model xml file ${ModelXmlPath}"
         if ($RepositoryType -eq 'HTTP') {
             # Model XML method for web based repositories
@@ -54,7 +54,7 @@ function Get-PackagesInRepository {
         foreach ($Package in $PARSEDXML.packages.package) {
             $PathInfo = Get-PackagePathInfo -Path $Package.location -BasePath $Repository
             Write-Debug "Repo: $Repository, PkgLocation: $($Package.location), PkgInfo: $PathInfo"
-            if ($PathInfo.Reachable) {
+            if ($PathInfo.Valid) {
                 [PackageXmlPointer]::new(
                     $PathInfo.AbsoluteLocation,
                     $PathInfo.Type,
@@ -67,7 +67,7 @@ function Get-PackagesInRepository {
                 Write-Error "The package definition at $($Package.location) could not be found or accessed"
             }
         }
-    } elseif ((Get-PackagePathInfo -Path $DatabaseXmlPath).Reachable) {
+    } elseif ((Get-PackagePathInfo -Path $DatabaseXmlPath -TestURLReachable).Reachable) {
         Write-Debug "Getting packages from the database xml file ${DatabaseXmlPath}"
         if ($RepositoryType -eq 'HTTP') {
             $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
@@ -96,7 +96,7 @@ function Get-PackagesInRepository {
             if ($Package.SystemCompatibility.System.mtm -contains $Model) {
                 $PathInfo = Get-PackagePathInfo -Path $Package.LocalPath -BasePath $Repository
                 Write-Debug "Repo: $Repository, PkgLocation: $($Package.LocalPath), PkgInfo: $PathInfo"
-                if ($PathInfo.Reachable) {
+                if ($PathInfo.Valid) {
                     [PackageXmlPointer]::new(
                         $PathInfo.AbsoluteLocation,
                         $PathInfo.Type,
