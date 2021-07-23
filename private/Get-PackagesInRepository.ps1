@@ -109,10 +109,10 @@
                     Write-Error "The package definition at $($Package.LocalPath) could not be found or accessed"
                 }
             } else {
-                Write-Debug "Package $($Package.LocalPath) is not applicable to the computer model"
+                Write-Debug "Discovered package $($Package.LocalPath) is not applicable to the computer model"
             }
         }
     } else {
-        throw "Could not find '${Model}_Win10.xml' or 'database.xml' package index files inside the repository - cannot retrieve any packages"
+        Write-Warning "The repository '${Repository}' did not contain either a '${Model}_Win10.xml' or 'database.xml' file to get packages from"
     }
 }

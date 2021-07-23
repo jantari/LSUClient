@@ -126,6 +126,9 @@
         Write-Debug "Created temporary scratch directory: $ScratchSubDirectory"
 
         [array]$PackagePointers = Get-PackagesInRepository -Repository $Repository -RepositoryType $RepositoryInfo.Type -Model $Model
+        if ($PackagePointers.Count -eq 0) {
+            throw "No packages for computer model '${Model}' could be found in repository '${Repository}'"
+        }
 
         Write-Verbose "A total of $($PackagePointers.Count) driver packages are available for this computer model."
     }
