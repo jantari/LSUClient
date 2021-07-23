@@ -1,14 +1,17 @@
 ﻿function Save-PackageFile {
     <#
         .DESCRIPTION
-        Returns the full filesystem path to a file.
-        If the path to the file is a HTTP/S URL the file is downloaded first.
+        Takes a PackageFilePointer object and ensures the file referenced by it is saved
+        locally in the path specified by $Directory. If the SourceFile is a HTTP(S) URL it is
+        downloaded, if it is a filesystem file it is copied to the destination.
+
+        Saving directories recursively with this function is not supported.
     #>
     [CmdletBinding()]
     [OutputType('System.String')]
     Param (
         [Parameter( Mandatory = $true )]
-        [string]$SourceFile,
+        [PackageFilePointer]$SourceFile,
         [Parameter( Mandatory = $true )]
         [string]$Directory,
         [Uri]$Proxy,
@@ -16,39 +19,48 @@
         [switch]$ProxyUseDefaultCredentials
     )
 
+    $PSBoundParameters | ConvertTo-Json | Out-Host
+
+    # PackageFilePointer properties:
+    # ##############################
+    # [ValidateNotNullOrEmpty()]
+    # [string] $Name
+    # [ValidateNotNullOrEmpty()]
+    # [string] $Container
+    # [ValidateNotNullOrEmpty()]
+    # [string] $AbsoluteLocation
+    # [ValidateNotNullOrEmpty()]
+    # [string] $LocationType
+    # [ValidateNotNullOrEmpty()]
+    # [string] $Kind
+    # [string] $Checksum
+    # [Int64] $Size
+
+    if ($SourceFile.Container -eq $Directory) {
+        # File is already in the destination location
+        Write-Host "SPF: NOOP"
+        return $SourceFile.AbsoluteLocation
+    }
+
     if (-not (Test-Path -Path $Directory)) {
         $null = New-Item -Path $Directory -Force -ItemType Directory
     }
 
-    [System.Uri]$Uri = $null
-    if ([System.Uri]::IsWellFormedUriString($SourceFile, [System.UriKind]::Absolute)) {
-        if ([System.Uri]::TryCreate($SourceFile, [System.UriKind]::Absolute, [ref]$Uri)) {
-            if ($Uri.Scheme -in 'http', 'https') {
-                # Valid URL - Downloading file via HTTP
-                $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+    if ($SourceFile.LocationType -eq 'HTTP') {
+        # Valid URL - Downloading file via HTTP
+        $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
 
-                [string]$DownloadDest = Join-Path -Path $Directory -ChildPath $Uri.Segments[-1]
-                Write-Verbose "Downloading '${Uri}' to '${DownloadDest}'"
-                $webClient.DownloadFile($Uri, $DownloadDest)
+        [string]$DownloadDest = Join-Path -Path $Directory -ChildPath $SourceFile.Name
+        Write-Verbose "Downloading '$($SourceFile.AbsoluteLocation)' to '${DownloadDest}'"
+        $webClient.DownloadFile($SourceFile.AbsoluteLocation, $DownloadDest)
 
-                return $DownloadDest
-            }
-        }
+        return $DownloadDest
+    } elseif ($SourceFile.LocationType -eq 'FILE') {
+        Write-Host "SPF: Copying file"
+        $CopiedItem = Copy-Item -LiteralPath $SourceFile.AbsoluteLocation -Destination $Directory -PassThru
+        return $CopiedItem.FullName
     }
 
-    $File = Get-Item -LiteralPath $SourceFile -ErrorAction SilentlyContinue
-    if ($?) {
-        return $File.FullName
-    } else {
-        [string]$Path = Join-Path -Path $Directory -ChildPath $SourceFile
-        if ($?) {
-            $File = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
-            if ($?) {
-                return $File.FullName
-            }
-        }
-    }
-
-    Write-Error "The file ${SourceFile} could not be accessed or found"
+    Write-Error "The file $($SourceFile.AbsoluteLocation) could not be accessed or found"
     $null
 }

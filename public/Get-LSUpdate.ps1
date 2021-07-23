@@ -159,7 +159,7 @@
 
             # Packages like https://download.lenovo.com/pccbbs/mobiles/r0qch05w_2_.xml show we have to download the XML itself too
             $SpfParams = @{
-                'SourceFile' = $Package.AbsoluteLocation
+                'SourceFile' = $Package
                 'Directory' = $LocalPackageRoot
                 'Proxy' = $Proxy
                 'ProxyCredential' = $ProxyCredential
@@ -207,7 +207,7 @@
             if (-not ($NoTestApplicable -and $NoTestInstalled)) {
                 foreach ($externalFile in $PackageFiles.Where{ $_.Kind -eq 'External'}) {
                     $SpfParams = @{
-                        'SourceFile' = $externalFile.AbsoluteLocation
+                        'SourceFile' = $externalFile
                         'Directory' = $LocalPackageRoot
                         'Proxy' = $Proxy
                         'ProxyCredential' = $ProxyCredential

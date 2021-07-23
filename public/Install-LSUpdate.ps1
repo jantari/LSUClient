@@ -46,7 +46,7 @@
                 if (-not (Test-Path -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $Extracter.Name) -PathType Leaf)) {
                     Write-Verbose "Installer of package '$($PackageToProcess.ID)' not yet downloaded, downloading ...`r`n"
                     $SpfParams = @{
-                        'SourceFile' = $Extracter.AbsoluteLocation
+                        'SourceFile' = $Extracter
                         'Directory' = $PackageDirectory
                         'Proxy' = $Proxy
                         'ProxyCredential' = $ProxyCredential
