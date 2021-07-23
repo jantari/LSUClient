@@ -188,15 +188,19 @@
             $PackageFiles.Add($Package)
             $packageXML.Package.Files.SelectNodes('descendant-or-self::File') | Foreach-Object {
                 $FileInfo = Get-PackagePathInfo -Path $_.Name -BasePath $Package.Container
-                $PackageFiles.Add(
-                    [PackageFilePointer]::new(
-                        $FileInfo.AbsoluteLocation,
-                        $FileInfo.Type,
-                        $_.ParentNode.SchemaInfo.Name,
-                        $_.CRC,
-                        $_.Size
+                if ($FileInfo.Valid) {
+                    $PackageFiles.Add(
+                        [PackageFilePointer]::new(
+                            $FileInfo.AbsoluteLocation,
+                            $FileInfo.Type,
+                            $_.ParentNode.SchemaInfo.Name,
+                            $_.CRC,
+                            $_.Size
+                        )
                     )
-                )
+                } else {
+                    Write-Error "The file '$($_.Name)' referenced by package '$($Package.AbsoluteLocation)' could not be found or accessed and will be ignored"
+                }
             }
 
             # Download the files needed by external detection tests in package

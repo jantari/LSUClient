@@ -37,14 +37,14 @@
     process {
         foreach ($PackageToProcess in $Package) {
             $Extracter = $PackageToProcess.Files.Where{ $_.Kind -eq 'Installer' }
-            $PackageDirectory = Join-Path -Path $Path -ChildPath $PackageToProcess.id
+            $PackageDirectory = Join-Path -Path $Path -ChildPath $PackageToProcess.ID
             if (-not (Test-Path -LiteralPath $PackageDirectory -PathType Container)) {
                 $null = New-Item -Path $PackageDirectory -Force -ItemType Directory
             }
 
             if ($Extracter.LocationType -eq 'HTTP') {
                 if (-not (Test-Path -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $Extracter.Name) -PathType Leaf)) {
-                    Write-Verbose "Installer of package '$($PackageToProcess.id)' not yet downloaded, downloading ...`r`n"
+                    Write-Verbose "Installer of package '$($PackageToProcess.ID)' not yet downloaded, downloading ...`r`n"
                     $SpfParams = @{
                         'SourceFile' = $Extracter.AbsoluteLocation
                         'Directory' = $PackageDirectory
@@ -92,26 +92,26 @@
                         $InstallCMD     = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
                         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
                         if (-not $installProcess) {
-                            Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED - the installation could not start"
+                            Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED - the installation could not start"
                         } elseif ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
                             if ($installProcess.StandardOutput -or $installProcess.StandardError) {
-                                Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List ExitCode, StandardOutput, StandardError | Out-String)"
+                                Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List ExitCode, StandardOutput, StandardError | Out-String)"
                             } else {
-                                Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with ExitCode $($installProcess.ExitCode)"
+                                Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED with ExitCode $($installProcess.ExitCode)"
                             }
                         }
                     }
                     'INF' {
                         $installProcess = Start-Process -FilePath 'pnputil.exe' -Wait -Verb RunAs -WorkingDirectory $PackageDirectory -PassThru -ArgumentList "/add-driver $($PackageToProcess.Installer.InfFile) /install"
                         if (-not $installProcess) {
-                            Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED - the installation could not start"
+                            Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED - the installation could not start"
                         } elseif ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes -and $installProcess.ExitCode -notin 0, 3010) {
                             # pnputil is a documented Microsoft tool and Exit code 0 means SUCCESS while 3010 means SUCCESS but reboot required,
                             # however Lenovo does not always include 3010 as an OK return code - that's why we manually check against it here
                             if ($installProcess.StandardOutput -or $installProcess.StandardError) {
-                                Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List ExitCode, StandardOutput, StandardError | Out-String)"
+                                Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List ExitCode, StandardOutput, StandardError | Out-String)"
                             } else {
-                                Write-Warning "Installation of package '$($PackageToProcess.id) - $($PackageToProcess.Title)' FAILED with ExitCode $($installProcess.ExitCode)"
+                                Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED with ExitCode $($installProcess.ExitCode)"
                             }
                         }
                     }
