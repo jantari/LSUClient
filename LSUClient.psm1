@@ -46,9 +46,9 @@ class PackageFilePointer {
         [string] $Checksum,
         [Int64] $Size
     ) {
+        $this.AbsoluteLocation = $AbsoluteLocation
         $this.Name = $AbsoluteLocation -replace '^.*[\\/]'
         $this.Container = $AbsoluteLocation -replace '[^\\/]*$'
-        $this.AbsoluteLocation = $AbsoluteLocation
         $this.LocationType = $LocationType
         $this.Kind = $Kind
         $this.Checksum = $Checksum
