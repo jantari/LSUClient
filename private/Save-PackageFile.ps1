@@ -19,26 +19,8 @@
         [switch]$ProxyUseDefaultCredentials
     )
 
-    $PSBoundParameters | ConvertTo-Json | Out-Host
-
-    # PackageFilePointer properties:
-    # ##############################
-    # [ValidateNotNullOrEmpty()]
-    # [string] $Name
-    # [ValidateNotNullOrEmpty()]
-    # [string] $Container
-    # [ValidateNotNullOrEmpty()]
-    # [string] $AbsoluteLocation
-    # [ValidateNotNullOrEmpty()]
-    # [string] $LocationType
-    # [ValidateNotNullOrEmpty()]
-    # [string] $Kind
-    # [string] $Checksum
-    # [Int64] $Size
-
     if ($SourceFile.Container -eq $Directory) {
         # File is already in the destination location
-        Write-Host "SPF: NOOP"
         return $SourceFile.AbsoluteLocation
     }
 
@@ -56,7 +38,6 @@
 
         return $DownloadDest
     } elseif ($SourceFile.LocationType -eq 'FILE') {
-        Write-Host "SPF: Copying file"
         $CopiedItem = Copy-Item -LiteralPath $SourceFile.AbsoluteLocation -Destination $Directory -PassThru
         return $CopiedItem.FullName
     }

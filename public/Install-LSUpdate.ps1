@@ -42,27 +42,20 @@
                 $null = New-Item -Path $PackageDirectory -Force -ItemType Directory
             }
 
-            if ($Extracter.LocationType -eq 'HTTP') {
-                if (-not (Test-Path -LiteralPath (Join-Path -Path $PackageDirectory -ChildPath $Extracter.Name) -PathType Leaf)) {
-                    Write-Verbose "Installer of package '$($PackageToProcess.ID)' not yet downloaded, downloading ...`r`n"
-                    $SpfParams = @{
-                        'SourceFile' = $Extracter
-                        'Directory' = $PackageDirectory
-                        'Proxy' = $Proxy
-                        'ProxyCredential' = $ProxyCredential
-                        'ProxyUseDefaultCredentials' = $ProxyUseDefaultCredentials
-                    }
-                    $null = Save-PackageFile @SpfParams
-                }
-                $WorkingDirectory = $PackageDirectory
-            } elseif ($Extracter.LocationType -eq 'FILE') {
-                $WorkingDirectory = $Extracter.Container
-            } else {
-                Write-Error "The path to the installer file of package $($PackageToProcess.ID) is invalid and it cannot be installed"
+            $SpfParams = @{
+                'SourceFile' = $Extracter
+                'Directory' = $PackageDirectory
+                'Proxy' = $Proxy
+                'ProxyCredential' = $ProxyCredential
+                'ProxyUseDefaultCredentials' = $ProxyUseDefaultCredentials
+            }
+            $FullPath = Save-PackageFile @SpfParams
+            if (-not $FullPath) {
+                Write-Error "The installer of package '$($PackageToProcess.ID)' could not be accessed or found and will be skipped"
                 continue
             }
 
-            Expand-LSUpdate -Package $PackageToProcess -WorkingDirectory $WorkingDirectory -ExtractTo $PackageDirectory
+            Expand-LSUpdate -Package $PackageToProcess -WorkingDirectory $PackageDirectory
 
             Write-Verbose "Installing package $($PackageToProcess.ID) ...`r`n"
 

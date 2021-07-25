@@ -136,23 +136,20 @@
     process {
         foreach ($Package in $PackagePointers) {
             Write-Verbose "Processing package $($Package.AbsoluteLocation)"
-            if ($Package.LocationType -eq 'FILE') {
-                $LocalPackageRoot = $Package.Container
-            } elseif ($Package.LocationType -eq 'HTTP') {
-                # Creata a random subdirectory for the packages temporary files
-                do {
-                    $LocalPackageRoot = Join-Path -Path $ScratchSubDirectory -ChildPath ( [System.IO.Path]::GetRandomFileName() )
-                } until (-not (Test-Path -Path $LocalPackageRoot))
-                # Using the FullName path returned by New-Item ensures we have an absolute path even if the ScratchDirectory passed by the user was relative.
-                # This is important because $PWD and System.Environment.CurrentDirectory can differ in PowerShell, so not all path-related APIs/Cmdlets treat relative
-                # paths as relative to the same base-directory which would cause errors later, particularly during path resolution in Split-ExecutableAndArguments
-                try {
-                    $LocalPackageRoot = New-Item -Path $LocalPackageRoot -Force -ItemType Directory -ErrorAction Stop | Select-Object -ExpandProperty FullName
-                }
-                catch {
-                    Write-Error "Could not create the temporary package directory '$LocalPackageRoot', continuing with the next package."
-                    continue
-                }
+
+            # Creata a random subdirectory for the packages temporary files
+            do {
+                $LocalPackageRoot = Join-Path -Path $ScratchSubDirectory -ChildPath ( [System.IO.Path]::GetRandomFileName() )
+            } until (-not (Test-Path -Path $LocalPackageRoot))
+            # Using the FullName path returned by New-Item ensures we have an absolute path even if the ScratchDirectory passed by the user was relative.
+            # This is important because $PWD and System.Environment.CurrentDirectory can differ in PowerShell, so not all path-related APIs/Cmdlets treat relative
+            # paths as relative to the same base-directory which would cause errors later, particularly during path resolution in Split-ExecutableAndArguments
+            try {
+                $LocalPackageRoot = New-Item -Path $LocalPackageRoot -Force -ItemType Directory -ErrorAction Stop | Select-Object -ExpandProperty FullName
+            }
+            catch {
+                Write-Error "Could not create the temporary package directory '$LocalPackageRoot', continuing with the next package."
+                continue
             }
 
             Write-Debug "Local package scratch directory: $LocalPackageRoot"
@@ -199,7 +196,7 @@
                         )
                     )
                 } else {
-                    Write-Error "The file '$($_.Name)' referenced by package '$($Package.AbsoluteLocation)' could not be found or accessed and will be ignored"
+                    Write-Error "The file '$($_.Name)' referenced by package $($packageXML.Package.id) could not be found or accessed and will be ignored"
                 }
             }
 
