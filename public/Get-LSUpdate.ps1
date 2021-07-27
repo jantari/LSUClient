@@ -101,7 +101,7 @@
 
         $SMBiosInformation = Get-CimInstance -ClassName Win32_BIOS -Verbose:$false
         $script:CachedHardwareTable = @{
-            '_OS'                        = 'WIN' + (Get-CimInstance Win32_OperatingSystem).Version -replace "\..*"
+            '_OS'                        = 'WIN' + (Get-CimInstance Win32_OperatingSystem -Verbose:$false).Version -replace "\..*"
             '_CPUAddressWidth'           = [wmisearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
             '_Bios'                      = $SMBiosInformation.SMBIOSBIOSVersion
             '_PnPID'                     = @(Get-PnpDevice)
