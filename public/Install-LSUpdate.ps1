@@ -57,10 +57,13 @@
 
             Expand-LSUpdate -Package $PackageToProcess -WorkingDirectory $PackageDirectory
 
-            Write-Verbose "Installing package $($PackageToProcess.ID) ...`r`n"
+            Write-Verbose "Installing package $($PackageToProcess.ID) ..."
 
-            if ($PackageToProcess.Category -eq 'BIOS UEFI') {
-                # We are dealing with a BIOS Update
+            # Special-case ThinkPad and ThinkCentre (winuptp.exe and Flash.cmd/wflash2.exe)
+            # BIOS updates because we can install them silently and unattended with custom arguments
+            # Other BIOS updates are not classified as unattended and will be treated like any other package.
+            if ($PackageToProcess.Installer.Command -match 'winuptp\.exe|Flash\.cmd') {
+                # We are dealing with a known kind of BIOS Update
                 [BiosUpdateInfo]$BIOSUpdateExit = Install-BiosUpdate -PackageDirectory $PackageDirectory
                 if ($BIOSUpdateExit) {
                     if ($BIOSUpdateExit.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
@@ -70,13 +73,13 @@
                         }
                     } else {
                         # BIOS Update successful
-                        Write-Output "BIOS UPDATE SUCCESS: An immediate full $($BIOSUpdateExit.ActionNeeded) is strongly recommended to allow the BIOS update to complete!`r`n"
+                        Write-Output "BIOS UPDATE SUCCESS: An immediate full $($BIOSUpdateExit.ActionNeeded) is strongly recommended to allow the BIOS update to complete!"
                         if ($SaveBIOSUpdateInfoToRegistry) {
                             Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash $Extracter.Checksum
                         }
                     }
                 } else {
-                    Write-Warning "Either this is not a BIOS Update or it's an unsupported installer for one, skipping installation!`r`n"
+                    Write-Warning "The BIOS update could not be installed, the most likely cause is that it's an unknown, unsupported kind"
                 }
             } else {
                 switch ($PackageToProcess.Installer.InstallType) {
