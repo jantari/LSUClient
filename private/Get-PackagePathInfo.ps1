@@ -2,8 +2,8 @@
     <#
         .DESCRIPTION
         Tests for the validity, existance and type of a location/path.
-        Returns whether the path locator is valid, whether the resource is accessible and whether
-        it is http/web based or filesystem based.
+        Returns whether the path locator is valid, whether it points to a HTTP or
+        filesystem resource and can optionally test whether the resource is accessible.
 
         .PARAMETER Path
         The absolute or relative path to get.
@@ -22,10 +22,12 @@
         [switch]$TestURLReachable
     )
 
-    [string]$Type = 'Unknown'
-    [bool]$Valid = $false
-    [bool]$Reachable = $false
-    [string]$AbsoluteLocation = ''
+    $PathInfo = [PSCustomObject]@{
+        'Valid'            = $false
+        'Reachable'        = $false
+        'Type'             = 'Unknown'
+        'AbsoluteLocation' = ''
+    }
 
     Write-Debug "Resolving file path '$Path'"
 
@@ -45,9 +47,9 @@
 
     if ($UriToUse -and [System.Uri]::TryCreate($UriToUse, [System.UriKind]::Absolute, [ref]$Uri)) {
         if ($Uri.Scheme -in 'http', 'https') {
-            $Type = 'HTTP'
-            $AbsoluteLocation = $UriToUse
-            $Valid = $true
+            $PathInfo.Type = 'HTTP'
+            $PathInfo.AbsoluteLocation = $UriToUse
+            $PathInfo.Valid = $true
 
             if ($TestURLReachable) {
                 $Request = [System.Net.HttpWebRequest]::CreateHttp($UriToUse)
@@ -73,7 +75,7 @@
                 try {
                     $response = $Request.GetResponse()
                     if ([int]$response.StatusCode -ge 200 -and [int]$response.StatusCode -le 299) {
-                        $Reachable = $true
+                        $PathInfo.Reachable = $true
                     }
                     $response.Dispose()
                 }
@@ -81,33 +83,34 @@
                     Write-Debug "Could not connect to URL ${UriToUse}: $_"
                 }
             }
+
+            return $PathInfo
         }
     }
 
     # Test for filesystem path
     if ((Test-Path -LiteralPath $Path) -and
         (Get-Item -LiteralPath $Path).PSProvider.ToString() -eq 'Microsoft.PowerShell.Core\FileSystem') {
-            $Valid = $true
-            $Reachable = $true
-            $Type = 'FILE'
-            $AbsoluteLocation = (Get-Item -LiteralPath $Path).FullName
+            $PathInfo.Valid = $true
+            $PathInfo.Reachable = $true
+            $PathInfo.Type = 'FILE'
+            $PathInfo.AbsoluteLocation = (Get-Item -LiteralPath $Path).FullName
     } else {
         # Try again assuming that $Path is relative to $BasePath
         if (-not $BasePath) { $BasePath = (Get-Location -PSProvider 'Microsoft.PowerShell.Core\FileSystem').Path }
         $JoinedPath = Join-Path -Path $BasePath -ChildPath $Path -ErrorAction Ignore
         if ($JoinedPath -and (Test-Path -LiteralPath $JoinedPath) -and
             (Get-Item -LiteralPath $JoinedPath).PSProvider.ToString() -eq 'Microsoft.PowerShell.Core\FileSystem') {
-            $Valid = $true
-            $Reachable = $true
-            $Type = 'FILE'
-            $AbsoluteLocation = (Get-Item -LiteralPath $JoinedPath).FullName
+            $PathInfo.Valid = $true
+            $PathInfo.Reachable = $true
+            $PathInfo.Type = 'FILE'
+            $PathInfo.AbsoluteLocation = (Get-Item -LiteralPath $JoinedPath).FullName
+        } else {
+            # Writing an error with ErrorAction SilentlyContinue has the purpose of adding it to
+            # ErrorVariable (and the global $ERROR) but not returning it via the pipeline
+            Write-Error "'$Path' is not a supported URL and does not exist as a filesystem path" -ErrorAction SilentlyContinue
         }
     }
 
-    [PSCustomObject]@{
-        'Valid'            = $Valid
-        'Reachable'        = $Reachable
-        'Type'             = $Type
-        'AbsoluteLocation' = $AbsoluteLocation
-    }
+    return $PathInfo
 }
