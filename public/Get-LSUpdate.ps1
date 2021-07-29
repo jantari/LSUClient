@@ -123,7 +123,7 @@
             throw $_
         }
 
-        Write-Debug "Created temporary scratch directory: $ScratchSubDirectory"
+        Write-Verbose "Created temporary scratch directory: $ScratchSubDirectory"
 
         [array]$PackagePointers = Get-PackagesInRepository -Repository $Repository -RepositoryType $RepositoryInfo.Type -Model $Model
         if ($PackagePointers.Count -eq 0) {
@@ -269,7 +269,7 @@
     }
 
     end {
-        Write-Debug "Removing temporary scratch directory ${ScratchSubDirectory}"
+        Write-Verbose "Cleaning up temporary scratch directory"
         Remove-Item -LiteralPath $ScratchSubDirectory -Recurse -Force -Confirm:$false
     }
 }
