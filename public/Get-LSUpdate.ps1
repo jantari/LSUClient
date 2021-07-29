@@ -92,9 +92,9 @@
 
         Write-Verbose "Lenovo Model is: $Model"
 
-        $RepositoryInfo = Get-PackagePathInfo -Path $Repository
+        $RepositoryInfo = Get-PackagePathInfo -Path $Repository -ErrorVariable InvalidRepositoryReason
         if (-not $RepositoryInfo.Valid) {
-            throw "Repository '${Repository}' refers to an invalid location. Only filesystem paths and https(s) URLs are supported."
+            throw "Repository '${Repository}' refers to an invalid location: $InvalidRepositoryReason"
         }
 
         $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
@@ -127,7 +127,7 @@
 
         [array]$PackagePointers = Get-PackagesInRepository -Repository $Repository -RepositoryType $RepositoryInfo.Type -Model $Model
         if ($PackagePointers.Count -eq 0) {
-            throw "No packages for computer model '${Model}' could be found in repository '${Repository}'"
+            throw "No packages for computer model '${Model}' could be retrieved from repository '${Repository}'"
         }
 
         Write-Verbose "A total of $($PackagePointers.Count) driver packages are available for this computer model."
