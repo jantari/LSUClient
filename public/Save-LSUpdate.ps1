@@ -51,7 +51,8 @@
 
     process {
         foreach ($PackageToGet in $Package) {
-            $DownloadDirectory = Join-Path -Path $Path -ChildPath $PackageToGet.id
+            Write-Verbose "Processing package '$($PackageToGet.ID) - $($PackageToGet.Title)'"
+            $DownloadDirectory = Join-Path -Path $Path -ChildPath $PackageToGet.ID
 
             if (-not (Test-Path -Path $DownloadDirectory -PathType Container)) {
                 Write-Verbose "Destination directory did not exist, created it: '$DownloadDirectory'"
