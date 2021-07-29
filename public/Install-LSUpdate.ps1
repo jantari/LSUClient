@@ -36,7 +36,7 @@
 
     process {
         foreach ($PackageToProcess in $Package) {
-            $Extracter = $PackageToProcess.Files.Where{ $_.Kind -eq 'Installer' }
+            $Extracter = $PackageToProcess.Files | Where-Object { $_.Kind -eq 'Installer' }
             $PackageDirectory = Join-Path -Path $Path -ChildPath $PackageToProcess.ID
             if (-not (Test-Path -LiteralPath $PackageDirectory -PathType Container)) {
                 $null = New-Item -Path $PackageDirectory -Force -ItemType Directory
