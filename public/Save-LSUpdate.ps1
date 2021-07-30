@@ -29,7 +29,7 @@
         a subfolder will be created for each downloaded package.
     #>
 
-	[CmdletBinding()]
+    [CmdletBinding()]
     Param (
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
         [pscustomobject]$Package,
