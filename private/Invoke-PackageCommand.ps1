@@ -34,82 +34,47 @@
 
     $ExeAndArgs.Arguments = Remove-CmdEscapeCharacter -String $ExeAndArgs.Arguments
 
-    $process                                  = [System.Diagnostics.Process]::new()
-    $process.StartInfo.WindowStyle            = [System.Diagnostics.ProcessWindowStyle]::Hidden
-    $process.StartInfo.UseShellExecute        = $false
-    $process.StartInfo.WorkingDirectory       = $Path
-    $process.StartInfo.FileName               = $ExeAndArgs.Executable
-    $process.StartInfo.Arguments              = $ExeAndArgs.Arguments
-    $process.StartInfo.RedirectStandardOutput = $true
-    $process.StartInfo.RedirectStandardError  = $true
+    Write-Debug "Starting external process:`r`n  File: $($ExeAndArgs.Executable)`r`n  Arguments: $($ExeAndArgs.Arguments)`r`n  WorkingDirectory: $Path"
+    $RunspaceOutput = Start-ProcessInRunspace -Executable $ExeAndArgs.Executable -Arguments $ExeAndArgs.Arguments -WorkingDirectory $Path -FallbackToShellExecut:$FallbackToShellExecute
+    $RunspaceOutput | Format-List | Out-Host
 
-    if ($FallbackToShellExecute) {
-        Write-Warning "Running with ShellExecute - process output cannot be captured!"
-        $process.StartInfo.UseShellExecute        = $true
-        $process.StartInfo.RedirectStandardOutput = $false
-        $process.StartInfo.RedirectStandardError  = $false
+    if ($RunspaceOutput.StdOutStream.Count -ne 1) {
+        Write-Warning "Unexpected results: More than 1 object returned: $($RunspaceOutput.StdOutStream)"
+        return $null
     }
 
-    Write-Debug "Starting external process:`r`n  File: $($ExeAndArgs.Executable)`r`n  Arguments: $($ExeAndArgs.Arguments)`r`n  WorkingDirectory: $Path"
-    try {
-        if (-not $process.Start()) {
+    # Print any unhandled / unexpected errors as warnings
+    if ($RunspaceOutput.StdErrStream.Count -gt 0) {
+        foreach ($ErrorRecord in $RunspaceOutput.StdErrStream) {
+            Write-Warning $ErrorRecord
+        }
+    }
+
+    switch ($RunspaceOutput.StdOutStream[0].HandledError) {
+        # Success case
+        0 {
+            $RunspaceOutput.StdOutStream[0] | Format-List | Out-Host
+            return $RunspaceOutput.StdOutStream[0]
+        }
+        # Error cases that are handled explicitly
+        1 {
             Write-Warning "No new process was created or a handle to it could not be obtained."
             Write-Warning "Executable was: '$($ExeAndArgs.Executable)' - this should *probably* not have happened"
             return $null
         }
-    }
-    catch {
-        # In case we get ERROR_ELEVATION_REQUIRED (740) retry with ShellExecute to elevate with UAC
-        if ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException.NativeErrorCode -eq 740) {
+        740 {
             if (-not $FallbackToShellExecute) {
-                Write-Warning "This process requires elevated privileges - falling back to ShellExecute to elevate with UAC, consider running PowerShell as Administrator"
+                Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
+                Write-Warning "Process output cannot be captured when running with ShellExecute!"
                 return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
             }
-        # In case we get ERROR_BAD_EXE_FORMAT (193) retry with ShellExecute to open files like MSI
-        } elseif ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException.NativeErrorCode -eq 193) {
+        }
+        193 {
             if (-not $FallbackToShellExecute) {
                 Write-Warning "The file to be run is not an executable - falling back to ShellExecute"
                 return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
             }
         }
-
-        Write-Warning $_
-        return $null
-    }
-
-    if (-not $FallbackToShellExecute) {
-        # When redirecting StandardOutput or StandardError you have to start reading the streams asynchronously, or else it can cause
-        # programs that output a lot (like package u3aud03w_w10 - Conexant USB Audio) to fill a stream and deadlock/hang indefinitely.
-        # See issue #25 and https://stackoverflow.com/questions/11531068/powershell-capturing-standard-out-and-error-with-process-object
-        $StdOutAsync = $process.StandardOutput.ReadToEndAsync()
-        $StdErrAsync = $process.StandardError.ReadToEndAsync()
-    }
-
-    $process.WaitForExit()
-
-    if (-not $FallbackToShellExecute) {
-        $StdOutInOneString = $StdOutAsync.GetAwaiter().GetResult()
-        $StdErrInOneString = $StdErrAsync.GetAwaiter().GetResult()
-
-        [string[]]$StdOutLines = $StdOutInOneString.Split(
-            [string[]]("`r`n", "`r", "`n"),
-            [StringSplitOptions]::None
-        )
-
-        [string[]]$StdErrLines = $StdErrInOneString.Split(
-            [string[]]("`r`n", "`r", "`n"),
-            [StringSplitOptions]::None
-        )
-    }
-
-    $returnInfo = [ProcessReturnInformation]@{
-        "FilePath"         = $ExeAndArgs.Executable
-        "Arguments"        = $ExeAndArgs.Arguments
-        "WorkingDirectory" = $Path
-        "StandardOutput"   = $StdOutLines
-        "StandardError"    = $StdErrLines
-        "ExitCode"         = $process.ExitCode
-        "Runtime"          = $process.ExitTime - $process.StartTime
     }
 
     return $returnInfo
