@@ -22,10 +22,8 @@
     # Lenovo sometimes forgets to put a directory separator betweeen %PACKAGEPATH% and the executable so make sure it's there
     # If we end up with two backslashes, Split-ExecutableAndArguments removes the duplicate from the executable path, but
     # we could still end up with a double-backslash after %PACKAGEPATH% somewhere in the arguments for now.
-    [string]$Command       = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "${Path}\"}
-    [string[]]$StdOutLines = @()
-    [string[]]$StdErrLines = @()
-    $ExeAndArgs            = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
+    [string]$Command = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "${Path}\"}
+    $ExeAndArgs      = Split-ExecutableAndArguments -Command $Command -WorkingDirectory $Path
     # Split-ExecutableAndArguments returns NULL if no executable could be found
     if (-not $ExeAndArgs) {
         Write-Warning "The command or file '$Command' could not be found from '$Path' and was not run"
