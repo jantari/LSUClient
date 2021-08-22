@@ -30,6 +30,8 @@
 
         Set-StrictMode -Version 3.0
 
+        # This value is used to communicate problems and errors that can be handled and or remedied/retried
+        # internally to the calling function. It stays 0 when no known errors occurred.
         $HandledError = 0
         $ProcessStarted = $false
         [string[]]$StdOutLines = @()
@@ -116,10 +118,10 @@
     })
 
     $Powershell.Runspace = $Runspace
-    $RETURN = $Powershell.Invoke()
+    $RunspaceStandardOut = $Powershell.Invoke()
 
     [PSCustomObject]@{
-        'StdOutStream' = $RETURN
+        'StdOutStream' = $RunspaceStandardOut
         'StdErrStream' = $PowerShell.Streams.Error.ReadAll()
     }
 

@@ -75,5 +75,5 @@
         }
     }
 
-    return $returnInfo
+    return $null
 }
