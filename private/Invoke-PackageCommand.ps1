@@ -154,8 +154,15 @@
     switch ($RunspaceStandardOut[0].HandledError) {
         # Success case
         0 {
-            $RunspaceOutput.StdOutStream[0] | Format-List | Out-Host
-            return $RunspaceOutput.StdOutStream[0]
+            return [ProcessReturnInformation]@{
+                'FilePath'         = $ExeAndArgs.Executable
+                'Arguments'        = $ExeAndArgs.Arguments
+                'WorkingDirectory' = $Path
+                'StandardOutput'   = $RunspaceStandardOut[0].StandardOutput
+                'StandardError'    = $RunspaceStandardOut[0].StandardError
+                'ExitCode'         = $RunspaceStandardOut[0].ExitCode
+                'Runtime'          = $RunspaceStandardOut[0].Runtime
+            }
         }
         # Error cases that are handled explicitly inside the runspace
         1 {
