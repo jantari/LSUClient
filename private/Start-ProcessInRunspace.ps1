@@ -99,14 +99,11 @@
         }
 
         return [PSCustomObject]@{
-            'FilePath'         = $Executable
-            'Arguments'        = $Arguments
-            'WorkingDirectory' = $WorkingDirectory
-            'StandardOutput'   = $StdOutLines
-            'StandardError'    = $StdErrLines
-            'ExitCode'         = $process.ExitCode
-            'Runtime'          = $process.ExitTime - $process.StartTime
-            'HandledError'     = $HandledError
+            'StandardOutput' = $StdOutLines
+            'StandardError'  = $StdErrLines
+            'ExitCode'       = $process.ExitCode
+            'Runtime'        = $process.ExitTime - $process.StartTime
+            'HandledError'   = $HandledError
         }
     }
 

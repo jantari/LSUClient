@@ -33,11 +33,11 @@
     $ExeAndArgs.Arguments = Remove-CmdEscapeCharacter -String $ExeAndArgs.Arguments
 
     Write-Debug "Starting external process:`r`n  File: $($ExeAndArgs.Executable)`r`n  Arguments: $($ExeAndArgs.Arguments)`r`n  WorkingDirectory: $Path"
-    $RunspaceOutput = Start-ProcessInRunspace -Executable $ExeAndArgs.Executable -Arguments $ExeAndArgs.Arguments -WorkingDirectory $Path -FallbackToShellExecut:$FallbackToShellExecute
+    $RunspaceOutput = Start-ProcessInRunspace -Executable $ExeAndArgs.Executable -Arguments $ExeAndArgs.Arguments -WorkingDirectory $Path -FallbackToShellExecute:$FallbackToShellExecute
     $RunspaceOutput | Format-List | Out-Host
 
     if ($RunspaceOutput.StdOutStream.Count -ne 1) {
-        Write-Warning "Unexpected results: More than 1 object returned: $($RunspaceOutput.StdOutStream)"
+        Write-Warning "Unexpected results: None or more than 1 object returned: $($RunspaceOutput.StdOutStream)"
         return $null
     }
 
