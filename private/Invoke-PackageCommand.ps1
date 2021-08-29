@@ -136,11 +136,6 @@
     $Powershell.Runspace = $Runspace
     $RunspaceStandardOut = $Powershell.Invoke()
 
-    if ($RunspaceStandardOut.Count -ne 1) {
-        Write-Warning "Unexpected results: None or more than 1 object returned: $($RunspaceStandardOut)"
-        return $null
-    }
-
     # Print any unhandled / unexpected errors as warnings
     if ($PowerShell.Streams.Error.Count -gt 0) {
         foreach ($ErrorRecord in $PowerShell.Streams.Error.ReadAll()) {
@@ -151,39 +146,44 @@
     $PowerShell.Runspace.Dispose()
     $PowerShell.Dispose()
 
-    switch ($RunspaceStandardOut[0].HandledError) {
-        # Success case
-        0 {
-            return [ProcessReturnInformation]@{
-                'FilePath'         = $ExeAndArgs.Executable
-                'Arguments'        = $ExeAndArgs.Arguments
-                'WorkingDirectory' = $Path
-                'StandardOutput'   = $RunspaceStandardOut[0].StandardOutput
-                'StandardError'    = $RunspaceStandardOut[0].StandardError
-                'ExitCode'         = $RunspaceStandardOut[0].ExitCode
-                'Runtime'          = $RunspaceStandardOut[0].Runtime
+    # Test for NULL before indexing into array. RunspaceStandardOut can be null
+    # when the runspace aborted abormally, for example due to an exception.
+    if ($null -ne $RunspaceStandardOut -and $RunspaceStandardOut.Count -gt 0) {
+        switch ($RunspaceStandardOut[-1].HandledError) {
+            # Success case
+            0 {
+                return [ProcessReturnInformation]@{
+                    'FilePath'         = $ExeAndArgs.Executable
+                    'Arguments'        = $ExeAndArgs.Arguments
+                    'WorkingDirectory' = $Path
+                    'StandardOutput'   = $RunspaceStandardOut[-1].StandardOutput
+                    'StandardError'    = $RunspaceStandardOut[-1].StandardError
+                    'ExitCode'         = $RunspaceStandardOut[-1].ExitCode
+                    'Runtime'          = $RunspaceStandardOut[-1].Runtime
+                }
             }
-        }
-        # Error cases that are handled explicitly inside the runspace
-        1 {
-            Write-Warning "No new process was created or a handle to it could not be obtained."
-            Write-Warning "Executable was: '$($ExeAndArgs.Executable)' - this should *probably* not have happened"
-            return $null
-        }
-        740 {
-            if (-not $FallbackToShellExecute) {
-                Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
-                Write-Warning "Process output cannot be captured when running with ShellExecute!"
-                return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
+            # Error cases that are handled explicitly inside the runspace
+            1 {
+                Write-Warning "No new process was created or a handle to it could not be obtained."
+                Write-Warning "Executable was: '$($ExeAndArgs.Executable)' - this should *probably* not have happened"
+                return $null
             }
-        }
-        193 {
-            if (-not $FallbackToShellExecute) {
-                Write-Warning "The file to be run is not an executable - falling back to ShellExecute"
-                return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
+            740 {
+                if (-not $FallbackToShellExecute) {
+                    Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
+                    Write-Warning "Process output cannot be captured when running with ShellExecute!"
+                    return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
+                }
+            }
+            193 {
+                if (-not $FallbackToShellExecute) {
+                    Write-Warning "The file to be run is not an executable - falling back to ShellExecute"
+                    return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
+                }
             }
         }
     }
 
+    Write-Warning "The external process runspace did not run to completion because an unexpected error occurred."
     return $null
 }
