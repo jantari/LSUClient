@@ -33,16 +33,7 @@
     $ExeAndArgs.Arguments = Remove-CmdEscapeCharacter -String $ExeAndArgs.Arguments
     Write-Debug "Starting external process:`r`n  File: $($ExeAndArgs.Executable)`r`n  Arguments: $($ExeAndArgs.Arguments)`r`n  WorkingDirectory: $Path"
 
-    $ExternalPSProcess = [System.Diagnostics.Process]::new()
-    $ExternalPSProcess.StartInfo.FileName  = [System.Management.Automation.Runspaces.PowerShellProcessInstance]::new().Process.StartInfo.FileName
-    $ExternalPSProcess.StartInfo.Arguments = '-NoExit -NoLogo -NoProfile'
-    $ExternalPSProcess.StartInfo.UseShellExecute = $false
-    $ExternalPSProcess.StartInfo.CreateNoWindow  = $true
-    $null = $ExternalPSProcess.Start()
-
-    $Runspace = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace(
-        [System.Management.Automation.Runspaces.NamedPipeConnectionInfo]::new($ExternalPSProcess.Id)
-    )
+    $Runspace = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateOutOfProcessRunspace($null)
     $Runspace.Open()
 
     $Powershell = [PowerShell]::Create().AddScript{
@@ -154,7 +145,6 @@
 
     $PowerShell.Runspace.Dispose()
     $PowerShell.Dispose()
-    $ExternalPSProcess.Kill()
 
     # Test for NULL before indexing into array. RunspaceStandardOut can be null
     # when the runspace aborted abormally, for example due to an exception.
