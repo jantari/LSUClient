@@ -8,6 +8,15 @@ enum Severity {
     Optional    = 3
 }
 
+# Source for this information is: https://download.lenovo.com/cdrt/docs/DG-SystemUpdateSuite.pdf page 57
+enum PackageType {
+    Reserved    = 0
+    Application = 1
+    Driver      = 2
+    BIOS        = 3
+    Firmware    = 4
+}
+
 enum DependencyParserState {
     DO_HAVE     = 0
     DO_NOT_HAVE = 1
@@ -84,6 +93,7 @@ class LenovoPackage {
     [string] $ID
     hidden [string] $Name
     [string] $Title
+    [Nullable[PackageType]] $Type
     [string] $Category
     [version] $Version
     [Severity] $Severity
