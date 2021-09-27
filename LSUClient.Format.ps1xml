@@ -27,16 +27,16 @@
                 <PropertyName>Title</PropertyName>
               </TableColumnItem>
               <TableColumnItem>
-                <PropertyName>Category</PropertyName>
+                <PropertyName>Type</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>ReleaseDate</PropertyName>
               </TableColumnItem>
               <TableColumnItem>
                 <PropertyName>Version</PropertyName>
               </TableColumnItem>
               <TableColumnItem>
                 <PropertyName>Severity</PropertyName>
-              </TableColumnItem>
-              <TableColumnItem>
-                <PropertyName>IsApplicable</PropertyName>
               </TableColumnItem>
             </TableColumnItems>
           </TableRowEntry>
@@ -59,19 +59,19 @@
                 <PropertyName>Title</PropertyName>
               </ListItem>
               <ListItem>
+                <PropertyName>Type</PropertyName>
+              </ListItem>
+              <ListItem>
                 <PropertyName>Category</PropertyName>
+              </ListItem>
+              <ListItem>
+                <PropertyName>ReleaseDate</PropertyName>
               </ListItem>
               <ListItem>
                 <PropertyName>Version</PropertyName>
               </ListItem>
               <ListItem>
                 <PropertyName>Severity</PropertyName>
-              </ListItem>
-              <ListItem>
-                <PropertyName>ReleaseDate</PropertyName>
-              </ListItem>
-              <ListItem>
-                <PropertyName>Extracter</PropertyName>
               </ListItem>
               <ListItem>
                 <PropertyName>Installer</PropertyName>
