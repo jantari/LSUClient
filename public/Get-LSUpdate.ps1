@@ -236,7 +236,7 @@
             }
 
             [Severity]$PackageSeverity = $packageXML.Package.Severity.type
-            if ($packageXML.Package.SeverityOverride) {
+            if ($packageXML.Package.SeverityOverride -and ($packageXML.Package.SeverityOverride.type -ne $packageXML.Package.Severity.type)) {
                 Write-Verbose "Parsing severity override for package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
                 if (Resolve-XMLDependencies -XMLIN $packageXML.Package.SeverityOverride -TreatUnsupportedAsPassed:$true -PackagePath $LocalPackageRoot) {
                     Write-Debug "Default severity $($packageXML.Package.Severity.type) overriden with $($packageXML.Package.SeverityOverride.type)"
