@@ -235,6 +235,15 @@
                 Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -TreatUnsupportedAsPassed:(-not $FailUnsupportedDependencies) -PackagePath $LocalPackageRoot
             }
 
+            [Severity]$PackageSeverity = $packageXML.Package.Severity.type
+            if ($packageXML.Package.SeverityOverride) {
+                Write-Verbose "Parsing severity override for package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
+                if (Resolve-XMLDependencies -XMLIN $packageXML.Package.SeverityOverride -TreatUnsupportedAsPassed:$true -PackagePath $LocalPackageRoot) {
+                    Write-Debug "Default severity $($packageXML.Package.Severity.type) overriden with $($packageXML.Package.SeverityOverride.type)"
+                    [Severity]$PackageSeverity = $packageXML.Package.SeverityOverride.type
+                }
+            }
+
             # Calculate package size
             [Int64]$PackageSize = 0
             $PackageFiles | Where-Object { $_.Kind -ne 'External'} | Foreach-Object {
@@ -250,7 +259,7 @@
                 'Type'         = $packageXML.Package.PackageType.type
                 'Category'     = $Package.Category
                 'Version'      = if ([Version]::TryParse($packageXML.Package.version, [ref]$null)) { $packageXML.Package.version } else { '0.0.0.0' }
-                'Severity'     = $packageXML.Package.Severity.type
+                'Severity'     = $PackageSeverity
                 'ReleaseDate'  = [DateTime]::ParseExact($packageXML.Package.ReleaseDate, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None')
                 'RebootType'   = $packageXML.Package.Reboot.type
                 'Vendor'       = $packageXML.Package.Vendor
