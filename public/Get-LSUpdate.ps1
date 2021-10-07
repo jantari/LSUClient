@@ -54,7 +54,7 @@
 
     [CmdletBinding()]
     Param (
-        [ValidatePattern('^\w{4}$')]
+        [ValidatePattern('^\w{4,5}$')]
         [string]$Model,
         [Uri]$Proxy,
         [pscredential]$ProxyCredential,
