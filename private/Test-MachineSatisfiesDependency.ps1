@@ -40,31 +40,33 @@
             }
 
             if ($DriverChildNodes -contains 'HardwareID') {
-                [bool]$HardwareFound = $false
+                $DevicesMatched = [System.Collections.Generic.List[object]]::new()
 
-                foreach ($HardwareInMachine in $CachedHardwareTable['_PnPID'].HardwareID) {
-                    foreach ($HardwareID in $Dependency.HardwareID.'#cdata-section') {
-                        # Lenovo HardwareIDs can contain wildcards (*) so we have to compare with "-like"
-                        if ($HardwareInMachine -like "*$HardwareID*") {
-                            Write-Debug "$('- ' * $DebugIndent)Matched device '$HardwareInMachine' with required '$HardwareID'"
-                            $HardwareFound   = $true
-                            $HardwareIDFound = $HardwareInMachine
+                :NextDevice foreach ($DeviceInMachine in $CachedHardwareTable['_PnPID']) {
+                    foreach ($HardwareInMachine in $DeviceInMachine.HardwareID) {
+                        foreach ($HardwareID in $Dependency.HardwareID.'#cdata-section') {
+                            # Lenovo HardwareIDs can contain wildcards (*) so we have to compare with "-like"
+                            if ($HardwareInMachine -like "*$HardwareID*") {
+                                Write-Debug "$('- ' * $DebugIndent)Matched device '$HardwareInMachine' with required '$HardwareID'"
+                                $DevicesMatched.Add($DeviceInMachine)
+                                continue NextDevice
+                            }
                         }
                     }
                 }
 
-                if ($HardwareFound) {
-                    [array]$DevicesWithHardwareID = $CachedHardwareTable['_PnPID'].Where{ $_.HardwareID -eq "$HardwareIDFound" }
-                    if ($DevicesWithHardwareID.Count -ne 1) {
-                        Write-Debug "$('- ' * $DebugIndent)$($DevicesWithHardwareID.Count) devices with HardwareID '$HardwareIDFound'"
+                if ($DevicesMatched.Count -ge 1) {
+                    if ($DevicesMatched.Count -gt 1) {
+                        Write-Debug "$('- ' * $DebugIndent)$($DevicesMatched.Count) devices with matching HardwareId"
                     }
 
-                    $Device = $DevicesWithHardwareID[0]
+                    $TestResults = [System.Collections.Generic.List[bool]]::new()
+                    foreach ($Device in $DevicesMatched) {
 
                     # First, check if there is a driver installed for the device at all before proceeding (issue#24)
                     if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
                         [string]$HexDeviceProblemStatus = '0x{0:X8}' -f ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_ProblemStatus').Data
-                        Write-Debug "$('- ' * $DebugIndent)Device '$HardwareIDFound' does not have any driver (ProblemStatus: $HexDeviceProblemStatus)"
+                        Write-Debug "$('- ' * $DebugIndent)Device '$($Device.InstanceId)' does not have any driver (ProblemStatus: $HexDeviceProblemStatus)"
                         return -1
                     }
 
@@ -108,8 +110,6 @@
                         Write-Verbose "Device '$($Device.Name)' may currently be using a generic or inbox driver"
                     }
 
-                    $TestResults = [System.Collections.Generic.List[bool]]::new()
-
                     if ($DriverChildNodes -contains 'Date') {
                         Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Date"
                         $LenovoDate = [DateTime]::new(0)
@@ -137,7 +137,7 @@
                                     $TestResults.Add($false)
                                 }
                             } else {
-                                Write-Verbose "Device '$HardwareIDFound' does not report its driver date"
+                                Write-Verbose "Device '$($Device.InstanceId)' does not report its driver date"
                             }
                         } else {
                             Write-Verbose "Got unsupported date format from Lenovo: '$($Dependency.Date)' (expected yyyy-MM-dd)"
@@ -155,9 +155,10 @@
                                 $TestResults.Add($false)
                             }
                         } else {
-                            Write-Verbose "Device '$HardwareIDFound' does not report its driver version"
+                            Write-Verbose "Device '$($Device.InstanceId)' does not report its driver version"
                         }
                     }
+                    } # end of for-devices loop
 
                     # If all HardwareID-tests were successful, return SUCCESS
                     if (-not ($TestResults -contains $false)) {
