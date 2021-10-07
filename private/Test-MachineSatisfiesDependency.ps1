@@ -62,103 +62,102 @@
 
                     $TestResults = [System.Collections.Generic.List[bool]]::new()
                     foreach ($Device in $DevicesMatched) {
+                        # First, check if there is a driver installed for the device at all before proceeding (issue#24)
+                        if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
+                            [string]$HexDeviceProblemStatus = '0x{0:X8}' -f ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_ProblemStatus').Data
+                            Write-Debug "$('- ' * $DebugIndent)Device '$($Device.InstanceId)' does not have any driver (ProblemStatus: $HexDeviceProblemStatus)"
+                            return -1
+                        }
 
-                    # First, check if there is a driver installed for the device at all before proceeding (issue#24)
-                    if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
-                        [string]$HexDeviceProblemStatus = '0x{0:X8}' -f ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_ProblemStatus').Data
-                        Write-Debug "$('- ' * $DebugIndent)Device '$($Device.InstanceId)' does not have any driver (ProblemStatus: $HexDeviceProblemStatus)"
-                        return -1
-                    }
+                        $icmParams = @{
+                            'InputObject' = $Device
+                            'MethodName'  = 'GetDeviceProperties'
+                            'Arguments'   = @{'devicePropertyKeys' = @('DEVPKEY_Device_DriverVersion')}
+                            'Verbose'     = $false
+                            'ErrorAction' = 'SilentlyContinue'
+                        }
 
-                    $icmParams = @{
-                        'InputObject' = $Device
-                        'MethodName'  = 'GetDeviceProperties'
-                        'Arguments'   = @{'devicePropertyKeys' = @('DEVPKEY_Device_DriverVersion')}
-                        'Verbose'     = $false
-                        'ErrorAction' = 'SilentlyContinue'
-                    }
+                        $DriverVersionObject = Invoke-CimMethod @icmParams | Select-Object -ExpandProperty deviceProperties
+                        if (-not $DriverVersionObject) {
+                            # Fall back to the much slower Get-PnpDeviceProperty cmdlet in cases where GetDeviceProperties fails (e.g. disconnected "phantom" devices)
+                            $DriverVersionObject = Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverVersion'
+                        }
+                        $DriverVersion = $DriverVersionObject.Data
 
-                    $DriverVersionObject = Invoke-CimMethod @icmParams | Select-Object -ExpandProperty deviceProperties
-                    if (-not $DriverVersionObject) {
-                        # Fall back to the much slower Get-PnpDeviceProperty cmdlet in cases where GetDeviceProperties fails (e.g. disconnected "phantom" devices)
-                        $DriverVersionObject = Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverVersion'
-                    }
-                    $DriverVersion = $DriverVersionObject.Data
+                        $icmParams = @{
+                            'InputObject' = $Device
+                            'MethodName'  = 'GetDeviceProperties'
+                            'Arguments'   = @{'devicePropertyKeys' = @('DEVPKEY_Device_DriverDate')}
+                            'Verbose'     = $false
+                            'ErrorAction' = 'SilentlyContinue'
+                        }
 
-                    $icmParams = @{
-                        'InputObject' = $Device
-                        'MethodName'  = 'GetDeviceProperties'
-                        'Arguments'   = @{'devicePropertyKeys' = @('DEVPKEY_Device_DriverDate')}
-                        'Verbose'     = $false
-                        'ErrorAction' = 'SilentlyContinue'
-                    }
+                        $DriverDateObject = Invoke-CimMethod @icmParams | Select-Object -ExpandProperty deviceProperties
+                        if (-not $DriverDateObject) {
+                            # Fall back to the much slower Get-PnpDeviceProperty cmdlet in cases where GetDeviceProperties fails (e.g. disconnected "phantom" devices)
+                            $DriverDateObject = Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverDate'
+                        }
+                        $DriverDate = $DriverDateObject.Data
 
-                    $DriverDateObject = Invoke-CimMethod @icmParams | Select-Object -ExpandProperty deviceProperties
-                    if (-not $DriverDateObject) {
-                        # Fall back to the much slower Get-PnpDeviceProperty cmdlet in cases where GetDeviceProperties fails (e.g. disconnected "phantom" devices)
-                        $DriverDateObject = Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverDate'
-                    }
-                    $DriverDate = $DriverDateObject.Data
+                        # Documentation for this: https://docs.microsoft.com/en-us/windows-hardware/drivers/install/identifier-score--windows-vista-and-later-
+                        # To be clear, this is a 'pretty good / best effort' approach, but it can detect false positives or miss generic drivers.
+                        # AFAIK it is not possible to detect with 100% certainty that a driver is generic/inbox and even if - it's not always a problem.
+                        # So this information should only be used for informaing the user or as an aid in making non-critical decisions,
+                        # do not rely on this detection/boolean to be accurate!
+                        [byte]$DriverMatchTypeScore = (Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverRank').Data -shr 12 -band 0xF
+                        if ($DriverMatchTypeScore -ge 2) {
+                            Write-Verbose "Device '$($Device.Name)' may currently be using a generic or inbox driver"
+                        }
 
-                    # Documentation for this: https://docs.microsoft.com/en-us/windows-hardware/drivers/install/identifier-score--windows-vista-and-later-
-                    # To be clear, this is a 'pretty good / best effort' approach, but it can detect false positives or miss generic drivers.
-                    # AFAIK it is not possible to detect with 100% certainty that a driver is generic/inbox and even if - it's not always a problem.
-                    # So this information should only be used for informaing the user or as an aid in making non-critical decisions,
-                    # do not rely on this detection/boolean to be accurate!
-                    [byte]$DriverMatchTypeScore = (Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverRank').Data -shr 12 -band 0xF
-                    if ($DriverMatchTypeScore -ge 2) {
-                        Write-Verbose "Device '$($Device.Name)' may currently be using a generic or inbox driver"
-                    }
+                        if ($DriverChildNodes -contains 'Date') {
+                            Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Date"
+                            $LenovoDate = [DateTime]::new(0)
+                            [bool]$LenovoDateIsValid = [DateTime]::TryParseExact(
+                                $Dependency.Date,
+                                'yyyy-MM-dd',
+                                [CultureInfo]::InvariantCulture,
+                                [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor [System.Globalization.DateTimeStyles]::AssumeUniversal,
+                                [ref]$LenovoDate
+                            )
+                            if ($LenovoDateIsValid) {
+                                if ($DriverDate) {
+                                    # WMI and therefore CIM stores datetime values in a DMTF string format.
+                                    # When these are converted to DateTime objects, they are always converted to the local timezone, aka an offset
+                                    # is "artificially" added. For driver dates, this can lead to GitHub#33 where the offset is enough to change the date,
+                                    # which leads to false driver results. We have to remove the offset by converting the DateTime of Kind 'Local' back to UTC.
+                                    # See GitHub#33 and https://docs.microsoft.com/en-us/dotnet/api/system.management.managementdatetimeconverter.todatetime?view=netframework-4.8#remarks
+                                    $DriverDate = $DriverDate.ToUniversalTime().Date
+                                    Write-Debug "$('- ' * $DebugIndent)[Got: $DriverDate, Expected: $LenovoDate]"
+                                    if ($DriverDate -ge $LenovoDate) {
+                                        Write-Debug "$('- ' * $DebugIndent)Passed DriverDate test"
+                                        $TestResults.Add($true)
+                                    } else {
+                                        Write-Debug "$('- ' * $DebugIndent)Failed DriverDate test"
+                                        $TestResults.Add($false)
+                                    }
+                                } else {
+                                    Write-Verbose "Device '$($Device.InstanceId)' does not report its driver date"
+                                }
+                            } else {
+                                Write-Verbose "Got unsupported date format from Lenovo: '$($Dependency.Date)' (expected yyyy-MM-dd)"
+                            }
+                        }
 
-                    if ($DriverChildNodes -contains 'Date') {
-                        Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Date"
-                        $LenovoDate = [DateTime]::new(0)
-                        [bool]$LenovoDateIsValid = [DateTime]::TryParseExact(
-                            $Dependency.Date,
-                            'yyyy-MM-dd',
-                            [CultureInfo]::InvariantCulture,
-                            [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor [System.Globalization.DateTimeStyles]::AssumeUniversal,
-                            [ref]$LenovoDate
-                        )
-                        if ($LenovoDateIsValid) {
-                            if ($DriverDate) {
-                                # WMI and therefore CIM stores datetime values in a DMTF string format.
-                                # When these are converted to DateTime objects, they are always converted to the local timezone, aka an offset
-                                # is "artificially" added. For driver dates, this can lead to GitHub#33 where the offset is enough to change the date,
-                                # which leads to false driver results. We have to remove the offset by converting the DateTime of Kind 'Local' back to UTC.
-                                # See GitHub#33 and https://docs.microsoft.com/en-us/dotnet/api/system.management.managementdatetimeconverter.todatetime?view=netframework-4.8#remarks
-                                $DriverDate = $DriverDate.ToUniversalTime().Date
-                                Write-Debug "$('- ' * $DebugIndent)[Got: $DriverDate, Expected: $LenovoDate]"
-                                if ($DriverDate -ge $LenovoDate) {
-                                    Write-Debug "$('- ' * $DebugIndent)Passed DriverDate test"
+                        if ($DriverChildNodes -contains 'Version') {
+                            Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Version"
+                            # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
+                            if ($DriverVersion) {
+                                Write-Debug "$('- ' * $DebugIndent)[Got: $DriverVersion, Expected: $($Dependency.Version)]"
+                                if ((Test-VersionPattern -LenovoString $Dependency.Version -SystemString $DriverVersion) -eq 0) {
                                     $TestResults.Add($true)
                                 } else {
-                                    Write-Debug "$('- ' * $DebugIndent)Failed DriverDate test"
                                     $TestResults.Add($false)
                                 }
                             } else {
-                                Write-Verbose "Device '$($Device.InstanceId)' does not report its driver date"
+                                Write-Verbose "Device '$($Device.InstanceId)' does not report its driver version"
                             }
-                        } else {
-                            Write-Verbose "Got unsupported date format from Lenovo: '$($Dependency.Date)' (expected yyyy-MM-dd)"
                         }
                     }
-
-                    if ($DriverChildNodes -contains 'Version') {
-                        Write-Debug "$('- ' * $DebugIndent)Trying to match driver based on Version"
-                        # Not all drivers tell us their versions via the OS API. I think later I can try to parse the INIs as an alternative, but it would get tricky
-                        if ($DriverVersion) {
-                            Write-Debug "$('- ' * $DebugIndent)[Got: $DriverVersion, Expected: $($Dependency.Version)]"
-                            if ((Test-VersionPattern -LenovoString $Dependency.Version -SystemString $DriverVersion) -eq 0) {
-                                $TestResults.Add($true)
-                            } else {
-                                $TestResults.Add($false)
-                            }
-                        } else {
-                            Write-Verbose "Device '$($Device.InstanceId)' does not report its driver version"
-                        }
-                    }
-                    } # end of for-devices loop
 
                     # If all HardwareID-tests were successful, return SUCCESS
                     if (-not ($TestResults -contains $false)) {
