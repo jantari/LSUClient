@@ -212,8 +212,12 @@
         }
         '_FileExists' {
             # This may not be 100% yet as Lenovo sometimes uses some non-system environment variables in their file paths
-            [string]$Path = Resolve-CmdVariable -String $Dependency -ExtraVariables @{'WINDOWS' = $env:SystemRoot}
-            return (Test-Path -LiteralPath $Path -PathType Leaf)
+            [string]$Path = Resolve-CmdVariable -String $Dependency.'#text' -ExtraVariables @{'WINDOWS' = $env:SystemRoot}
+            if (Test-Path -LiteralPath $Path -PathType Leaf) {
+                return 0
+            } else {
+                return -1
+            }
         }
         '_FileVersion' {
             # This may not be 100% yet as Lenovo sometimes uses some non-system environment variables in their file paths
