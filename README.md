@@ -90,7 +90,7 @@ In that scenario it is best to just not have BIOS updates in your repository or 
 
 ## Misc
 
-- Only Windows 10 is supported
+- Only Windows 10 and Windows 11 are supported
 - This module does not clean up downloaded packages and installers at any point. The default download location is `$env:TEMP\LSUPackages` - you may delete it yourself
 - By default this module reaches out to https://download.lenovo.com and must be able to download `.xml`, `.exe` and `.inf` files from that domain for successful operation. Alternatively, a custom package repository can be used for completely internal or offline operation with the `-Repository` parameter of `Get-LSUpdate`. A custom repository can be served over HTTP(S) or just be a filesystem path - local or UNC.
 
