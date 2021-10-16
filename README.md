@@ -81,12 +81,15 @@ including the String `"ActionNeeded"` which will contain `"REBOOT"` or `"SHUTDOW
 3. At any later point during your script, task sequence or deployment package you can check for and read this registry-key and gracefully initiate the power-cycle
 on your terms. I recommend clearing the registry values under `HKLM\Software\LSUClient\BIOSUpdate` afterwards so you know the update is no longer pending.
 
-If you want to exclude BIOS/UEFI updates, simply do so by their category:
+If you want to exclude BIOS/UEFI updates, I recommend excluding them by type and possibly Category or Title as a fallback:
 ```powershell
-$updates = Get-LSUpdate | Where-Object { $_.Category -ne 'BIOS UEFI' }
+$updates = Get-LSUpdate |
+    Where-Object { $_.Type -ne 'BIOS' } |
+    Where-Object { $_.Category -notmatch "BIOS|UEFI" } |
+    Where-Object { $_.Title -notmatch "BIOS|UEFI" }
 ```
-NOTE: Packages sourced from an internal repository created with "Lenovo Update Retriever" do not have Category information.  
-In that scenario it is best to just not have BIOS updates in your repository or to filter them by their IDs before installing.
+NOTE: Not all packages have type information and packages sourced from an internal repository created with "Lenovo Update Retriever" never have Category information.
+In that scenario it is best to either not include BIOS updates in your repository at all or to filter them by their IDs before installing.
 
 ## Misc
 
