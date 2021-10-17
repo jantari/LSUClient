@@ -37,6 +37,12 @@
         Do not check whether packages are already installed on the computer. The IsInstalled property of the package objects will be set to $null.
         This switch is only available together with -All.
 
+        .PARAMETER NoTestSeverityOverride
+        Packages have a static severity classification, but may also contain a set of tests pertaining to currently installed hardware or drivers
+        that, when passed, dynamically override and adjust the severity rating of a package up or down. By default, this module makes a best effort
+        to parse, understand and check these. Use this parameter to skip all SeverityOverride tests instead and have all packages be returned with
+        their static, default severity classification. This switch is available both with and without -All.
+
         .PARAMETER FailUnsupportedDependencies
         Lenovo specifies different tests to determine whether each package is applicable to a machine or not.
         This module makes a best effort to parse, understand and check these.
@@ -64,6 +70,7 @@
         [string]$Repository = 'https://download.lenovo.com/catalog',
         [switch]$NoTestApplicable,
         [switch]$NoTestInstalled,
+        [switch]$NoTestSeverityOverride,
         [switch]$FailUnsupportedDependencies,
         [switch]$PassUnsupportedInstallTests
     )
@@ -236,7 +243,7 @@
             }
 
             [Severity]$PackageSeverity = $packageXML.Package.Severity.type
-            if ($packageXML.Package.SeverityOverride -and ($packageXML.Package.SeverityOverride.type -ne $packageXML.Package.Severity.type)) {
+            if (-not $NoTestSeverityOverride -and $packageXML.Package.SeverityOverride -and ($packageXML.Package.SeverityOverride.type -ne $packageXML.Package.Severity.type)) {
                 Write-Verbose "Parsing severity override for package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
                 if (Resolve-XMLDependencies -XMLIN $packageXML.Package.SeverityOverride -TreatUnsupportedAsPassed:$true -PackagePath $LocalPackageRoot) {
                     Write-Debug "Default severity $($packageXML.Package.Severity.type) overriden with $($packageXML.Package.SeverityOverride.type)"
