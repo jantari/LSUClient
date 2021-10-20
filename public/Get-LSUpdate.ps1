@@ -60,7 +60,6 @@
 
     [CmdletBinding()]
     Param (
-        [ValidatePattern('^\w{4,5}$')]
         [string]$Model,
         [Uri]$Proxy,
         [pscredential]$ProxyCredential,
@@ -90,11 +89,17 @@
         }
 
         if (-not $Model) {
-            $MODELREGEX = [regex]::Match((Get-CimInstance -ClassName CIM_ComputerSystem -ErrorAction SilentlyContinue -Verbose:$false).Model, '^\w{4}')
-            if ($MODELREGEX.Success -ne $true) {
-                throw "Could not parse computer model number. This may not be a Lenovo computer, or an unsupported model."
-            }
-            $Model = $MODELREGEX.Value
+            $Model = (Get-CimInstance -ClassName CIM_ComputerSystem -ErrorAction SilentlyContinue -Verbose:$false).Model
+        }
+
+        $Model = $Model.Trim()
+
+        if ($Model.Length -gt 5) {
+            $Model = $Model.Substring(0, 4)
+        }
+
+        if ($Model -notmatch '^\w{4,5}$') {
+            throw "Could not parse computer model number. This may not be a Lenovo computer, or an unsupported model."
         }
 
         Write-Verbose "Lenovo Model is: $Model"
