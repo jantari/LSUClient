@@ -84,10 +84,6 @@
             throw "You can only use -NoTestApplicable or -NoTestInstalled together with -All"
         }
 
-        if (-not (Test-RunningAsAdmin)) {
-            Write-Warning "Unfortunately, this command produces most accurate results when run as an Administrator`r`nbecause some of the commands Lenovo uses to detect your computers hardware have to run as admin :("
-        }
-
         if (-not $Model) {
             $Model = (Get-CimInstance -ClassName CIM_ComputerSystem -ErrorAction SilentlyContinue -Verbose:$false).Model
         }
@@ -103,6 +99,10 @@
         }
 
         Write-Verbose "Lenovo Model is: $Model"
+
+        if (-not (Test-RunningAsAdmin)) {
+            Write-Warning "Unfortunately, this command produces most accurate results when run as an Administrator`r`nbecause some of the commands Lenovo uses to detect your computers hardware have to run as admin :("
+        }
 
         $RepositoryInfo = Get-PackagePathInfo -Path $Repository -ErrorVariable InvalidRepositoryReason
         if (-not $RepositoryInfo.Valid) {
