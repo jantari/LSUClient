@@ -39,7 +39,8 @@
     if ([System.Uri]::IsWellFormedUriString($Path, [System.UriKind]::Absolute)) {
         $UriToUse = $Path
     } elseif ($BasePath) {
-        $JoinedUrl = $BasePath.TrimEnd('/', '\') + '/' + $Path.TrimStart('/', '\')
+        # Escape the relative part of the URL as it can contain a filename that is not directly URL-compatible, see issue #39
+        $JoinedUrl = $BasePath.TrimEnd('/', '\') + '/' + [System.Uri]::EscapeUriString($Path.TrimStart('/', '\'))
         if ([System.Uri]::IsWellFormedUriString($JoinedUrl, [System.UriKind]::Absolute)) {
             $UriToUse = $JoinedUrl
         }

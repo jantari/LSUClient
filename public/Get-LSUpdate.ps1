@@ -195,6 +195,7 @@
                 if ($FileInfo.Valid) {
                     $PackageFiles.Add(
                         [PackageFilePointer]::new(
+                            $_.Name,
                             $FileInfo.AbsoluteLocation,
                             $FileInfo.Type,
                             $_.ParentNode.SchemaInfo.Name,

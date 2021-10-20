@@ -47,7 +47,25 @@ class PackageFilePointer {
     [string] $Checksum
     [Int64] $Size
 
-    # Constructor from absolute path
+    # Constructor with file name
+    PackageFilePointer (
+        [string] $Name,
+        [string] $AbsoluteLocation,
+        [string] $LocationType,
+        [string] $Kind,
+        [string] $Checksum,
+        [Int64] $Size
+    ) {
+        $this.AbsoluteLocation = $AbsoluteLocation
+        $this.Name = $Name -replace '^.*[\\/]'
+        $this.Container = $AbsoluteLocation -replace '[^\\/]*$'
+        $this.LocationType = $LocationType
+        $this.Kind = $Kind
+        $this.Checksum = $Checksum
+        $this.Size = $Size
+    }
+
+    # Constructor without explicit file name
     PackageFilePointer (
         [string] $AbsoluteLocation,
         [string] $LocationType,
@@ -69,7 +87,27 @@ class PackageFilePointer {
 class PackageXmlPointer : PackageFilePointer {
     [string] $Category
 
-    # Constructor from absolute path
+    # Constructor with file name
+    PackageXmlPointer (
+        [string] $Name,
+        [string] $AbsoluteLocation,
+        [string] $LocationType,
+        [string] $Kind,
+        [string] $Checksum,
+        [Int64] $Size,
+        [string] $Category
+    ) : base (
+        $Name,
+        $AbsoluteLocation,
+        $LocationType,
+        $Kind,
+        $Checksum,
+        $Size
+    ) {
+        $this.Category = $Category
+    }
+
+    # Constructor without explicit file name
     PackageXmlPointer (
         [string] $AbsoluteLocation,
         [string] $LocationType,
