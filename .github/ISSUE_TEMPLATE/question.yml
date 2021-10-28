@@ -1,0 +1,19 @@
+name: Question 🙋
+description: Ask a question about the module or its usage
+labels: ["question"]
+body:
+  - type: input
+    id: module-version
+    attributes:
+      label: Version
+      description: What version of LSUClient are you using?
+      placeholder: e.g. 1.3.2
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true
