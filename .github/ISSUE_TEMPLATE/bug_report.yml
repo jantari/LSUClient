@@ -5,13 +5,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        Create a report to help us improve
+        Create a report to help us improve.
 
   - type: input
     id: module-version
     attributes:
       label: Version
-      description: Which version of LSUClient did you encounter the problem with?
+      description: What version of LSUClient did you encounter the problem with?
       placeholder: e.g. 1.3.2
     validations:
       required: true
@@ -20,8 +20,8 @@ body:
     id: computer-model
     attributes:
       label: Computer Model
-      description: What model of computer did you encounter the problem on?
-      placeholder: Run `(Get-CimInstance CIM_ComputerSystem).Model` and paste the output here or refer to the sticker on the computer
+      description: Run `(Get-CimInstance CIM_ComputerSystem).Model` and paste the output here or refer to the sticker on the computer
+      placeholder: e.g. 20K70000GE or 11JJ000BGE
     validations:
       required: true
 
