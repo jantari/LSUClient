@@ -37,7 +37,7 @@ body:
     id: additional-info
     attributes:
       label: Additional context
-      description: Optional: Add anything else about the problem here
+      description: 'Optional: Add anything else about the problem here'
       placeholder: You can paste screenshots, links, log files or console output here
     validations:
       required: false
