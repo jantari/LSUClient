@@ -6,7 +6,8 @@
         [System.Xml.XmlElement]$Dependency,
         [Parameter( Mandatory = $true )]
         [string]$PackagePath,
-        [int]$DebugIndent = 0
+        [int]$DebugIndent = 0,
+        [switch]$FailInboxDrivers
     )
 
     #  0 SUCCESS, Dependency is met
@@ -64,9 +65,22 @@
                     foreach ($Device in $DevicesMatched) {
                         # First, check if there is a driver installed for the device at all before proceeding (issue#24)
                         if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
-                            [string]$HexDeviceProblemStatus = '0x{0:X8}' -f ($Device | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_ProblemStatus').Data
+                            [string]$HexDeviceProblemStatus = '0x{0:X8}' -f (Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_ProblemStatus').Data
                             Write-Debug "$('- ' * $DebugIndent)Device '$($Device.InstanceId)' does not have any driver (ProblemStatus: $HexDeviceProblemStatus)"
                             return -1
+                        }
+
+                        if ($FailInboxDrivers) {
+                            # This approach of identifying 'inbox' drivers seems to produce the most matching SeverityOverride results.
+                            # Some alternatives tested were DEVPKEY_Device_GenericDriverInstalled and Get-AuthenticodeSignature .IsOSBinary property.
+                            [bool]$DriverIsInbox = (
+                                (Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverProvider').Data -eq 'Microsoft' -and
+                                (Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverInfPath').Data -notmatch '^oem\d+\.inf$'
+                            )
+                            if ($DriverIsInbox) {
+                                Write-Debug "$('- ' * $DebugIndent)Failed because device is using an inbox driver"
+                                return -1
+                            }
                         }
 
                         $icmParams = @{

@@ -5,7 +5,8 @@
         $XMLIN,
         [Parameter( Mandatory = $true )]
         [string]$PackagePath,
-        [switch]$TreatUnsupportedAsPassed
+        [switch]$TreatUnsupportedAsPassed,
+        [switch]$FailInboxDrivers
     )
 
     $XMLTreeDepth++
@@ -20,7 +21,7 @@
         }
 
         $Result = if ($XMLTREE.SchemaInfo.Name -like "_*") {
-            switch (Test-MachineSatisfiesDependency -Dependency $XMLTREE -PackagePath $PackagePath -DebugIndent $XMLTreeDepth) {
+            switch (Test-MachineSatisfiesDependency -Dependency $XMLTREE -PackagePath $PackagePath -DebugIndent $XMLTreeDepth -FailInboxDrivers:$FailInboxDrivers) {
                 0 {
                     $true
                 }
@@ -33,7 +34,7 @@
                 }
             }
         } else {
-            $SubtreeResults = Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -PackagePath $PackagePath -TreatUnsupportedAsPassed:$TreatUnsupportedAsPassed
+            $SubtreeResults = Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -PackagePath $PackagePath -TreatUnsupportedAsPassed:$TreatUnsupportedAsPassed -FailInboxDrivers:$FailInboxDrivers
             switch ($XMLTREE.SchemaInfo.Name) {
                 'And' {
                     Write-Debug "$('- ' * $XMLTreeDepth)Tree was AND: Results: $subtreeresults"

@@ -251,7 +251,7 @@
             [Severity]$PackageSeverity = $packageXML.Package.Severity.type
             if (-not $NoTestSeverityOverride -and $packageXML.Package.SeverityOverride -and ($packageXML.Package.SeverityOverride.type -ne $packageXML.Package.Severity.type)) {
                 Write-Verbose "Parsing severity override for package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
-                if (Resolve-XMLDependencies -XMLIN $packageXML.Package.SeverityOverride -TreatUnsupportedAsPassed:$true -PackagePath $LocalPackageRoot) {
+                if (Resolve-XMLDependencies -XMLIN $packageXML.Package.SeverityOverride -TreatUnsupportedAsPassed:$true -PackagePath $LocalPackageRoot -FailInboxDrivers) {
                     Write-Debug "Default severity $($packageXML.Package.Severity.type) overriden with $($packageXML.Package.SeverityOverride.type)"
                     [Severity]$PackageSeverity = $packageXML.Package.SeverityOverride.type
                 }
