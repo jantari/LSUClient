@@ -29,8 +29,6 @@ Describe 'Expand-LSUpdate' {
                 }
             }
 
-            Mock -CommandName Invoke-PackageCommand -ModuleName LSUClient -Verifiable
-
             Expand-LSUpdate -Package $MockPackage -WorkingDirectory "$PWD" -WarningAction Ignore | Should -Be $null
         }
     }
@@ -42,8 +40,6 @@ Describe 'Expand-LSUpdate' {
                     Command = 'NonExistantFile Bogus Arguments'
                 }
             }
-
-            Mock -CommandName Invoke-PackageCommand -ModuleName LSUClient -Verifiable
 
             Expand-LSUpdate -Package $MockPackage -WorkingDirectory "$PWD" -WarningVariable WARNING -WarningAction SilentlyContinue
             $warning | Should -Not -BeNullOrEmpty
