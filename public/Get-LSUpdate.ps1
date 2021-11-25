@@ -23,6 +23,9 @@
         E.g. this will return LTE-Modem drivers even on machines that do not have the optional LTE-Modem installed, or 32-bit drivers on a 64-bit OS.
         Attempting to install such drivers will likely fail.
 
+        .PARAMETER IncludePhantomDevices
+        Consider currently disconnected ("phantom") devices as well when evaluating relevant packages.
+
         .PARAMETER ScratchDirectory
         The path to a directory where temporary files are downloaded to for use during the search for packages. Defaults to $env:TEMP.
 
@@ -65,6 +68,7 @@
         [pscredential]$ProxyCredential,
         [switch]$ProxyUseDefaultCredentials,
         [switch]$All,
+        [switch]$IncludePhantomDevices,
         [System.IO.DirectoryInfo]$ScratchDirectory = $env:TEMP,
         [string]$Repository = 'https://download.lenovo.com/catalog',
         [switch]$NoTestApplicable,
@@ -116,7 +120,7 @@
             '_OS'                        = 'WIN' + (Get-CimInstance Win32_OperatingSystem -Verbose:$false).Version -replace "\..*"
             '_CPUAddressWidth'           = [wmisearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
             '_Bios'                      = $SMBiosInformation.SMBIOSBIOSVersion
-            '_PnPID'                     = @(Get-PnpDevice)
+            '_PnPID'                     = if ($IncludePhantomDevices) { Get-PnpDevice } else { Get-PnpDevice -PresentOnly }
             '_EmbeddedControllerVersion' = @($SMBiosInformation.EmbeddedControllerMajorVersion, $SMBiosInformation.EmbeddedControllerMinorVersion) -join '.'
         }
 
