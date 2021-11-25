@@ -311,8 +311,24 @@
         }
         '_WindowsBuildVersion' {
             $Build = (Get-WindowsVersion).Build
-            Write-Debug "$('- ' * $DebugIndent)[ Got: $Build, Expected: $($Dependency.Version) ]"
-            return (Test-VersionPattern -LenovoString $Dependency.Version -SystemString $Build)
+
+            # A _WindowsBuildVersion test can specify multiple Build Versions, see issue #42
+            [array]$TestResults = foreach ($DependencyVersion in $Dependency.Version) {
+                Write-Debug "$('- ' * $DebugIndent)[ Got: $Build, Expected: $DependencyVersion ]"
+                Test-VersionPattern -LenovoString $DependencyVersion -SystemString $Build
+            }
+
+            # If we had a clear success match, return success overall.
+            # If we had no clear successes, but an unsupported case, return
+            # -2 for unsupported so the calling function can evaluate that.
+            # Otherwise return -1 to indicate failure (no matches).
+            if ($TestResults -contains 0) {
+                return 0
+            } elseif ($TestResults -contains -2) {
+                return -2
+            } else {
+                return -1
+            }
         }
         default {
             Write-Verbose "Unsupported dependency encountered: $_"
