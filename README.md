@@ -42,6 +42,7 @@ $updates | Install-LSUpdate -Verbose
 <b>Install only packages that can be installed silently and non-interactively:</b>
 ```powershell
 $updates = Get-LSUpdate | Where-Object { $_.Installer.Unattended }
+$updates | Save-LSUpdate -Verbose
 $updates | Install-LSUpdate -Verbose
 ```
 
