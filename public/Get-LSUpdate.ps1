@@ -115,9 +115,11 @@
 
         $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
 
+        [Version]$WindowsVersion = Get-WindowsVersion
         $SMBiosInformation = Get-CimInstance -ClassName Win32_BIOS -Verbose:$false
         $script:CachedHardwareTable = @{
-            '_OS'                        = 'WIN' + (Get-CimInstance Win32_OperatingSystem -Verbose:$false).Version -replace "\..*"
+            '_OS'                        = if ($WindowsVersion -ge [Version]::new(10, 0, 22000, 0)) { 'Win11' } else { 'Win10' }
+            '_WindowsBuildVersion'       = $WindowsVersion.Build
             '_CPUAddressWidth'           = [wmisearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
             '_Bios'                      = $SMBiosInformation.SMBIOSBIOSVersion
             '_PnPID'                     = if ($IncludePhantomDevices) { Get-PnpDevice } else { Get-PnpDevice -PresentOnly }

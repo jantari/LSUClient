@@ -17,10 +17,10 @@
     Write-Verbose "Looking for packages in repository '${Repository}' (Type: ${RepositoryType})"
 
     if ($RepositoryType -eq 'HTTP') {
-        $ModelXmlPath    = $Repository.TrimEnd('/', '\') + "/${Model}_Win10.xml"
+        $ModelXmlPath    = $Repository.TrimEnd('/', '\') + "/${Model}_$($CachedHardwareTable['_OS']).xml"
         $DatabaseXmlPath = $Repository.TrimEnd('/', '\') + '/database.xml'
     } elseif ($RepositoryType -eq 'FILE') {
-        $ModelXmlPath    = Join-Path -Path $Repository -ChildPath "${Model}_Win10.xml"
+        $ModelXmlPath    = Join-Path -Path $Repository -ChildPath "${Model}_$($CachedHardwareTable['_OS']).xml"
         $DatabaseXmlPath = Join-Path -Path $Repository -ChildPath "database.xml"
     }
 

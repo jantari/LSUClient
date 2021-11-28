@@ -310,12 +310,10 @@
             }
         }
         '_WindowsBuildVersion' {
-            $Build = (Get-WindowsVersion).Build
-
             # A _WindowsBuildVersion test can specify multiple Build Versions, see issue #42
             [array]$TestResults = foreach ($DependencyVersion in $Dependency.Version) {
-                Write-Debug "$('- ' * $DebugIndent)[ Got: $Build, Expected: $DependencyVersion ]"
-                Test-VersionPattern -LenovoString $DependencyVersion -SystemString $Build
+                Write-Debug "$('- ' * $DebugIndent)[ Got: $($CachedHardwareTable['_WindowsBuildVersion']), Expected: $DependencyVersion ]"
+                Test-VersionPattern -LenovoString $DependencyVersion -SystemString $CachedHardwareTable['_WindowsBuildVersion']
             }
 
             # If we had a clear success match, return success overall.

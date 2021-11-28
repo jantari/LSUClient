@@ -25,7 +25,7 @@ enum DependencyParserState {
 # Check for old Windows versions in a manner that is compatible with PowerShell 2.0 all the way up to 7.1
 $WindowsVersion = (New-Object -TypeName 'System.Management.ManagementObjectSearcher' -ArgumentList "SELECT Version FROM Win32_OperatingSystem").Get() | Select-Object -ExpandProperty Version
 if ($WindowsVersion -notlike "10.*") {
-    throw "This module requires Windows 10."
+    throw "This module requires Windows 10 or 11."
 }
 
 $script:CachedHardwareTable = @{}
