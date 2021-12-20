@@ -176,7 +176,21 @@ class PackageInstallInfo {
         $this.SuccessCodes   = $PackageXML.Install.rc -split ','
         $this.InfFile        = $PackageXML.Install.INFCmd.INFfile
         $this.Command        = $PackageXML.Install.Cmdline.'#text'
-        if (($PackageXML.Reboot.type -in 0, 3) -or
+        <# 
+            This PDF contains the definition of Reboot Types 0-4
+            - https://download.lenovo.com/pccbbs/mobiles_pdf/tvsu5_mst_en.pdf
+            This page introduces Reboot Type 5, delayed reboot
+            - https://thinkdeploy.blogspot.com/2019/06/what-are-reboot-delayed-updates.html
+            
+            All known Reboot Types
+            0 - No reboot
+            1 - Forces a reboot
+            2 - Reserved
+            3 - Requires reboot
+            4 - Power off
+            5 - Reboot Delayed (Multiple updates can be applied and one reboot can work for all of them)
+        #>
+        if (($PackageXML.Reboot.type -in 0, 3, 5) -or
             ($PackageXML.Install.Cmdline.'#text' -match 'winuptp\.exe|Flash\.cmd') -or
             ($PackageXML.Install.type -eq 'INF'))
         {
