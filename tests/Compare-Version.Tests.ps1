@@ -13,8 +13,13 @@ Describe "Compare-Version" {
         $result | Should -Be 0
     }
 
-    It 'Equal versions - Uneven lengths, trailing zeros' {
+    It 'Equal versions - DifferenceVersion has trailing zeros' {
         $result = Compare-Version -ReferenceVersion @(1,0,23,4,1) -DifferenceVersion @(1,0,23,4,1,0,0)
+        $result | Should -Be 0
+    }
+
+    It 'Equal versions - ReferenceVersion has trailing zeros' {
+        $result = Compare-Version -ReferenceVersion @(1,0,23,4,1,0,0) -DifferenceVersion @(1,0,23,4,1)
         $result | Should -Be 0
     }
 
