@@ -23,7 +23,6 @@ Describe 'Save-PackageFile' {
 
             $Destination | Should -Exist
 
-            Write-Host $return
             Remove-Item -LiteralPath $Destination
 
             $return | Should -Not -BeNullOrEmpty
@@ -63,7 +62,6 @@ Describe 'Save-PackageFile' {
 
             $Destination | Should -Exist
 
-            Write-Host $return
             Remove-Item -LiteralPath $Destination
 
             $return | Should -Not -BeNullOrEmpty
