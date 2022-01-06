@@ -181,7 +181,7 @@ class PackageInstallInfo {
             - https://download.lenovo.com/pccbbs/mobiles_pdf/tvsu5_mst_en.pdf
             This page introduces Reboot Type 5, delayed reboot
             - https://thinkdeploy.blogspot.com/2019/06/what-are-reboot-delayed-updates.html
-            
+
             All known Reboot Types
             0 - No reboot
             1 - Forces a reboot
