@@ -1,9 +1,9 @@
-﻿name: Run PSScriptAnalyzer
+﻿name: CI
 
 on: push
 
 jobs:
-  PSSA:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
@@ -43,3 +43,26 @@ jobs:
             -H "Content-Type: application/json" \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/comments"
+  test:
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Install Pester Module
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -Scope CurrentUser -Repository PSGallery -Force
+        shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
+
+      - name: Run Pester Tests
+        run: |
+          Import-Module Pester
+
+          $cfg = [PesterConfiguration]::Default
+          $cfg.Output.Verbosity = 'Detailed'
+          $cfg.CodeCoverage.Enabled = $true
+          $cfg.Run.Exit = $true
+
+          Invoke-Pester -Configuration $cfg
+        shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
+
