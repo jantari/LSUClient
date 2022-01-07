@@ -17,6 +17,10 @@ jobs:
       - name: Run PSScriptAnalyzer
         run: |
           Import-Module PSScriptAnalyzer
+          # Prevent ANSI escape sequences in commit comment in PS 7.2+
+          if ($PSStyle.OutputRendering) {
+            $PSStyle.OutputRendering = 'Host'
+          }
           $PSSAResults = Invoke-ScriptAnalyzer -Path "$ENV:GITHUB_WORKSPACE" -ExcludeRule PSAvoidTrailingWhitespace -Recurse -Verbose
           $SUMMARY     = ($PSSAResults | Group-Object -Property Severity -NoElement | Foreach-Object { "- $($_.Count) $($_.Name)" }) -join [Environment]::NewLine
           $DETAILS     = ($PSSAResults | Format-List -Property @{'Name' = 'Location'; 'Expression' = { "{0} [{1}, {2}]" -f (Resolve-Path -LiteralPath $_.ScriptPath -Relative), $_.Line, $_.Column }}, RuleName, Severity, Message | Out-String -Width 88).Trim()
