@@ -141,13 +141,15 @@ class LenovoPackage {
     [Int64] $Size
     [string] $URL
     hidden [System.Collections.Generic.List[PackageFilePointer]] $Files
-    [PackageExtractInfo] $Extracter
+    hidden [PackageExtractInfo] $Extracter # Unused, kept for backwards compatibility
     [PackageInstallInfo] $Installer
     [Nullable[bool]] $IsApplicable
     [Nullable[bool]] $IsInstalled
 }
 
 # Public
+# Unused, kept for backwards compatibility with
+# scripts in case anyone uses these properties.
 class PackageExtractInfo {
     [string] $Command
     [string] $FileName
@@ -156,9 +158,9 @@ class PackageExtractInfo {
 
     PackageExtractInfo ([System.Xml.XmlElement]$PackageXML) {
         $this.Command  = $PackageXML.ExtractCommand
-        $this.FileName = $PackageXML.Files.Installer.File.Name # Unused, kept for backwards compatibility
-        $this.FileSize = $PackageXML.Files.Installer.File.Size # Unused, kept for backwards compatibility
-        $this.FileSHA  = $PackageXML.Files.Installer.File.CRC  # Unused, kept for backwards compatibility
+        $this.FileName = $PackageXML.Files.Installer.File.Name
+        $this.FileSize = $PackageXML.Files.Installer.File.Size
+        $this.FileSHA  = $PackageXML.Files.Installer.File.CRC
     }
 }
 
@@ -169,12 +171,14 @@ class PackageInstallInfo {
     [string] $InstallType
     [int64[]] $SuccessCodes
     [string] $InfFile
+    [string] $ExtractCommand
     [string] $Command
 
     PackageInstallInfo ([System.Xml.XmlElement]$PackageXML) {
         $this.InstallType    = $PackageXML.Install.type
         $this.SuccessCodes   = $PackageXML.Install.rc -split ','
         $this.InfFile        = $PackageXML.Install.INFCmd.INFfile
+        $this.ExtractCommand = $PackageXML.ExtractCommand
         $this.Command        = $PackageXML.Install.Cmdline.'#text'
         <# 
             This PDF contains the definition of Reboot Types 0-4
