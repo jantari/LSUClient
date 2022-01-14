@@ -87,5 +87,42 @@
         </ListEntries>
       </ListControl>
     </View>
+    <View>
+      <Name>InstallResultFormat</Name>
+      <ViewSelectedBy><TypeName>PackageInstallResult</TypeName></ViewSelectedBy>
+      <ListControl>
+      <ListEntries><ListEntry><ListItems>
+        <ListItem><PropertyName>ID</PropertyName></ListItem>
+        <ListItem><PropertyName>Title</PropertyName></ListItem>
+        <ListItem><PropertyName>Type</PropertyName></ListItem>
+        <ListItem><PropertyName>Success</PropertyName></ListItem>
+        <ListItem><PropertyName>FailureReason</PropertyName></ListItem>
+        <ListItem><PropertyName>ActionNeeded</PropertyName></ListItem>
+        <ListItem><PropertyName>ExitCode</PropertyName></ListItem>
+        <!-- <ListItem><PropertyName>StandardOutput</PropertyName></ListItem> -->
+        <ListItem><Label>StandardOutput</Label><ScriptBlock>
+          if ($_.StandardOutput.Count -gt 30) {
+            @('...') + $_.StandardOutput[-30..-1] -join [Environment]::NewLine
+          } else {
+            $_.StandardOutput -join [Environment]::NewLine
+          }
+        </ScriptBlock></ListItem>
+        <ListItem><Label>StandardError</Label><ScriptBlock>
+          if ($_.StandardError.Count -gt 30) {
+            @('...') + $_.StandardError[-30..-1] -join [Environment]::NewLine
+          } else {
+            $_.StandardError -join [Environment]::NewLine
+          }
+        </ScriptBlock></ListItem>
+        <ListItem><Label>LogOutput</Label><ScriptBlock>
+          if ($_.LogOutput.Count -gt 30) {
+            @('...') + $_.LogOutput[-30..-1] -join [Environment]::NewLine
+          } else {
+            $_.LogOutput -join [Environment]::NewLine
+          }
+        </ScriptBlock></ListItem>
+        <ListItem><PropertyName>Runtime</PropertyName></ListItem>
+      </ListItems></ListEntry></ListEntries></ListControl>
+    </View>
   </ViewDefinitions>
 </Configuration>

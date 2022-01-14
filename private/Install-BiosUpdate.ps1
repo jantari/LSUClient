@@ -20,10 +20,16 @@
         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command 'winuptp.exe -s'
         if ($installProcess) {
             return [BiosUpdateInfo]@{
-                'Timestamp'    = [datetime]::Now.ToFileTime()
-                'ExitCode'     = $installProcess.ExitCode
-                'LogMessage'   = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -Raw -ErrorAction SilentlyContinue) { $Log.Trim() } else { [String]::Empty }
-                'ActionNeeded' = 'REBOOT'
+                'FilePath'         = $installProcess.FilePath
+                'Arguments'        = $installProcess.Arguments
+                'WorkingDirectory' = $installProcess.WorkingDirectory
+                'Timestamp'        = [datetime]::Now.ToFileTime()
+                'ExitCode'         = $installProcess.ExitCode
+                'StandardOutput'   = $installProcess.StandardOutput
+                'StandardError'    = $installProcess.StandardError
+                'LogMessage'       = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -ErrorAction SilentlyContinue) { $Log } else { [String]::Empty }
+                'Runtime'          = $installProcess.Runtime
+                'ActionNeeded'     = 'REBOOT'
             }
         }
     } elseif ((Test-Path -LiteralPath "$PackageDirectory\Flash.cmd" -PathType Leaf) -and (Test-Path -LiteralPath "$PackageDirectory\wflash2.exe" -PathType Leaf)) {
@@ -41,10 +47,16 @@
             # Handle the case where $installProcess is NULL because the process never started
             if ($installProcess) {
                 return [BiosUpdateInfo]@{
-                    'Timestamp'    = [datetime]::Now.ToFileTime()
-                    'ExitCode'     = $installProcess.ExitCode
-                    'LogMessage'   = $installProcess.StandardOutput
-                    'ActionNeeded' = 'SHUTDOWN'
+                    'FilePath'         = $installProcess.FilePath
+                    'Arguments'        = $installProcess.Arguments
+                    'WorkingDirectory' = $installProcess.WorkingDirectory
+                    'Timestamp'        = [datetime]::Now.ToFileTime()
+                    'ExitCode'         = $installProcess.ExitCode
+                    'StandardOutput'   = $installProcess.StandardOutput
+                    'StandardError'    = $installProcess.StandardError
+                    'LogMessage'       = ''
+                    'Runtime'          = $installProcess.Runtime
+                    'ActionNeeded'     = 'SHUTDOWN'
                 }
             }
         } else {

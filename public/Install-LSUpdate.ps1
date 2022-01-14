@@ -65,21 +65,38 @@
             if ($PackageToProcess.Installer.Command -match 'winuptp\.exe|Flash\.cmd') {
                 # We are dealing with a known kind of BIOS Update
                 [BiosUpdateInfo]$BIOSUpdateExit = Install-BiosUpdate -PackageDirectory $PackageDirectory
-                if ($BIOSUpdateExit) {
-                    if ($BIOSUpdateExit.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
-                        Write-Warning "Unattended BIOS/UEFI update FAILED with return code $($BIOSUpdateExit.ExitCode)!`r`n"
-                        if ($BIOSUpdateExit.LogMessage) {
-                            Write-Warning "The following information was collected:`r`n$($BIOSUpdateExit.LogMessage)`r`n"
-                        }
-                    } else {
-                        # BIOS Update successful
-                        Write-Output "BIOS UPDATE SUCCESS: An immediate full $($BIOSUpdateExit.ActionNeeded) is strongly recommended to allow the BIOS update to complete!"
-                        if ($SaveBIOSUpdateInfoToRegistry) {
-                            Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash $Extracter.Checksum
-                        }
-                    }
-                } else {
+
+                $Success = $BIOSUpdateExit -and $BIOSUpdateExit.ExitCode -in $PackageToProcess.Installer.SuccessCodes
+
+                $FailureReason = if (-not $BIOSUpdateExit) {
                     Write-Warning "The BIOS update could not be installed, the most likely cause is that it's an unknown, unsupported kind"
+                    'Unknown'
+                } elseif (-not $Success) {
+                    'ExitCode'
+                } else {
+                    ''
+                }
+
+                if ($Success) {
+                    # BIOS Update successful
+                    Write-Output "BIOS UPDATE SUCCESS: An immediate full $($BIOSUpdateExit.ActionNeeded) is strongly recommended to allow the BIOS update to complete!"
+                    if ($SaveBIOSUpdateInfoToRegistry) {
+                        Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash $Extracter.Checksum
+                    }
+                }
+
+                [PackageInstallResult]@{
+                    ID             = $PackageToProcess.ID
+                    Title          = $PackageToProcess.Title
+                    Type           = $PackageToProcess.Type
+                    Success        = $Success
+                    FailureReason  = $FailureReason
+                    ActionNeeded   = if ($Success) { $BIOSUpdateExit.ActionNeeded } else { 'NONE' }
+                    ExitCode       = $BIOSUpdateExit.ExitCode
+                    StandardOutput = $BIOSUpdateExit.StandardOutput
+                    StandardError  = $BIOSUpdateExit.StandardError
+                    LogOutput      = $BIOSUpdateExit.LogMessage
+                    Runtime        = if ($BIOSUpdateExit) { $BIOSUpdateExit.Runtime } else { [TimeSpan]::Zero }
                 }
             } else {
                 switch ($PackageToProcess.Installer.InstallType) {
@@ -87,14 +104,29 @@
                         # Correct typo from Lenovo ... yes really...
                         $InstallCMD     = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
                         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
-                        if (-not $installProcess) {
-                            Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED - the installation could not start"
-                        } elseif ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
-                            if ($installProcess.StandardOutput -or $installProcess.StandardError) {
-                                Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List ExitCode, StandardOutput, StandardError | Out-String)"
-                            } else {
-                                Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED with ExitCode $($installProcess.ExitCode)"
-                            }
+
+                        $Success = $installProcess -and $installProcess.ExitCode -in $PackageToProcess.Installer.SuccessCodes
+
+                        $FailureReason = if (-not $installProcess) {
+                            'Unknown'
+                        } elseif (-not $Success) {
+                            'ExitCode'
+                        } else {
+                            ''
+                        }
+
+                        [PackageInstallResult]@{
+                            ID             = $PackageToProcess.ID
+                            Title          = $PackageToProcess.Title
+                            Type           = $PackageToProcess.Type
+                            Success        = $Success
+                            FailureReason  = $FailureReason
+                            ActionNeeded   = if ($Success -and $PackageToProcess.RebootType -in 3, 5) { 'REBOOT' } else { 'NONE' }
+                            ExitCode       = $installProcess.ExitCode
+                            StandardOutput = $installProcess.StandardOutput
+                            StandardError  = $installProcess.StandardError
+                            LogOutput      = ''
+                            Runtime        = if ($installProcess) { $installProcess.Runtime } else { [TimeSpan]::Zero }
                         }
                     }
                     'INF' {

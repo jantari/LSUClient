@@ -206,18 +206,6 @@ class PackageInstallInfo {
 }
 
 # Internal
-class BiosUpdateInfo {
-    [ValidateNotNullOrEmpty()]
-    [bool] $WasRun
-    [int64] $Timestamp
-    [ValidateNotNullOrEmpty()]
-    [int64] $ExitCode
-    [string] $LogMessage
-    [ValidateNotNullOrEmpty()]
-    [string] $ActionNeeded
-}
-
-# Internal
 class ProcessReturnInformation {
     [ValidateNotNullOrEmpty()]
     [string] $FilePath
@@ -226,6 +214,29 @@ class ProcessReturnInformation {
     [string[]] $StandardOutput
     [string[]] $StandardError
     [Int64] $ExitCode
+    [TimeSpan] $Runtime
+}
+
+# Internal
+class BiosUpdateInfo : ProcessReturnInformation {
+    [bool] $WasRun
+    [int64] $Timestamp
+    [string[]] $LogMessage
+    [string] $ActionNeeded
+}
+
+# Public
+class PackageInstallResult {
+    [string] $ID
+    [string] $Title
+    [Nullable[PackageType]] $Type
+    [bool] $Success
+    [string] $FailureReason
+    [string] $ActionNeeded
+    [Int64] $ExitCode
+    [string[]] $StandardOutput
+    [string[]] $StandardError
+    [string[]] $LogOutput
     [TimeSpan] $Runtime
 }
 
