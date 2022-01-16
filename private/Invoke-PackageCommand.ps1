@@ -152,12 +152,30 @@
         switch ($RunspaceStandardOut[-1].HandledError) {
             # Success case
             0 {
+                $NonEmptyPredicate = [Predicate[string]] { -not [string]::IsNullOrWhiteSpace($args[0]) }
+
+                $StdOutFirstNonEmpty = [array]::FindIndex([string[]]$RunspaceStandardOut[-1].StandardOutput, $NonEmptyPredicate)
+                if ($StdOutFirstNonEmpty -ne -1) {
+                    $StdOutLastNonEmpty = [array]::FindLastIndex([string[]]$RunspaceStandardOut[-1].StandardOutput, $NonEmptyPredicate)
+                    $StdOutTrimmed = $RunspaceStandardOut[-1].StandardOutput[$StdOutFirstNonEmpty..$StdOutLastNonEmpty]
+                } else {
+                    $StdOutTrimmed = @()
+                }
+
+                $StdErrFirstNonEmpty = [array]::FindIndex([string[]]$RunspaceStandardOut[-1].StandardError, $NonEmptyPredicate)
+                if ($StdErrFirstNonEmpty -ne -1) {
+                    $StdErrLastNonEmpty = [array]::FindLastIndex([string[]]$RunspaceStandardOut[-1].StandardError, $NonEmptyPredicate)
+                    $StdErrTrimmed = $RunspaceStandardOut[-1].StandardError[$StdErrFirstNonEmpty..$StdErrLastNonEmpty]
+                } else {
+                    $StdErrTrimmed = @()
+                }
+
                 return [ProcessReturnInformation]@{
                     'FilePath'         = $ExeAndArgs.Executable
                     'Arguments'        = $ExeAndArgs.Arguments
                     'WorkingDirectory' = $Path
-                    'StandardOutput'   = $RunspaceStandardOut[-1].StandardOutput
-                    'StandardError'    = $RunspaceStandardOut[-1].StandardError
+                    'StandardOutput'   = $StdOutTrimmed
+                    'StandardError'    = $StdErrTrimmed
                     'ExitCode'         = $RunspaceStandardOut[-1].ExitCode
                     'Runtime'          = $RunspaceStandardOut[-1].Runtime
                 }
