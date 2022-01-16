@@ -66,36 +66,36 @@
                     # Other BIOS updates are not classified as unattended and will be treated like any other package.
                     if ($PackageToProcess.Installer.Command -match 'winuptp\.exe|Flash\.cmd') {
                         # We are dealing with a known kind of BIOS Update
-                        [BiosUpdateInfo]$installProcess = Install-BiosUpdate -PackageDirectory $PackageDirectory
+                        $installProcess = Install-BiosUpdate -PackageDirectory $PackageDirectory
                     } else {
                         # Correct typo from Lenovo ... yes really...
-                        $InstallCMD     = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
+                        $InstallCMD = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
                         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
                     }
 
-                    $Success = $installProcess -and $installProcess.ExitCode -in $PackageToProcess.Installer.SuccessCodes
+                    $Success = $installProcess.Err -eq [ExternalProcessError]::NONE -and $installProcess.Info.ExitCode -in $PackageToProcess.Installer.SuccessCodes
 
                     [PackageInstallResult]@{
                         ID             = $PackageToProcess.ID
                         Title          = $PackageToProcess.Title
                         Type           = $PackageToProcess.Type
                         Success        = $Success
-                        FailureReason  = if (-not $installProcess) { 'Unknown' } elseif (-not $Success) { 'ExitCode' } else { '' }
-                        ActionNeeded   = if (-not $Success) { 'NONE' } elseif ($installProcess -is [BiosUpdateInfo]) { $installProcess.ActionNeeded } elseif ($PackageToProcess.RebootType -in 3, 5) { 'REBOOT' } else { 'NONE' }
-                        ExitCode       = $installProcess.ExitCode
-                        StandardOutput = $installProcess.StandardOutput
-                        StandardError  = $installProcess.StandardError
-                        LogOutput      = if ($installProcess -is [BiosUpdateInfo]) { $installProcess.LogMessage } else { '' }
-                        Runtime        = if ($installProcess) { $installProcess.Runtime } else { [TimeSpan]::Zero }
+                        FailureReason  = if ($installProcess.Err) { "$($installProcess.Err)" } elseif (-not $Success) { 'INSTALLER_EXITCODE' } else { '' }
+                        ActionNeeded   = if (-not $Success) { 'NONE' } elseif ($installProcess -is [BiosUpdateInfo]) { $installProcess.Info.ActionNeeded } elseif ($PackageToProcess.RebootType -in 3, 5) { 'REBOOT' } else { 'NONE' }
+                        ExitCode       = $installProcess.Info.ExitCode
+                        StandardOutput = $installProcess.Info.StandardOutput
+                        StandardError  = $installProcess.Info.StandardError
+                        LogOutput      = if ($installProcess.Info -is [BiosUpdateInfo]) { $installProcess.Info.LogMessage } else { '' }
+                        Runtime        = if ($installProcess.Err) { [TimeSpan]::Zero } else { $installProcess.Info.Runtime }
                     }
 
                     # ONLY FOR BIOS-UPDATES
-                    if ($installProcess -is [BiosUpdateInfo]) {
+                    if ($installProcess.Info -is [BiosUpdateInfo]) {
                         if ($Success) {
                             # BIOS Update successful
-                            Write-Output "BIOS UPDATE SUCCESS: An immediate full $($BIOSUpdateExit.ActionNeeded) is strongly recommended to allow the BIOS update to complete!"
+                            Write-Output "BIOS UPDATE SUCCESS: An immediate full $($installProcess.Info.ActionNeeded) is strongly recommended to allow the BIOS update to complete!"
                             if ($SaveBIOSUpdateInfoToRegistry) {
-                                Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash $Extracter.Checksum
+                                Set-BIOSUpdateRegistryFlag -Timestamp $installProcess.Info.Timestamp -ActionNeeded $installProcess.Info.ActionNeeded -PackageHash $Extracter.Checksum
                             }
                         }
                     }

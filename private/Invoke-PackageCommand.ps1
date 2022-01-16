@@ -1,7 +1,8 @@
 ﻿function Invoke-PackageCommand {
     <#
         .SYNOPSIS
-        Tries to run a command, returns its ExitCode and Output if successful, otherwise returns NULL
+        Tries to run a command and returns an object containing an error
+        code and optionally information about the process that was run.
     #>
 
     [CmdletBinding()]
@@ -27,7 +28,10 @@
     # Split-ExecutableAndArguments returns NULL if no executable could be found
     if (-not $ExeAndArgs) {
         Write-Warning "The command or file '$Command' could not be found from '$Path' and was not run"
-        return $null
+        return [ExternalProcessResult]::new(
+            [ExternalProcessError]::FILE_NOT_FOUND,
+            $null
+        )
     }
 
     $ExeAndArgs.Arguments = Remove-CmdEscapeCharacter -String $ExeAndArgs.Arguments
@@ -170,38 +174,63 @@
                     $StdErrTrimmed = @()
                 }
 
-                return [ProcessReturnInformation]@{
-                    'FilePath'         = $ExeAndArgs.Executable
-                    'Arguments'        = $ExeAndArgs.Arguments
-                    'WorkingDirectory' = $Path
-                    'StandardOutput'   = $StdOutTrimmed
-                    'StandardError'    = $StdErrTrimmed
-                    'ExitCode'         = $RunspaceStandardOut[-1].ExitCode
-                    'Runtime'          = $RunspaceStandardOut[-1].Runtime
-                }
+                return [ExternalProcessResult]::new(
+                    [ExternalProcessError]::NONE,
+                    [ProcessReturnInformation]@{
+                        'FilePath'         = $ExeAndArgs.Executable
+                        'Arguments'        = $ExeAndArgs.Arguments
+                        'WorkingDirectory' = $Path
+                        'StandardOutput'   = $StdOutTrimmed
+                        'StandardError'    = $StdErrTrimmed
+                        'ExitCode'         = $RunspaceStandardOut[-1].ExitCode
+                        'Runtime'          = $RunspaceStandardOut[-1].Runtime
+                    }
+                )
             }
             # Error cases that are handled explicitly inside the runspace
             1 {
                 Write-Warning "No new process was created or a handle to it could not be obtained."
                 Write-Warning "Executable was: '$($ExeAndArgs.Executable)' - this should *probably* not have happened"
-                return $null
+                return [ExternalProcessResult]::new(
+                    [ExternalProcessError]::PROCESS_REUSED,
+                    $null
+                )
             }
             740 {
                 if (-not $FallbackToShellExecute) {
                     Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
                     Write-Warning "Process output cannot be captured when running with ShellExecute!"
                     return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
+                } else {
+                    return [ExternalProcessResult]::new(
+                        [ExternalProcessError]::PROCESS_REQUIRES_ELEVATION,
+                        $null
+                    )
                 }
             }
             193 {
                 if (-not $FallbackToShellExecute) {
                     Write-Warning "The file to be run is not an executable - falling back to ShellExecute"
                     return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
+                } else {
+                    return [ExternalProcessResult]::new(
+                        [ExternalProcessError]::FILE_NOT_EXECUTABLE,
+                        $null
+                    )
                 }
             }
         }
+    } else {
+        Write-Warning "The external process runspace did not run to completion because an unexpected error occurred."
+        return [ExternalProcessResult]::new(
+            [ExternalProcessError]::RUNSPACE_DIED_UNEXPECTEDLY,
+            $null
+        )
     }
 
-    Write-Warning "The external process runspace did not run to completion because an unexpected error occurred."
-    return $null
+    Write-Warning "An unexpected error occurred when trying to run the extenral process."
+    return [ExternalProcessResult]::new(
+        [ExternalProcessError]::UNKNOWN,
+        $null
+    )
 }

@@ -18,19 +18,24 @@
         }
 
         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command 'winuptp.exe -s'
-        if ($installProcess) {
-            return [BiosUpdateInfo]@{
-                'FilePath'         = $installProcess.FilePath
-                'Arguments'        = $installProcess.Arguments
-                'WorkingDirectory' = $installProcess.WorkingDirectory
-                'Timestamp'        = [datetime]::Now.ToFileTime()
-                'ExitCode'         = $installProcess.ExitCode
-                'StandardOutput'   = $installProcess.StandardOutput
-                'StandardError'    = $installProcess.StandardError
-                'LogMessage'       = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -ErrorAction SilentlyContinue) { $Log } else { [String]::Empty }
-                'Runtime'          = $installProcess.Runtime
-                'ActionNeeded'     = 'REBOOT'
-            }
+        if ($installProcess.Err) {
+            return $installProcess
+        } else {
+            return [ExternalProcessResult]::new(
+                $installProcess.Err,
+                [BiosUpdateInfo]@{
+                    'FilePath'         = $installProcess.Info.FilePath
+                    'Arguments'        = $installProcess.Info.Arguments
+                    'WorkingDirectory' = $installProcess.Info.WorkingDirectory
+                    'Timestamp'        = [datetime]::Now.ToFileTime()
+                    'ExitCode'         = $installProcess.Info.ExitCode
+                    'StandardOutput'   = $installProcess.Info.StandardOutput
+                    'StandardError'    = $installProcess.Info.StandardError
+                    'LogMessage'       = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -ErrorAction SilentlyContinue) { $Log } else { [String]::Empty }
+                    'Runtime'          = $installProcess.Info.Runtime
+                    'ActionNeeded'     = 'REBOOT'
+                }
+            )
         }
     } elseif ((Test-Path -LiteralPath "$PackageDirectory\Flash.cmd" -PathType Leaf) -and (Test-Path -LiteralPath "$PackageDirectory\wflash2.exe" -PathType Leaf)) {
         Write-Verbose "This is a ThinkCentre-style BIOS update`r`n"
@@ -44,23 +49,32 @@
         Remove-Item -LiteralPath "$wflashTestPath" -Recurse -Force
         if ($SCCMParameterIsSupported) {
             $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command 'Flash.cmd /ign /sccm /quiet'
-            # Handle the case where $installProcess is NULL because the process never started
-            if ($installProcess) {
-                return [BiosUpdateInfo]@{
-                    'FilePath'         = $installProcess.FilePath
-                    'Arguments'        = $installProcess.Arguments
-                    'WorkingDirectory' = $installProcess.WorkingDirectory
-                    'Timestamp'        = [datetime]::Now.ToFileTime()
-                    'ExitCode'         = $installProcess.ExitCode
-                    'StandardOutput'   = $installProcess.StandardOutput
-                    'StandardError'    = $installProcess.StandardError
-                    'LogMessage'       = ''
-                    'Runtime'          = $installProcess.Runtime
-                    'ActionNeeded'     = 'SHUTDOWN'
-                }
+            # Handle the case where $installProcess indicates an error because the process never started
+            if ($installProcess.Err) {
+                return $installProcess
+            } else {
+                return [ExternalProcessResult]::new(
+                    $installProcess.Err,
+                    [BiosUpdateInfo]@{
+                        'FilePath'         = $installProcess.Info.FilePath
+                        'Arguments'        = $installProcess.Info.Arguments
+                        'WorkingDirectory' = $installProcess.Info.WorkingDirectory
+                        'Timestamp'        = [datetime]::Now.ToFileTime()
+                        'ExitCode'         = $installProcess.Info.ExitCode
+                        'StandardOutput'   = $installProcess.Info.StandardOutput
+                        'StandardError'    = $installProcess.Info.StandardError
+                        'LogMessage'       = ''
+                        'Runtime'          = $installProcess.Info.Runtime
+                        'ActionNeeded'     = 'SHUTDOWN'
+                    }
+                )
             }
         } else {
             Write-Warning "This BIOS-Update uses an older version of wflash2.exe that cannot be installed without forcing a reboot - skipping!"
+            return [ExternalProcessResult]::new(
+                [ExternalProcessError]::OPERATION_NOT_SUPPORTED,
+                $null
+            )
         }
     }
 }

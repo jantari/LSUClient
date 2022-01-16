@@ -225,6 +225,33 @@ class BiosUpdateInfo : ProcessReturnInformation {
     [string] $ActionNeeded
 }
 
+# Internal
+enum ExternalProcessError {
+    NONE = 0 # No error aka Success
+    UNKNOWN = 1
+    OPERATION_NOT_SUPPORTED
+    RUNSPACE_DIED_UNEXPECTEDLY
+    FILE_NOT_FOUND
+    FILE_NOT_EXECUTABLE
+    PROCESS_REUSED
+    PROCESS_REQUIRES_ELEVATION
+    PROCESS_CANCELLED_BY_USER
+}
+
+# Internal
+class ExternalProcessResult {
+    [ExternalProcessError] $Err
+    [ProcessReturnInformation] $Info
+
+    ExternalProcessResult (
+        [ExternalProcessError] $Err,
+        [ProcessReturnInformation] $Info
+    ) {
+        $this.Err  = $Err
+        $this.Info = $Info
+    }
+}
+
 # Public
 class PackageInstallResult {
     [string] $ID

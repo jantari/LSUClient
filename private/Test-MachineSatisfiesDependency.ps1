@@ -217,11 +217,16 @@
         }
         '_ExternalDetection' {
             $externalDetection = Invoke-PackageCommand -Command $Dependency.'#text' -Path $PackagePath
-            Write-Debug "$('- ' * $DebugIndent)[ Got ExitCode: $($externalDetection.ExitCode), Expected: $($Dependency.rc) ]"
-            if ($externalDetection -and $externalDetection.ExitCode -in ($Dependency.rc -split ',')) {
-                return 0
-            } else {
+            if ($externalDetection.Err) {
+                Write-Debug "$('- ' * $DebugIndent)[ Process failed to start: $($externalDetection.Err) ]"
                 return -1
+            } else {
+                Write-Debug "$('- ' * $DebugIndent)[ Got ExitCode: $($externalDetection.Info.ExitCode), Expected: $($Dependency.rc) ]"
+                if ($externalDetection.Info.ExitCode -in ($Dependency.rc -split ',')) {
+                    return 0
+                } else {
+                    return -1
+                }
             }
         }
         '_FileExists' {
