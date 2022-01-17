@@ -91,6 +91,7 @@
                 $HandledError = 193
             } else {
                 Write-Error $_
+                $HandledError = 2 # Any other Process.Start exception
             }
         }
 
@@ -192,7 +193,13 @@
                 Write-Warning "No new process was created or a handle to it could not be obtained."
                 Write-Warning "Executable was: '$($ExeAndArgs.Executable)' - this should *probably* not have happened"
                 return [ExternalProcessResult]::new(
-                    [ExternalProcessError]::PROCESS_REUSED,
+                    [ExternalProcessError]::PROCESS_NONE_CREATED,
+                    $null
+                )
+            }
+            2 {
+                return [ExternalProcessResult]::new(
+                    [ExternalProcessError]::UNKNOWN,
                     $null
                 )
             }
