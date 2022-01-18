@@ -261,7 +261,7 @@ class PackageInstallResult {
     [bool] $Success
     [string] $FailureReason
     [string] $ActionNeeded
-    [Int64] $ExitCode
+    [Nullable[Int64]] $ExitCode
     [string[]] $StandardOutput
     [string[]] $StandardError
     [string[]] $LogOutput
