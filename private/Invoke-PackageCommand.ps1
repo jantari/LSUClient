@@ -89,6 +89,9 @@
             # In case we get ERROR_BAD_EXE_FORMAT (193) retry with ShellExecute to open files like MSI
             } elseif ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException.NativeErrorCode -eq 193) {
                 $HandledError = 193
+            # In case we get ERROR_ACCESS_DENIED (5, only observed on PowerShell 7 so far)
+            } elseif ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException.NativeErrorCode -eq 5) {
+                $HandledError = 5
             } else {
                 Write-Error $_
                 $HandledError = 2 # Any other Process.Start exception
@@ -200,6 +203,12 @@
             2 {
                 return [ExternalProcessResult]::new(
                     [ExternalProcessError]::UNKNOWN,
+                    $null
+                )
+            }
+            5 {
+                return [ExternalProcessResult]::new(
+                    [ExternalProcessError]::ACCESS_DENIED,
                     $null
                 )
             }
