@@ -219,7 +219,6 @@ class ProcessReturnInformation {
 
 # Internal
 class BiosUpdateInfo : ProcessReturnInformation {
-    [bool] $WasRun
     [int64] $Timestamp
     [string[]] $LogMessage
     [string] $ActionNeeded

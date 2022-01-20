@@ -16,6 +16,7 @@
     #>
 
     [CmdletBinding()]
+    [OutputType('PackageInstallResult')]
     Param (
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
         [pscustomobject]$Package,
@@ -93,7 +94,7 @@
                     if ($installProcess.Info -is [BiosUpdateInfo]) {
                         if ($Success) {
                             # BIOS Update successful
-                            Write-Output "BIOS UPDATE SUCCESS: An immediate full $($installProcess.Info.ActionNeeded) is strongly recommended to allow the BIOS update to complete!"
+                            Write-Information -MessageData "BIOS UPDATE SUCCESS: An immediate full $($installProcess.Info.ActionNeeded) is strongly recommended to allow the BIOS update to complete!" -InformationAction Continue
                             if ($SaveBIOSUpdateInfoToRegistry) {
                                 Set-BIOSUpdateRegistryFlag -Timestamp $installProcess.Info.Timestamp -ActionNeeded $installProcess.Info.ActionNeeded -PackageHash $Extracter.Checksum
                             }
@@ -101,17 +102,24 @@
                     }
                 }
                 'INF' {
-                    $installProcess = Start-Process -FilePath 'pnputil.exe' -Wait -Verb RunAs -WorkingDirectory $PackageDirectory -PassThru -ArgumentList "/add-driver $($PackageToProcess.Installer.InfFile) /install"
-                    if (-not $installProcess) {
-                        Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED - the installation could not start"
-                    } elseif ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes -and $installProcess.ExitCode -notin 0, 3010) {
-                        # pnputil is a documented Microsoft tool and Exit code 0 means SUCCESS while 3010 means SUCCESS but reboot required,
-                        # however Lenovo does not always include 3010 as an OK return code - that's why we manually check against it here
-                        if ($installProcess.StandardOutput -or $installProcess.StandardError) {
-                            Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List ExitCode, StandardOutput, StandardError | Out-String)"
-                        } else {
-                            Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED with ExitCode $($installProcess.ExitCode)"
-                        }
+                    $InfSuccessCodes = @(0, 3010) + $PackageToProcess.Installer.SuccessCodes
+                    $InstallCMD = "${env:SystemRoot}\system32\pnputil.exe /add-driver $($PackageToProcess.Installer.InfFile) /install"
+                    $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
+
+                    $Success = $installProcess.Err -eq [ExternalProcessError]::NONE -and $installProcess.Info.ExitCode -in $InfSuccessCodes
+
+                    [PackageInstallResult]@{
+                        ID             = $PackageToProcess.ID
+                        Title          = $PackageToProcess.Title
+                        Type           = $PackageToProcess.Type
+                        Success        = $Success
+                        FailureReason  = if ($installProcess.Err) { "$($installProcess.Err)" } elseif (-not $Success) { 'INSTALLER_EXITCODE' } else { '' }
+                        ActionNeeded   = if ($Success -and $installProcess.Info.ExitCode -eq 3010) { 'REBOOT' } else { 'NONE' }
+                        ExitCode       = $installProcess.Info.ExitCode
+                        StandardOutput = $installProcess.Info.StandardOutput
+                        StandardError  = $installProcess.Info.StandardError
+                        LogOutput      = ''
+                        Runtime        = if ($installProcess.Err) { [TimeSpan]::Zero } else { $installProcess.Info.Runtime }
                     }
                 }
                 default {
