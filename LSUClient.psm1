@@ -221,6 +221,7 @@ class ProcessReturnInformation {
 class BiosUpdateInfo : ProcessReturnInformation {
     [int64] $Timestamp
     [string[]] $LogMessage
+    [ValidateSet('REBOOT', 'SHUTDOWN')]
     [string] $ActionNeeded
 }
 
@@ -259,7 +260,8 @@ class PackageInstallResult {
     [Nullable[PackageType]] $Type
     [bool] $Success
     [string] $FailureReason
-    [string] $ActionNeeded
+    [ValidateSet('NONE', 'REBOOT_SUGGESTED', 'REBOOT_MANDATORY', 'SHUTDOWN')]
+    [string] $PendingAction
     [Nullable[Int64]] $ExitCode
     [string[]] $StandardOutput
     [string[]] $StandardError

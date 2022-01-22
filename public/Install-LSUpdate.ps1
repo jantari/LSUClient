@@ -76,13 +76,27 @@
 
                     $Success = $installProcess.Err -eq [ExternalProcessError]::NONE -and $installProcess.Info.ExitCode -in $PackageToProcess.Installer.SuccessCodes
 
+                    $PendingAction = if (-not $Success) {
+                        'NONE'
+                    } elseif ($installProcess -is [BiosUpdateInfo]) {
+                        if ($installProcess.Info.ActionNeeded -eq 'SHUTDOWN') {
+                            'SHUTDOWN'
+                        } elseif ($installProcess.Info.ActionNeeded -eq 'REBOOT') {
+                            'REBOOT_MANDATORY'
+                        }
+                    } elseif ($PackageToProcess.RebootType -eq 3) {
+                        'REBOOT_SUGGESTED'
+                    } elseif ($PackageToProcess.RebootType -eq 5) {
+                        'REBOOT_MANDATORY'
+                    }
+
                     [PackageInstallResult]@{
                         ID             = $PackageToProcess.ID
                         Title          = $PackageToProcess.Title
                         Type           = $PackageToProcess.Type
                         Success        = $Success
                         FailureReason  = if ($installProcess.Err) { "$($installProcess.Err)" } elseif (-not $Success) { 'INSTALLER_EXITCODE' } else { '' }
-                        ActionNeeded   = if (-not $Success) { 'NONE' } elseif ($installProcess -is [BiosUpdateInfo]) { $installProcess.Info.ActionNeeded } elseif ($PackageToProcess.RebootType -in 3, 5) { 'REBOOT' } else { 'NONE' }
+                        PendingAction  = $PendingAction
                         ExitCode       = $installProcess.Info.ExitCode
                         StandardOutput = $installProcess.Info.StandardOutput
                         StandardError  = $installProcess.Info.StandardError
@@ -114,7 +128,7 @@
                         Type           = $PackageToProcess.Type
                         Success        = $Success
                         FailureReason  = if ($installProcess.Err) { "$($installProcess.Err)" } elseif (-not $Success) { 'INSTALLER_EXITCODE' } else { '' }
-                        ActionNeeded   = if ($Success -and $installProcess.Info.ExitCode -eq 3010) { 'REBOOT' } else { 'NONE' }
+                        PendingAction  = if ($Success -and $installProcess.Info.ExitCode -eq 3010) { 'REBOOT_SUGGESTED' } else { 'NONE' }
                         ExitCode       = $installProcess.Info.ExitCode
                         StandardOutput = $installProcess.Info.StandardOutput
                         StandardError  = $installProcess.Info.StandardError

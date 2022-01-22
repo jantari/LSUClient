@@ -97,7 +97,7 @@
         <ListItem><PropertyName>Type</PropertyName></ListItem>
         <ListItem><PropertyName>Success</PropertyName></ListItem>
         <ListItem><PropertyName>FailureReason</PropertyName></ListItem>
-        <ListItem><PropertyName>ActionNeeded</PropertyName></ListItem>
+        <ListItem><PropertyName>PendingAction</PropertyName></ListItem>
         <ListItem><PropertyName>ExitCode</PropertyName></ListItem>
         <!-- <ListItem><PropertyName>StandardOutput</PropertyName></ListItem> -->
         <ListItem><Label>StandardOutput</Label><ScriptBlock>
