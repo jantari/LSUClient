@@ -21,6 +21,16 @@
         if ($installProcess.Err) {
             return $installProcess
         } else {
+            [array]$LogMessage = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -ErrorAction SilentlyContinue) {
+                $NonEmptyPredicate = [Predicate[string]] { -not [string]::IsNullOrWhiteSpace($args[0]) }
+
+                $LogFirstNonEmpty = [array]::FindIndex([string[]]$Log, $NonEmptyPredicate)
+                if ($LogFirstNonEmpty -ne -1) {
+                    $LogLastNonEmpty = [array]::FindLastIndex([string[]]$Log, $NonEmptyPredicate)
+                    $Log[$LogFirstNonEmpty..$LogLastNonEmpty]
+                }
+            }
+
             return [ExternalProcessResult]::new(
                 $installProcess.Err,
                 [BiosUpdateInfo]@{
@@ -31,7 +41,7 @@
                     'ExitCode'         = $installProcess.Info.ExitCode
                     'StandardOutput'   = $installProcess.Info.StandardOutput
                     'StandardError'    = $installProcess.Info.StandardError
-                    'LogMessage'       = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -ErrorAction SilentlyContinue) { $Log } else { [String]::Empty }
+                    'LogMessage'       = $LogMessage
                     'Runtime'          = $installProcess.Info.Runtime
                     'ActionNeeded'     = 'REBOOT'
                 }
