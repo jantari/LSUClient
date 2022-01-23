@@ -1,4 +1,4 @@
-function Remove-CmdEscapeCharacter {
+﻿function Remove-CmdEscapeCharacter {
     <#
         .NOTES
         All CMD (Command Prompt) Metacharacters are: ( ) % ! ^ " < > & |

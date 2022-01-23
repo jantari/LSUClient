@@ -1,5 +1,6 @@
 ﻿function Install-BiosUpdate {
     [CmdletBinding()]
+    [OutputType('ExternalProcessResult')]
     Param (
         [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
         [System.IO.DirectoryInfo]$PackageDirectory

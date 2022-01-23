@@ -6,6 +6,7 @@
     #>
 
     [CmdletBinding()]
+    [OutputType('ExternalProcessResult')]
     Param (
         [ValidateNotNullOrEmpty()]
         [string]$Path,

@@ -3,6 +3,7 @@
 
     #>
     [CmdletBinding()]
+    [OutputType('PackageXmlPointer')]
     Param (
         [Parameter( Mandatory = $true )]
         [string]$Repository,
