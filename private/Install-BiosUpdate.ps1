@@ -21,6 +21,7 @@
         if ($installProcess.Err) {
             return $installProcess
         } else {
+            # Collect and trim content of winuptp.log file if it exists
             [array]$LogMessage = if ($Log = Get-Content -LiteralPath "$PackageDirectory\winuptp.log" -ErrorAction SilentlyContinue) {
                 $NonEmptyPredicate = [Predicate[string]] { -not [string]::IsNullOrWhiteSpace($args[0]) }
 

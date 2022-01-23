@@ -225,7 +225,8 @@ class BiosUpdateInfo : ProcessReturnInformation {
     [string] $ActionNeeded
 }
 
-# Internal
+# Enum internal, but members exposed as strings
+# through PackageInstallResult.FailureReason
 enum ExternalProcessError {
     NONE = 0 # No error aka Success
     UNKNOWN = 1

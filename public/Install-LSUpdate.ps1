@@ -104,7 +104,7 @@
                         Runtime        = if ($installProcess.Err) { [TimeSpan]::Zero } else { $installProcess.Info.Runtime }
                     }
 
-                    # ONLY FOR BIOS-UPDATES
+                    # Extra handling for BIOS updates
                     if ($installProcess.Info -is [BiosUpdateInfo]) {
                         if ($Success) {
                             # BIOS Update successful
