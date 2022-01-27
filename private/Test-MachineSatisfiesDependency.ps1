@@ -258,7 +258,7 @@
         }
         '_OS' {
             foreach ($entry in $Dependency.OS) {
-                if ("$entry" -like "${CachedHardwareTable['_OS']}*") {
+                if ("$entry" -like "$($CachedHardwareTable['_OS'])*") {
                     return 0
                 }
             }
