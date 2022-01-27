@@ -84,6 +84,8 @@
                         } elseif ($installProcess.Info.ActionNeeded -eq 'REBOOT') {
                             'REBOOT_MANDATORY'
                         }
+                    } elseif ($PackageToProcess.RebootType -eq 0) {
+                        'NONE'
                     } elseif ($PackageToProcess.RebootType -eq 3) {
                         'REBOOT_SUGGESTED'
                     } elseif ($PackageToProcess.RebootType -eq 5) {
