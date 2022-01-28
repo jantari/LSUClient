@@ -62,6 +62,7 @@
     #>
 
     [CmdletBinding()]
+    [OutputType('LenovoPackage')]
     Param (
         [string]$Model,
         [Uri]$Proxy,

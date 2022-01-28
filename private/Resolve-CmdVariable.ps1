@@ -1,4 +1,4 @@
-function Resolve-CmdVariable {
+﻿function Resolve-CmdVariable {
     [OutputType('System.String')]
     Param (
         [ValidateNotNullOrEmpty()]

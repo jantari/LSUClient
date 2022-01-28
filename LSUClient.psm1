@@ -141,13 +141,15 @@ class LenovoPackage {
     [Int64] $Size
     [string] $URL
     hidden [System.Collections.Generic.List[PackageFilePointer]] $Files
-    [PackageExtractInfo] $Extracter
+    hidden [PackageExtractInfo] $Extracter # Unused, kept for backwards compatibility
     [PackageInstallInfo] $Installer
     [Nullable[bool]] $IsApplicable
     [Nullable[bool]] $IsInstalled
 }
 
 # Public
+# Unused, kept for backwards compatibility with
+# scripts in case anyone uses these properties.
 class PackageExtractInfo {
     [string] $Command
     [string] $FileName
@@ -156,9 +158,9 @@ class PackageExtractInfo {
 
     PackageExtractInfo ([System.Xml.XmlElement]$PackageXML) {
         $this.Command  = $PackageXML.ExtractCommand
-        $this.FileName = $PackageXML.Files.Installer.File.Name # Unused, kept for backwards compatibility
-        $this.FileSize = $PackageXML.Files.Installer.File.Size # Unused, kept for backwards compatibility
-        $this.FileSHA  = $PackageXML.Files.Installer.File.CRC  # Unused, kept for backwards compatibility
+        $this.FileName = $PackageXML.Files.Installer.File.Name
+        $this.FileSize = $PackageXML.Files.Installer.File.Size
+        $this.FileSHA  = $PackageXML.Files.Installer.File.CRC
     }
 }
 
@@ -169,14 +171,30 @@ class PackageInstallInfo {
     [string] $InstallType
     [int64[]] $SuccessCodes
     [string] $InfFile
+    [string] $ExtractCommand
     [string] $Command
 
     PackageInstallInfo ([System.Xml.XmlElement]$PackageXML) {
         $this.InstallType    = $PackageXML.Install.type
         $this.SuccessCodes   = $PackageXML.Install.rc -split ','
         $this.InfFile        = $PackageXML.Install.INFCmd.INFfile
+        $this.ExtractCommand = $PackageXML.ExtractCommand
         $this.Command        = $PackageXML.Install.Cmdline.'#text'
-        if (($PackageXML.Reboot.type -in 0, 3) -or
+        <# 
+            This PDF contains the definition of Reboot Types 0-4
+            - https://download.lenovo.com/pccbbs/mobiles_pdf/tvsu5_mst_en.pdf
+            This page introduces Reboot Type 5, delayed reboot
+            - https://thinkdeploy.blogspot.com/2019/06/what-are-reboot-delayed-updates.html
+
+            All known Reboot Types
+            0 - No reboot
+            1 - Forces a reboot
+            2 - Reserved
+            3 - Requires reboot
+            4 - Power off
+            5 - Reboot Delayed (Multiple updates can be applied and one reboot can work for all of them)
+        #>
+        if (($PackageXML.Reboot.type -in 0, 3, 5) -or
             ($PackageXML.Install.Cmdline.'#text' -match 'winuptp\.exe|Flash\.cmd') -or
             ($PackageXML.Install.type -eq 'INF'))
         {
@@ -188,18 +206,6 @@ class PackageInstallInfo {
 }
 
 # Internal
-class BiosUpdateInfo {
-    [ValidateNotNullOrEmpty()]
-    [bool] $WasRun
-    [int64] $Timestamp
-    [ValidateNotNullOrEmpty()]
-    [int64] $ExitCode
-    [string] $LogMessage
-    [ValidateNotNullOrEmpty()]
-    [string] $ActionNeeded
-}
-
-# Internal
 class ProcessReturnInformation {
     [ValidateNotNullOrEmpty()]
     [string] $FilePath
@@ -208,6 +214,67 @@ class ProcessReturnInformation {
     [string[]] $StandardOutput
     [string[]] $StandardError
     [Int64] $ExitCode
+    [TimeSpan] $Runtime
+}
+
+# Internal
+class BiosUpdateInfo : ProcessReturnInformation {
+    [int64] $Timestamp
+    [string[]] $LogMessage
+    [ValidateSet('REBOOT', 'SHUTDOWN')]
+    [string] $ActionNeeded
+}
+
+# Enum internal, but members exposed as strings
+# through PackageInstallResult.FailureReason
+enum ExternalProcessError {
+    NONE = 0 # No error aka Success
+    UNKNOWN = 1
+    OPERATION_NOT_SUPPORTED
+    RUNSPACE_DIED_UNEXPECTEDLY
+    CANCELLED_BY_USER
+    ACCESS_DENIED
+    FILE_NOT_FOUND
+    FILE_NOT_EXECUTABLE
+    PROCESS_NONE_CREATED
+    PROCESS_REQUIRES_ELEVATION
+}
+
+# Public
+enum PackagePendingAction {
+    NONE = 0
+    REBOOT_SUGGESTED = 1
+    REBOOT_MANDATORY = 2
+    # 3 reserved for SHUTDOWN_SUGGESTED even though unlikely
+    SHUTDOWN = 4
+}
+
+# Internal
+class ExternalProcessResult {
+    [ExternalProcessError] $Err
+    [ProcessReturnInformation] $Info
+
+    ExternalProcessResult (
+        [ExternalProcessError] $Err,
+        [ProcessReturnInformation] $Info
+    ) {
+        $this.Err  = $Err
+        $this.Info = $Info
+    }
+}
+
+# Public
+class PackageInstallResult {
+    [string] $ID
+    [string] $Title
+    [Nullable[PackageType]] $Type
+    [bool] $Success
+    [string] $FailureReason
+    [PackagePendingAction] $PendingAction
+    [Nullable[Int64]] $ExitCode
+    [string[]] $StandardOutput
+    [string[]] $StandardError
+    [string[]] $LogOutput
     [TimeSpan] $Runtime
 }
 

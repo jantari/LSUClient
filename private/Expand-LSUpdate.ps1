@@ -7,11 +7,11 @@
         [string]$WorkingDirectory
     )
 
-    if ($Package.Extracter.Command) {
-        $extractionProcess = Invoke-PackageCommand -Path $WorkingDirectory -Command $Package.Extracter.Command
-        if (-not $extractionProcess) {
+    if ($Package.Installer.ExtractCommand) {
+        $extractionProcess = Invoke-PackageCommand -Path $WorkingDirectory -Command $Package.Installer.ExtractCommand
+        if ($extractionProcess.Err) {
             Write-Warning "Extraction of package $($Package.ID) has failed!`r`n"
-        } elseif ($extractionProcess.ExitCode -ne 0) {
+        } elseif ($extractionProcess.Info.ExitCode -ne 0) {
             Write-Warning "Extraction of package $($Package.ID) may have failed!`r`n"
         }
     } else {

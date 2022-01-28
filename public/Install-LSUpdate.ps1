@@ -16,6 +16,7 @@
     #>
 
     [CmdletBinding()]
+    [OutputType('PackageInstallResult')]
     Param (
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
         [pscustomobject]$Package,
@@ -59,61 +60,86 @@
 
             Write-Verbose "Installing package $($PackageToProcess.ID) ..."
 
-            # Special-case ThinkPad and ThinkCentre (winuptp.exe and Flash.cmd/wflash2.exe)
-            # BIOS updates because we can install them silently and unattended with custom arguments
-            # Other BIOS updates are not classified as unattended and will be treated like any other package.
-            if ($PackageToProcess.Installer.Command -match 'winuptp\.exe|Flash\.cmd') {
-                # We are dealing with a known kind of BIOS Update
-                [BiosUpdateInfo]$BIOSUpdateExit = Install-BiosUpdate -PackageDirectory $PackageDirectory
-                if ($BIOSUpdateExit) {
-                    if ($BIOSUpdateExit.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
-                        Write-Warning "Unattended BIOS/UEFI update FAILED with return code $($BIOSUpdateExit.ExitCode)!`r`n"
-                        if ($BIOSUpdateExit.LogMessage) {
-                            Write-Warning "The following information was collected:`r`n$($BIOSUpdateExit.LogMessage)`r`n"
-                        }
+            switch ($PackageToProcess.Installer.InstallType) {
+                'CMD' {
+                    # Special-case ThinkPad and ThinkCentre (winuptp.exe and Flash.cmd/wflash2.exe)
+                    # BIOS updates because we can install them silently and unattended with custom arguments
+                    # Other BIOS updates are not classified as unattended and will be treated like any other package.
+                    if ($PackageToProcess.Installer.Command -match 'winuptp\.exe|Flash\.cmd') {
+                        # We are dealing with a known kind of BIOS Update
+                        $installProcess = Install-BiosUpdate -PackageDirectory $PackageDirectory
                     } else {
-                        # BIOS Update successful
-                        Write-Output "BIOS UPDATE SUCCESS: An immediate full $($BIOSUpdateExit.ActionNeeded) is strongly recommended to allow the BIOS update to complete!"
-                        if ($SaveBIOSUpdateInfoToRegistry) {
-                            Set-BIOSUpdateRegistryFlag -Timestamp $BIOSUpdateExit.Timestamp -ActionNeeded $BIOSUpdateExit.ActionNeeded -PackageHash $Extracter.Checksum
-                        }
-                    }
-                } else {
-                    Write-Warning "The BIOS update could not be installed, the most likely cause is that it's an unknown, unsupported kind"
-                }
-            } else {
-                switch ($PackageToProcess.Installer.InstallType) {
-                    'CMD' {
                         # Correct typo from Lenovo ... yes really...
-                        $InstallCMD     = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
+                        $InstallCMD = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
                         $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
-                        if (-not $installProcess) {
-                            Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED - the installation could not start"
-                        } elseif ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes) {
-                            if ($installProcess.StandardOutput -or $installProcess.StandardError) {
-                                Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List ExitCode, StandardOutput, StandardError | Out-String)"
-                            } else {
-                                Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED with ExitCode $($installProcess.ExitCode)"
+                    }
+
+                    $Success = $installProcess.Err -eq [ExternalProcessError]::NONE -and $installProcess.Info.ExitCode -in $PackageToProcess.Installer.SuccessCodes
+
+                    $PendingAction = if (-not $Success) {
+                        'NONE'
+                    } elseif ($installProcess -is [BiosUpdateInfo]) {
+                        if ($installProcess.Info.ActionNeeded -eq 'SHUTDOWN') {
+                            'SHUTDOWN'
+                        } elseif ($installProcess.Info.ActionNeeded -eq 'REBOOT') {
+                            'REBOOT_MANDATORY'
+                        }
+                    } elseif ($PackageToProcess.RebootType -eq 0) {
+                        'NONE'
+                    } elseif ($PackageToProcess.RebootType -eq 3) {
+                        'REBOOT_SUGGESTED'
+                    } elseif ($PackageToProcess.RebootType -eq 5) {
+                        'REBOOT_MANDATORY'
+                    }
+
+                    [PackageInstallResult]@{
+                        ID             = $PackageToProcess.ID
+                        Title          = $PackageToProcess.Title
+                        Type           = $PackageToProcess.Type
+                        Success        = $Success
+                        FailureReason  = if ($installProcess.Err) { "$($installProcess.Err)" } elseif (-not $Success) { 'INSTALLER_EXITCODE' } else { '' }
+                        PendingAction  = $PendingAction
+                        ExitCode       = $installProcess.Info.ExitCode
+                        StandardOutput = $installProcess.Info.StandardOutput
+                        StandardError  = $installProcess.Info.StandardError
+                        LogOutput      = if ($installProcess.Info -is [BiosUpdateInfo]) { $installProcess.Info.LogMessage } else { '' }
+                        Runtime        = if ($installProcess.Err) { [TimeSpan]::Zero } else { $installProcess.Info.Runtime }
+                    }
+
+                    # Extra handling for BIOS updates
+                    if ($installProcess.Info -is [BiosUpdateInfo]) {
+                        if ($Success) {
+                            # BIOS Update successful
+                            Write-Information -MessageData "BIOS UPDATE SUCCESS: An immediate full $($installProcess.Info.ActionNeeded) is strongly recommended to allow the BIOS update to complete!" -InformationAction Continue
+                            if ($SaveBIOSUpdateInfoToRegistry) {
+                                Set-BIOSUpdateRegistryFlag -Timestamp $installProcess.Info.Timestamp -ActionNeeded $installProcess.Info.ActionNeeded -PackageHash $Extracter.Checksum
                             }
                         }
                     }
-                    'INF' {
-                        $installProcess = Start-Process -FilePath 'pnputil.exe' -Wait -Verb RunAs -WorkingDirectory $PackageDirectory -PassThru -ArgumentList "/add-driver $($PackageToProcess.Installer.InfFile) /install"
-                        if (-not $installProcess) {
-                            Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED - the installation could not start"
-                        } elseif ($installProcess.ExitCode -notin $PackageToProcess.Installer.SuccessCodes -and $installProcess.ExitCode -notin 0, 3010) {
-                            # pnputil is a documented Microsoft tool and Exit code 0 means SUCCESS while 3010 means SUCCESS but reboot required,
-                            # however Lenovo does not always include 3010 as an OK return code - that's why we manually check against it here
-                            if ($installProcess.StandardOutput -or $installProcess.StandardError) {
-                                Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED with:`r`n$($installProcess | Format-List ExitCode, StandardOutput, StandardError | Out-String)"
-                            } else {
-                                Write-Warning "Installation of package '$($PackageToProcess.ID) - $($PackageToProcess.Title)' FAILED with ExitCode $($installProcess.ExitCode)"
-                            }
-                        }
+                }
+                'INF' {
+                    $InfSuccessCodes = @(0, 3010) + $PackageToProcess.Installer.SuccessCodes
+                    $InstallCMD = "${env:SystemRoot}\system32\pnputil.exe /add-driver $($PackageToProcess.Installer.InfFile) /install"
+                    $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
+
+                    $Success = $installProcess.Err -eq [ExternalProcessError]::NONE -and $installProcess.Info.ExitCode -in $InfSuccessCodes
+
+                    [PackageInstallResult]@{
+                        ID             = $PackageToProcess.ID
+                        Title          = $PackageToProcess.Title
+                        Type           = $PackageToProcess.Type
+                        Success        = $Success
+                        FailureReason  = if ($installProcess.Err) { "$($installProcess.Err)" } elseif (-not $Success) { 'INSTALLER_EXITCODE' } else { '' }
+                        PendingAction  = if ($Success -and $installProcess.Info.ExitCode -eq 3010) { 'REBOOT_SUGGESTED' } else { 'NONE' }
+                        ExitCode       = $installProcess.Info.ExitCode
+                        StandardOutput = $installProcess.Info.StandardOutput
+                        StandardError  = $installProcess.Info.StandardError
+                        LogOutput      = ''
+                        Runtime        = if ($installProcess.Err) { [TimeSpan]::Zero } else { $installProcess.Info.Runtime }
                     }
-                    default {
-                        Write-Warning "Unsupported package installtype '$_', skipping installation!"
-                    }
+                }
+                default {
+                    Write-Warning "Unsupported package installtype '$_', skipping installation!"
                 }
             }
         }

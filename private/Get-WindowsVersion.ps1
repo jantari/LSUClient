@@ -1,4 +1,4 @@
-function Get-WindowsVersion {
+﻿function Get-WindowsVersion {
     <#
         .DESCRIPTION
         Tries a few different methods to get the exact current Windows version
