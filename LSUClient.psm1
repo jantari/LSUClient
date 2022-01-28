@@ -240,6 +240,15 @@ enum ExternalProcessError {
     PROCESS_REQUIRES_ELEVATION
 }
 
+# Public
+enum PackagePendingAction {
+    NONE = 0
+    REBOOT_SUGGESTED = 1
+    REBOOT_MANDATORY = 2
+    # 3 reserved for SHUTDOWN_SUGGESTED even though unlikely
+    SHUTDOWN = 4
+}
+
 # Internal
 class ExternalProcessResult {
     [ExternalProcessError] $Err
@@ -261,8 +270,7 @@ class PackageInstallResult {
     [Nullable[PackageType]] $Type
     [bool] $Success
     [string] $FailureReason
-    [ValidateSet('NONE', 'REBOOT_SUGGESTED', 'REBOOT_MANDATORY', 'SHUTDOWN')]
-    [string] $PendingAction
+    [PackagePendingAction] $PendingAction
     [Nullable[Int64]] $ExitCode
     [string[]] $StandardOutput
     [string[]] $StandardError
