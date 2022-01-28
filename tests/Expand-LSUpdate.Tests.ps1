@@ -8,8 +8,8 @@ Describe 'Expand-LSUpdate' {
         InModuleScope LSUClient {
             $MockPackage = [PSCustomObject]@{
                 ID = 'MOCKPKG'
-                Extracter = [PSCustomObject]@{
-                    Command = 'NonExistantFile Bogus Arguments'
+                Installer = [PSCustomObject]@{
+                    ExtractCommand = 'NonExistantFile Bogus Arguments'
                 }
             }
 
