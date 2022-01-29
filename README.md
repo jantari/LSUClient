@@ -22,7 +22,7 @@ Install-Module -Name 'LSUClient'
 - Supports not only business computers but consumer lines too (e.g. IdeaPad)
 - Full Web-Proxy support including authentication
 - Fetch updates from Lenovo directly or use an internal repository
-- Concise, helpful and easy-to-read output
+- Work with updates as PowerShell objects to build any custom logic imaginable
 - Accounts for and works around some bugs and mistakes in the official tool
 - Free and open-source!
 
@@ -71,26 +71,55 @@ In this case you almost always want to use `-All` too so that the packages found
 ---
 For more details, available parameters and guidance on how to use them run `Get-Help -Detailed` on the functions in this module.
 
-### Dealing with BIOS/UEFI updates
+### Dealing with BIOS/UEFI and other firmware updates
 
-It is important to know that some Lenovo computers require a reboot to apply BIOS updates while other models require a shutdown - the BIOS will then wake the machine from the power-off state, apply the update and boot into Windows.
+It is important to know that some Lenovo computers require a reboot to apply BIOS updates while other models require a shutdown - the BIOS will then wake the machine from the power-off state, apply the update and boot into Windows. Other, non-BIOS firmware updates typically always require a reboot.
 So as to not interrupt a deployment or someone working, this module will never initiate reboots or shutdowns on its own - however it's easy for you to:
 
-1. Run `Install-LSUpdate` with the `-SaveBIOSUpdateInfoToRegistry` switch
-2. If any BIOS/UEFI update was successfully installed this switch will write some information to the registry under `HKLM\Software\LSUClient\BIOSUpdate`,
-including the String `"ActionNeeded"` which will contain `"REBOOT"` or `"SHUTDOWN"` depending on which is required to apply the update.
-3. At any later point during your script, task sequence or deployment package you can check for and read this registry-key and gracefully initiate the power-cycle
-on your terms. I recommend clearing the registry values under `HKLM\Software\LSUClient\BIOSUpdate` afterwards so you know the update is no longer pending.
+1. Capture the output of `Install-LSUpdate`, e.g.:
 
-If you want to exclude BIOS/UEFI updates, I recommend excluding them by type and possibly Category or Title as a fallback:
+    ```powershell
+    [array]$results = Install-LSUpdate -Package $updates
+    ```
+
+2. Then test for the `PendingAction` values `REBOOT_MANDATORY` or `SHUTDOWN` and handle them in your script:
+    ```powershell
+    if ($results.PendingAction -contains 'REBOOT_MANDATORY') {
+        # reboot immediately or set a marker for yourself to handle the reboot shortly
+    }
+    if ($results.PendingAction -contains 'SHUTDOWN') {
+        # shutdown immediately or set a marker for yourself to handle the shutdown shortly
+    }
+    ```
+    if you prefer to loop through the updates and handle their result immediately, you can use `-eq` or a switch statement:
+    ```powershell
+    foreach ($update in $updates) {
+        $result = Install-LSUpdate -Package $update
+        switch ($result.PendingAction) {
+            # your logic here
+        }
+    }
+    ```
+
+
+If you want to exclude BIOS/UEFI updates, I recommend filtering them by Type and possibly Category or Title as a fallback:
 ```powershell
 $updates = Get-LSUpdate |
     Where-Object { $_.Type -ne 'BIOS' } |
     Where-Object { $_.Category -notmatch "BIOS|UEFI" } |
     Where-Object { $_.Title -notmatch "BIOS|UEFI" }
 ```
+Other firmware updates can also be filtered out similarly:
+```powershell
+$updates = Get-LSUpdate |
+    Where-Object { $_.Type -ne 'Firmware' } |
+    Where-Object { $_.RebootType -ne 5 } |
+    Where-Object { $_.Category -notlike "*Firmware*" } |
+    Where-Object { $_.Title -notlike "*Firmware*" }
+```
+
 NOTE: Not all packages have type information and packages sourced from an internal repository created with "Lenovo Update Retriever" never have Category information.
-In that scenario it is best to either not include BIOS updates in your repository at all or to filter them by their IDs before installing.
+When using a self-hosted repository it is best to either not have BIOS updates in your repository at all or to filter them by their IDs before installing.
 
 ## Misc
 
