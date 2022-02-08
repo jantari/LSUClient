@@ -36,16 +36,17 @@
             return [ExternalProcessResult]::new(
                 $installProcess.Err,
                 [BiosUpdateInfo]@{
-                    'FilePath'         = $installProcess.Info.FilePath
-                    'Arguments'        = $installProcess.Info.Arguments
-                    'WorkingDirectory' = $installProcess.Info.WorkingDirectory
-                    'Timestamp'        = [datetime]::Now.ToFileTime()
-                    'ExitCode'         = $installProcess.Info.ExitCode
-                    'StandardOutput'   = $installProcess.Info.StandardOutput
-                    'StandardError'    = $installProcess.Info.StandardError
-                    'LogMessage'       = $LogMessage
-                    'Runtime'          = $installProcess.Info.Runtime
-                    'ActionNeeded'     = 'REBOOT'
+                    'FilePath'             = $installProcess.Info.FilePath
+                    'Arguments'            = $installProcess.Info.Arguments
+                    'WorkingDirectory'     = $installProcess.Info.WorkingDirectory
+                    'Timestamp'            = [datetime]::Now.ToFileTime()
+                    'ExitCode'             = $installProcess.Info.ExitCode
+                    'StandardOutput'       = $installProcess.Info.StandardOutput
+                    'StandardError'        = $installProcess.Info.StandardError
+                    'LogMessage'           = $LogMessage
+                    'Runtime'              = $installProcess.Info.Runtime
+                    'ActionNeeded'         = 'REBOOT'
+                    'SuccessOverrideValue' = $installProcess.Info.ExitCode -in @(0, 1) # winuptp return codes: https://thinkdeploy.blogspot.com/2017/09/return-codes-for-winuptp.html
                 }
             )
         }
@@ -68,16 +69,17 @@
                 return [ExternalProcessResult]::new(
                     $installProcess.Err,
                     [BiosUpdateInfo]@{
-                        'FilePath'         = $installProcess.Info.FilePath
-                        'Arguments'        = $installProcess.Info.Arguments
-                        'WorkingDirectory' = $installProcess.Info.WorkingDirectory
-                        'Timestamp'        = [datetime]::Now.ToFileTime()
-                        'ExitCode'         = $installProcess.Info.ExitCode
-                        'StandardOutput'   = $installProcess.Info.StandardOutput
-                        'StandardError'    = $installProcess.Info.StandardError
-                        'LogMessage'       = ''
-                        'Runtime'          = $installProcess.Info.Runtime
-                        'ActionNeeded'     = 'SHUTDOWN'
+                        'FilePath'             = $installProcess.Info.FilePath
+                        'Arguments'            = $installProcess.Info.Arguments
+                        'WorkingDirectory'     = $installProcess.Info.WorkingDirectory
+                        'Timestamp'            = [datetime]::Now.ToFileTime()
+                        'ExitCode'             = $installProcess.Info.ExitCode
+                        'StandardOutput'       = $installProcess.Info.StandardOutput
+                        'StandardError'        = $installProcess.Info.StandardError
+                        'LogMessage'           = ''
+                        'Runtime'              = $installProcess.Info.Runtime
+                        'ActionNeeded'         = 'SHUTDOWN'
+                        'SuccessOverrideValue' = $null
                     }
                 )
             }

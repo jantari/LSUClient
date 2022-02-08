@@ -75,6 +75,13 @@
                     }
 
                     $Success = $installProcess.Err -eq [ExternalProcessError]::NONE -and $installProcess.Info.ExitCode -in $PackageToProcess.Installer.SuccessCodes
+                    $Success = $installProcess.Err -eq [ExternalProcessError]::NONE -and $(
+                        if ($installProcess -is [BiosUpdateInfo] -and $null -ne $installProcess.Info.SuccessOverrideValue) {
+                            $installProcess.Info.SuccessOverrideValue
+                        } else {
+                            $installProcess.Info.ExitCode -in $PackageToProcess.Installer.SuccessCodes
+                        }
+                    )
 
                     $PendingAction = if (-not $Success) {
                         'NONE'

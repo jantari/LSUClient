@@ -223,6 +223,7 @@ class BiosUpdateInfo : ProcessReturnInformation {
     [string[]] $LogMessage
     [ValidateSet('REBOOT', 'SHUTDOWN')]
     [string] $ActionNeeded
+    [Nullable[bool]] $SuccessOverrideValue
 }
 
 # Enum internal, but members exposed as strings
