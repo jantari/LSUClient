@@ -22,6 +22,14 @@ Describe 'Test-VersionPattern' {
         Test-VersionPattern -LenovoString '10.0.0.1^' -SystemString '8.0' | Should -Be -1
     }
 
+    It 'Lenovo Pattern - Range A to B' {
+        Test-VersionPattern -LenovoString '10.1^20.4.5' -SystemString '16.111.0.9' | Should -Be 0
+    }
+
+    It 'Lenovo Pattern - Range A to B' {
+        Test-VersionPattern -LenovoString '10.1^20.4.5' -SystemString '8.0.2' | Should -Be -1
+    }
+
     It 'Lenovo Pattern Unsupported' {
         Test-VersionPattern -LenovoString '^1^' -SystemString '8.0' | Should -Be -2
     }
