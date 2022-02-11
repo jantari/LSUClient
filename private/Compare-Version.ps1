@@ -5,6 +5,7 @@
         Returns 1 when the ReferenceVersion was higher, 2 for the DifferenceVersion or 0 for equal.
     #>
 
+    [CmdletBinding()]
     [OutputType('System.Int32')]
     Param (
         [ValidateNotNullOrEmpty()]

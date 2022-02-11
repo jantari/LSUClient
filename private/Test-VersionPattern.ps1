@@ -32,38 +32,28 @@
     } else {
         # Lenovo string contains additional directive (^-symbol likely)
         # It also sometimes contains spaces, like in package r07iw22w_8260
-        $LenovoStringSanitized = $LenovoString -replace '^\^|\s|\^$'
-        if ($LenovoStringSanitized -notmatch "^[\d\.]+$") {
+        $LenovoStringSanitized = $LenovoString.Replace(' ', '')
+        if ($LenovoStringSanitized -notmatch '^[\d\.]*\^?[\d\.]*$') {
             # Unknown character in version string, cannot continue
             Write-Verbose "Got unsupported version format from Lenovo: '$LenovoString'"
             return -2
         }
 
-        switch -Wildcard ($LenovoString) {
-            "^*^" {
-                Write-Verbose "Got unsupported version format from Lenovo: '$LenovoString'"
-                return -2
-            }
-            "^*" {
-                # Means up to and including
-                if ((Compare-Version -ReferenceVersion $SystemString.Split('.') -DifferenceVersion $LenovoStringSanitized.Split('.')) -in 0,2) {
-                    return 0
-                } else {
-                    return -1
-                }
-            }
-            "*^" {
-                # Means must be equal or higher than
-                if ((Compare-Version -ReferenceVersion $SystemString.Split('.') -DifferenceVersion $LenovoStringSanitized.Split('.')) -in 0,1) {
-                    return 0
-                } else {
-                    return -1
-                }
-            }
-            default {
-                Write-Verbose "Got unsupported version format from Lenovo: '$LenovoString'"
-                return -2
+        $GreaterOrEqual, $LessOrEqual = $LenovoStringSanitized.Split('^')
+
+        if ($LessOrEqual) {
+            # System version must be less or equal
+            if ((Compare-Version -ReferenceVersion $SystemString.Split('.') -DifferenceVersion $LessOrEqual.Split('.')) -notin 0,2) {
+                return -1
             }
         }
+        if ($GreaterOrEqual) {
+            # System version must be equal or higher than
+            if ((Compare-Version -ReferenceVersion $SystemString.Split('.') -DifferenceVersion $GreaterOrEqual.Split('.')) -notin 0,1) {
+                return -1
+            }
+        }
+
+        return 0
     }
 }
