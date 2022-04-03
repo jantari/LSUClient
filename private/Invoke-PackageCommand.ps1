@@ -55,37 +55,6 @@
 
         Set-StrictMode -Version 3.0
 
-        Add-Type -Debug:$false -TypeDefinition @'
-        using System;
-        using System.Text;
-        using System.Runtime.InteropServices;
-
-        public class User32 {
-            [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-            public static extern int GetWindowTextLength(IntPtr hWnd);
-
-            [DllImport("user32.dll", CharSet = CharSet.Auto)]
-            public static extern IntPtr SendMessage(IntPtr hWnd, UInt32 Msg, int wParam, StringBuilder lParam);
-
-            public delegate bool EnumThreadDelegate(IntPtr hWnd, IntPtr lParam);
-
-            [DllImport("user32.dll", CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall, SetLastError = true)]
-            public static extern bool EnumThreadWindows(int dwThreadId, EnumThreadDelegate lpfn, IntPtr lParam);
-        }
-'@
-
-        function Get-ChildProcesses {
-            Param (
-                $ParentProcessId
-            )
-            Get-CIMInstance -ClassName win32_process -Filter "ParentProcessId = '$ParentProcessId'" | Foreach-Object {
-                $_.ProcessId
-                if ($_.ParentProcessId -ne $_.ProcessId) {
-                    Get-ChildProcesses -ParentProcessId $_.ProcessId
-                }
-            }
-        }
-
         # This value is used to communicate problems and errors that can be handled and or remedied/retried
         # internally to the calling function. It stays 0 when no known errors occurred.
         $HandledError = 0
@@ -132,6 +101,8 @@
         }
 
         if ($ProcessStarted) {
+            $process.ID
+
             if (-not $FallbackToShellExecute) {
                 # When redirecting StandardOutput or StandardError you have to start reading the streams asynchronously, or else it can cause
                 # programs that output a lot (like package u3aud03w_w10 - Conexant USB Audio) to fill a stream and deadlock/hang indefinitely.
@@ -140,64 +111,7 @@
                 $StdErrAsync = $process.StandardError.ReadToEndAsync()
             }
 
-            # Very experimental code to try and detect hanging processes
-            [int]$WM_GETTEXT = 0xD
-
-            while (-not $process.HasExited) {
-                $ProcessRuntimeElapsed = ((Get-Date) - $process.StartTime).TotalMinutes
-                # Only start looking into processes if they have been running for x time,
-                # many are really short lived and don't need to be tested for 'hanging'
-                if ($ProcessRuntimeElapsed -gt 1) { # Set to low time of 1 minute intentionally during testing
-                    $process.Refresh()
-                    $TimeStamp = Get-Date -Format 'HH:mm:ss'
-
-                    Write-Debug "[$TimeStamp] WARNING: Process $($process.ID) has been running for a while"
-                    Write-Debug "[$TimeStamp] Process has $($process.Threads.Count) threads"
-                    [array]$ChildProcesses = $process.ID
-                    [array]$ChildProcesses += Get-ChildProcesses -ParentProcessId $process.ID
-                    Write-Debug "[$TimeStamp] Process has $($ChildProcesses.Count - 1) child processes"
-
-                    foreach ($SpawnedProcessID in $ChildProcesses) {
-                        $SpawnedProcess = Get-Process -Id $SpawnedProcessID
-
-                        if ($SpawnedProcess.MainWindowHandle -ne [IntPtr]::Zero) {
-                            $WindowTextLen = [User32]::GetWindowTextLength($SpawnedProcess.MainWindowHandle) + 1
-
-                            [System.Text.StringBuilder]$sb = [System.Text.StringBuilder]::new($WindowTextLen)
-                            $null = [User32]::SendMessage($SpawnedProcess.MainWindowHandle, $WM_GETTEXT, $WindowTextLen, $sb)
-
-                            $windowTitle = $sb.Tostring()
-                            Write-Debug "[$TimeStamp] Process $($SpawnedProcess.ID) has main window $($SpawnedProcess.MainWindowHandle) with titlecaption '$windowTitle'"
-                        }
-
-                        if (-not $SpawnedProcess.Threads.ThreadState -ne 'Wait') {
-                            Write-Debug "[$TimeStamp] WARNING: Process $($SpawnedProcess.ID) All threads are waiting"
-                        }
-
-                        foreach ($Thread in $SpawnedProcess.Threads) {
-                            $ThreadWindows = [System.Collections.Generic.List[IntPtr]]::new()
-                            $null = [User32]::EnumThreadWindows($thread.id, { Param($hwnd, $lParam) $ThreadWindows.Add($hwnd) }, [System.IntPtr]::Zero)
-
-                            if ($ThreadWindows.Count -gt 0 -and $Thread.ThreadState -eq 'Wait' -and $Thread.WaitReason -eq 'UserRequest') {
-                                Write-Debug "[$TimeStamp] WARNING: Process $($SpawnedProcess.ID), Thread $($thread.id) has window open and is waiting for user input"
-                            }
-
-                            foreach ($window in $ThreadWindows) {
-                                $WindowTextLen = [User32]::GetWindowTextLength($window) + 1
-
-                                [System.Text.StringBuilder]$sb = [System.Text.StringBuilder]::new($WindowTextLen)
-                                $null = [User32]::SendMessage($window, $WM_GETTEXT, $WindowTextLen, $sb)
-
-                                $windowTitle = $sb.Tostring()
-                                Write-Debug "[$TimeStamp] Process $($SpawnedProcess.ID), Thread $($thread.id) in state $($thread.ThreadState), WaitReason $($thread.WaitReason), Window $window has titlecaption '$windowTitle'"
-                            }
-                        }
-                    }
-
-                    Write-Debug ""
-                    Start-Sleep -Seconds 30
-                }
-            }
+            $process.WaitForExit()
 
             if (-not $FallbackToShellExecute) {
                 $StdOutInOneString = $StdOutAsync.GetAwaiter().GetResult()
@@ -229,22 +143,124 @@
         'Executable'             = $ExeAndArgs.Executable
         'Arguments'              = $ExeAndArgs.Arguments
         'FallbackToShellExecute' = $FallbackToShellExecute
-        'Debug'                  = $true
     })
 
     $Powershell.Runspace = $Runspace
-    $RunspaceStandardOut = $Powershell.Invoke()
+    $RunspaceStandardInput = [System.Management.Automation.PSDataCollection[PSObject]]::new()
+    $RunspaceStandardInput.Complete()
+    $RunspaceStandardOut = [System.Management.Automation.PSDataCollection[PSObject]]::new()
+    [Datetime]$RunspaceStartTime = Get-Date
+    $PSAsyncRunspace = $Powershell.BeginInvoke($RunspaceStandardInput, $RunspaceStandardOut)
+
+    Add-Type -Debug:$false -TypeDefinition @'
+    using System;
+    using System.Text;
+    using System.Runtime.InteropServices;
+
+    public class User32 {
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        public static extern int GetWindowTextLength(IntPtr hWnd);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        public static extern IntPtr SendMessage(IntPtr hWnd, UInt32 Msg, int wParam, StringBuilder lParam);
+
+        public delegate bool EnumThreadDelegate(IntPtr hWnd, IntPtr lParam);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall, SetLastError = true)]
+        public static extern bool EnumThreadWindows(int dwThreadId, EnumThreadDelegate lpfn, IntPtr lParam);
+    }
+'@
+
+    function Get-ChildProcesses {
+        [CmdletBinding()]
+        Param (
+            $ParentProcessId
+        )
+        Get-CimInstance -ClassName Win32_Process -Filter "ParentProcessId = '$ParentProcessId'" | Foreach-Object {
+            $_.ProcessId
+            if ($_.ParentProcessId -ne $_.ProcessId) {
+                Get-ChildProcesses -ParentProcessId $_.ProcessId
+            }
+        }
+    }
+
+    # Very experimental code to try and detect hanging processes
+    [int]$WM_GETTEXT = 0xD
+    while ($PSAsyncRunspace.IsCompleted -eq $false) {
+        $ProcessRuntimeElapsed = (Get-Date) - $RunspaceStartTime
+        # Only start looking into processes if they have been running for x time,
+        # many are really short lived and don't need to be tested for 'hanging'
+        if ($ProcessRuntimeElapsed.TotalMinutes -gt 1) { # Set to low time of 1 minute intentionally during testing
+            if ($RunspaceStandardOut.Count -ge 1) {
+                [bool]$IsWindowOpen      = $false
+                [bool]$AllThreadsWaiting = $true
+
+                $ProcessID = $RunspaceStandardOut[0]
+                $process   = Get-Process -Id $ProcessID
+                $TimeStamp = Get-Date -Format 'HH:mm:ss'
+
+                Write-Debug "[$TimeStamp] Process $($process.ID) has been running for $ProcessRuntimeElapsed"
+                Write-Debug "[$TimeStamp] Process has $($process.Threads.Count) threads"
+                [array]$ChildProcesses = $process.ID
+                [array]$ChildProcesses += Get-ChildProcesses -ParentProcessId $process.ID -Verbose:$false
+                Write-Debug "[$TimeStamp] Process has $($ChildProcesses.Count - 1) child processes"
+
+                foreach ($SpawnedProcessID in $ChildProcesses) {
+                    $SpawnedProcess = Get-Process -Id $SpawnedProcessID
+
+                    if ($SpawnedProcess.MainWindowHandle -ne [IntPtr]::Zero) {
+                        $WindowTextLen = [User32]::GetWindowTextLength($SpawnedProcess.MainWindowHandle) + 1
+
+                        [System.Text.StringBuilder]$sb = [System.Text.StringBuilder]::new($WindowTextLen)
+                        $null = [User32]::SendMessage($SpawnedProcess.MainWindowHandle, $WM_GETTEXT, $WindowTextLen, $sb)
+
+                        $windowTitle = $sb.Tostring()
+                        Write-Debug "[$TimeStamp] Process $($SpawnedProcess.ID) has main window $($SpawnedProcess.MainWindowHandle) with titlecaption '$windowTitle'"
+                    }
+
+                    if (-not $SpawnedProcess.Threads.ThreadState -ne 'Wait') {
+                        Write-Debug "[$TimeStamp] Process $($SpawnedProcess.ID) All threads are waiting"
+                    } else {
+                        $AllThreadsWaiting = $false
+                    }
+
+                    foreach ($Thread in $SpawnedProcess.Threads) {
+                        $ThreadWindows = [System.Collections.Generic.List[IntPtr]]::new()
+                        $null = [User32]::EnumThreadWindows($thread.id, { Param($hwnd, $lParam) $ThreadWindows.Add($hwnd) }, [System.IntPtr]::Zero)
+
+                        if ($ThreadWindows.Count -gt 0 -and $Thread.ThreadState -eq 'Wait' -and $Thread.WaitReason -eq 'UserRequest') {
+                            Write-Debug "[$TimeStamp] Process $($SpawnedProcess.ID), Thread $($thread.id) has window open and is waiting for user input"
+                        }
+
+                        if ($ThreadWindows.Count -gt 0) {
+                            $IsWindowOpen = $true
+                        }
+
+                        foreach ($window in $ThreadWindows) {
+                            $WindowTextLen = [User32]::GetWindowTextLength($window) + 1
+
+                            [System.Text.StringBuilder]$sb = [System.Text.StringBuilder]::new($WindowTextLen)
+                            $null = [User32]::SendMessage($window, $WM_GETTEXT, $WindowTextLen, $sb)
+
+                            $windowTitle = $sb.Tostring()
+                            Write-Debug "[$TimeStamp] Process $($SpawnedProcess.ID), Thread $($thread.id) in state $($thread.ThreadState), WaitReason $($thread.WaitReason), Window $window has titlecaption '$windowTitle'"
+                        }
+                    }
+                }
+            }
+
+            Write-Debug "CONCLUSION: The process looks $( if ($IsWindowOpen -and $AllThreadsWaiting) { 'blocked' } else { 'normal' } )."
+            Write-Debug ""
+            Start-Sleep -Seconds 30
+        }
+
+        Start-Sleep -Milliseconds 200
+    }
 
     # Print any unhandled / unexpected errors as warnings
     if ($PowerShell.Streams.Error.Count -gt 0) {
         foreach ($ErrorRecord in $PowerShell.Streams.Error.ReadAll()) {
             Write-Warning $ErrorRecord
-        }
-    }
-
-    if ($PowerShell.Streams.Debug.Count -gt 0) {
-        foreach ($DebugRecord in $PowerShell.Streams.Debug.ReadAll()) {
-            Write-Debug $DebugRecord
         }
     }
 
