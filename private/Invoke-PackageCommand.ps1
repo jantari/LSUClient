@@ -169,6 +169,16 @@
         [DllImport("user32.dll", CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall, SetLastError = true)]
         public static extern bool EnumThreadWindows(int dwThreadId, EnumThreadDelegate lpfn, IntPtr lParam);
 
+        [DllImport("user32.dll", CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall, SetLastError = true)]
+        public static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
+
+        // callback to enumerate child windows
+        public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool EnumChildWindows(IntPtr window, EnumWindowsProc callback, IntPtr i);
+
         [DllImport("user32.dll", SetLastError=true, CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool IsWindowVisible(IntPtr hWnd);
@@ -204,6 +214,51 @@
         }
     }
 
+    function Get-ChildWindows {
+        [CmdletBinding()]
+        Param (
+            [IntPtr]$Parent,
+            [int]$DebugIndent = 4
+        )
+
+        $ChildWindows = [System.Collections.Generic.List[IntPtr]]::new()
+        $ECW_RETURN = [User32]::EnumChildWindows($Parent, { Param([IntPtr]$handle, $lParam) $ChildWindows.Add($handle) }, [IntPtr]::Zero)
+        Write-Debug "$(' ' * $DebugIndent)[ECW: $ECW_RETURN]: window $Parent has $($ChildWindows.Count) child windows"
+        return $ChildWindows
+    }
+
+    function Get-WindowInfo {
+        Param (
+            [IntPtr]$WindowHandle
+        )
+
+        [int]$WM_GETTEXT = 0xD
+        [int]$GWL_STYLE = -16
+        [Uint32]$WS_DISABLED = 0x08000000
+        [Uint32]$WS_VISIBLE  = 0x10000000
+
+        $WindowTextLen = [User32]::GetWindowTextLength($WindowHandle) + 1
+
+        [System.Text.StringBuilder]$sb = [System.Text.StringBuilder]::new($WindowTextLen)
+        $null = [User32]::SendMessage($WindowHandle, $WM_GETTEXT, $WindowTextLen, $sb)
+        $windowTitle = $sb.Tostring()
+
+        $IsVisible = [User32]::IsWindowVisible($WindowHandle)
+
+        $style = [User32]::GetWindowLong($WindowHandle, $GWL_STYLE)
+        [User32+RECT]$RECT = New-Object 'User32+RECT'
+        $null = [User32]::GetWindowRect($WindowHandle, [ref]$RECT)
+
+        [PSCustomObject]@{
+            'Title'      = $windowTitle
+            'Width'      = $RECT.Right - $RECT.Left
+            'Height'     = $RECT.Bottom - $RECT.Top
+            'IsVisible'  = $IsVisible
+            'IsDisabled' = ($style -band $WS_DISABLED) -eq $WS_DISABLED
+            'Style'      = $style
+        }
+    }
+
     # Very experimental code to try and detect hanging processes
     [int]$WM_GETTEXT = 0xD
     [int]$GWL_STYLE = -16
@@ -230,58 +285,59 @@
 
                 foreach ($SpawnedProcessID in $ChildProcesses) {
                     $SpawnedProcess = Get-Process -Id $SpawnedProcessID
+                    Write-Debug "Process $($SpawnedProcess.ID) ('$($SpawnedProcess.ProcessName)')"
+
+                    #$ProcessWindows = [System.Collections.Generic.List[IntPtr]]::new()
+                    #[User32]::EnumWindows({ Param($hwnd, $lParam) $ProcessWindows.Add($hwnd); return $true }, [IntPtr]::Zero)
+
+                    #Write-Host "Process $SpawnedProcessID has $($ProcessWindows.Count) child windows"
+
+                    #foreach ($ChildWindow in $ProcessWindows) {
+                    #    $wi = Get-WindowInfo -WindowHandle $ChildWindow
+                    #    if ($wi.Title) { Write-Host "    -> $($wi.Title)" }
+                    #}
 
                     if ($SpawnedProcess.MainWindowHandle -ne [IntPtr]::Zero) {
-                        $WindowTextLen = [User32]::GetWindowTextLength($SpawnedProcess.MainWindowHandle) + 1
+                        $WindowInfo = Get-WindowInfo -WindowHandle $SpawnedProcess.MainWindowHandle
 
-                        [System.Text.StringBuilder]$sb = [System.Text.StringBuilder]::new($WindowTextLen)
-                        $null = [User32]::SendMessage($SpawnedProcess.MainWindowHandle, $WM_GETTEXT, $WindowTextLen, $sb)
-
-                        $windowTitle = $sb.Tostring()
-                        $style = [User32]::GetWindowLong($SpawnedProcess.MainWindowHandle, $GWL_STYLE)
-                        [User32+RECT]$RECT = New-Object 'User32+RECT'
-                        [User32]::GetWindowRect($SpawnedProcess.MainWindowHandle, [ref]$RECT)
-                        $WindowWidth  = $RECT.Right - $RECT.Left
-                        $WindowHeight = $RECT.Bottom - $RECT.Top
-
-                        if ([User32]::IsWindowVisible($SpawnedProcess.MainWindowHandle) -and $WindowWidth -gt 0 -and $WindowHeight -gt 0) {
+                        if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
                             $InteractableWindowOpen = $true
                         }
 
-                        Write-Debug "Process $($SpawnedProcess.ID) ('$($SpawnedProcess.ProcessName)') has main window:"
-                        Write-Debug "  Window $($SpawnedProcess.MainWindowHandle), TitleCaption '${windowTitle}', IsVisible: $([User32]::IsWindowVisible($SpawnedProcess.MainWindowHandle)), IsDisabled: $(($style -band $WS_DISABLED) -eq $WS_DISABLED), Style: $('{0:X}' -f $style), Size: $WindowWidth x $WindowHeight"
+                        Write-Debug "  has main window:"
+                        Write-Debug "    Window $($SpawnedProcess.MainWindowHandle), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
+
+                        $ChildWindows = Get-ChildWindows -Parent $SpawnedProcess.MainWindowHandle
+                        foreach ($ChildWindow in $ChildWindows) {
+                            $null = Get-WindowInfo -WindowHandle $ChildWindow # Recurse this at some point
+                        }
                     }
 
                     if ($SpawnedProcess.Threads.ThreadState -ne 'Wait') {
                         $AllThreadsWaiting = $false
                     } else {
-						Write-Debug "Process $($SpawnedProcess.ID) ('$($SpawnedProcess.ProcessName)') All threads are waiting:"
-						'  ' + ($SpawnedProcess.Threads.WaitReason | Group-Object -NoElement | Sort-Object Count -Descending | % { "$($_.Count)x $($_.Name)" } ) -join ", " | Write-Debug
+                        Write-Debug "  All threads are waiting:"
+                        '    ' + ($SpawnedProcess.Threads.WaitReason | Group-Object -NoElement | Sort-Object Count -Descending | % { "$($_.Count)x $($_.Name)" } ) -join ", " | Write-Debug
                     }
 
                     foreach ($Thread in $SpawnedProcess.Threads) {
                         $ThreadWindows = [System.Collections.Generic.List[IntPtr]]::new()
-                        $null = [User32]::EnumThreadWindows($thread.id, { Param($hwnd, $lParam) $ThreadWindows.Add($hwnd) }, [System.IntPtr]::Zero)
+                        $null = [User32]::EnumThreadWindows($thread.id, { Param($hwnd, $lParam) $ThreadWindows.Add($hwnd); return $true }, [System.IntPtr]::Zero)
 
+                        Write-Debug "  Thread $($thread.id) in state $($thread.ThreadState) ($($thread.WaitReason)) has $($ThreadWindows.Count) windows:"
                         foreach ($window in $ThreadWindows) {
-                            $WindowTextLen = [User32]::GetWindowTextLength($window) + 1
+                            $WindowInfo = Get-WindowInfo -WindowHandle $window
 
-                            [System.Text.StringBuilder]$sb = [System.Text.StringBuilder]::new($WindowTextLen)
-                            $null = [User32]::SendMessage($window, $WM_GETTEXT, $WindowTextLen, $sb)
-
-                            $windowTitle = $sb.Tostring()
-                            $style = [User32]::GetWindowLong($window, $GWL_STYLE)
-                            [User32+RECT]$RECT = New-Object 'User32+RECT'
-                            [User32]::GetWindowRect($window, [ref]$RECT)
-                            $WindowWidth  = $RECT.Right - $RECT.Left
-                            $WindowHeight = $RECT.Bottom - $RECT.Top
-
-                            if ([User32]::IsWindowVisible($window) -and $WindowWidth -gt 0 -and $WindowHeight -gt 0) {
+                            if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
                                 $InteractableWindowOpen = $true
                             }
 
-                            Write-Debug "Process $($SpawnedProcess.ID) ('$($SpawnedProcess.ProcessName)'), Thread $($thread.id) in state $($thread.ThreadState) ($($thread.WaitReason)) has window:"
-                            Write-Debug "  Window ${window}, TitleCaption '${windowTitle}', IsVisible: $([User32]::IsWindowVisible($window)), IsDisabled: $(($style -band $WS_DISABLED) -eq $WS_DISABLED), Style: $('{0:X}' -f $style), Size: $($RECT.Right - $RECT.Left) x $($RECT.Bottom - $RECT.Top)"
+                            Write-Debug "    Window ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
+
+                            $ChildWindows = Get-ChildWindows -Parent $window
+                            foreach ($ChildWindow in $ChildWindows) {
+                                $null = Get-WindowInfo -WindowHandle $ChildWindow # Recurse this at some point
+                            }
                         }
                     }
                 }
