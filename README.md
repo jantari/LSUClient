@@ -5,7 +5,7 @@
 
 ![PowerShell Gallery](https://img.shields.io/powershellgallery/dt/LSUClient?label=PowerShell%20Gallery&logo=Powershell&logoColor=FFFFFF&style=flat)  
 An all-PowerShell alternative to "Lenovo System Update" that gives you the control and
-flexibility to automate driver and firmware updates like you've always wanted to.  
+flexibility to manage driver and firmware updates like you've always wanted to.  
 &nbsp;  
 For further documentation please see 🔗 https://jantari.github.io/LSUClient-docs/
 <br>
