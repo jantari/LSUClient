@@ -1,15 +1,14 @@
-<span>
+<div>
 <img align="left" src="logo_220px.png" alt="LSUClient PowerShell Module PNG Logo" style="padding-right: 40px"/>
 
 # LSUClient
 
 ![PowerShell Gallery](https://img.shields.io/powershellgallery/dt/LSUClient?label=PowerShell%20Gallery&logo=Powershell&logoColor=FFFFFF&style=flat)  
 An all-PowerShell alternative to "Lenovo System Update" that gives you the control and
-flexibility to manage driver and firmware updates like you've always wanted to.  
-&nbsp;  
-For further documentation please see 🔗 https://jantari.github.io/LSUClient-docs/
+flexibility to manage driver and firmware updates like you've always wanted to.
 <br>
-</span>
+<br>
+</div>
 <br>
 
 ## Installation
@@ -73,7 +72,9 @@ Using the `-Model` parameter of `Get-LSUpdate` you can retrieve packages for ano
 In this case you almost always want to use `-All` too so that the packages found are not filtered against your computer and all packages are downloaded.
 
 ---
-For more details, available parameters and guidance on how to use them run `Get-Help -Detailed` on the functions in this module.
+
+For further documentation please see 🔗 https://jantari.github.io/LSUClient-docs/ and
+run `Get-Help -Detailed` on the functions in this module.
 
 ## Misc
 
