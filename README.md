@@ -1,4 +1,4 @@
-<div>
+<span>
 <img align="left" src="logo_220px.png" alt="LSUClient PowerShell Module PNG Logo" style="padding-right: 40px"/>
 
 # LSUClient
@@ -8,7 +8,7 @@ An all-PowerShell alternative to "Lenovo System Update" that gives you the contr
 flexibility to manage driver and firmware updates like you've always wanted to.
 <br>
 <br>
-</div>
+</span>
 <br>
 
 ## Installation
