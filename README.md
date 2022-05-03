@@ -1,15 +1,13 @@
-<span>
-<img align="left" src="logo_220px.png" alt="LSUClient PowerShell Module PNG Logo" style="padding-right: 40px"/>
+<h1 align="center">LSUClient</h1>
 
-# LSUClient
-
-![PowerShell Gallery](https://img.shields.io/powershellgallery/dt/LSUClient?label=PowerShell%20Gallery&logo=Powershell&logoColor=FFFFFF&style=flat)  
-An all-PowerShell alternative to "Lenovo System Update" that gives you the control and
-flexibility to manage driver and firmware updates like you've always wanted to.
-<br>
-<br>
-</span>
-<br>
+<p align="center">
+  <img src="https://img.shields.io/powershellgallery/dt/LSUClient?label=PowerShell%20Gallery&amp;logo=Powershell&amp;logoColor=FFFFFF&amp;style=flat" alt="PowerShell Gallery">
+  <img src="https://img.shields.io/powershellgallery/v/lsuclient?label=Latest&amp;logo=powershell&amp;logoColor=FFF" alt="PowerShell Gallery Version">
+  <img src="https://img.shields.io/github/v/release/jantari/lsuclient?label=Latest&amp;logo=github" alt="GitHub release (latest by date)">
+</p>
+<p align="center">
+  <img src="logo_220px.png" alt="LSUClient PowerShell Module PNG Logo" />
+</p>
 
 ## Installation
 
