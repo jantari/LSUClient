@@ -8,6 +8,9 @@
 <p align="center">
   <img src="logo_220px.png" alt="LSUClient PowerShell Module PNG Logo" />
 </p>
+<p align="center">
+  Orchestrate driver, BIOS/UEFI and firmware updates for Lenovo computers - with PowerShell!
+</p>
 
 ## Installation
 
