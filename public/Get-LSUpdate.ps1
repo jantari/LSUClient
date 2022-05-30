@@ -132,7 +132,7 @@
         [Version]$WindowsVersion = Get-WindowsVersion
         $SMBiosInformation = Get-CimInstance -ClassName Win32_BIOS -Verbose:$false
         $script:CachedHardwareTable = @{
-            '_OS'                        = if ($WindowsVersion -ge [Version]::new(10, 0, 22000, 0)) { 'Win11' } else { 'Win10' }
+            '_OS'                        = if ($WindowsVersion -ge [Version]::new(10, 0, 22000, 0)) { '11' } else { '10' }
             '_WindowsBuildVersion'       = $WindowsVersion.Build
             '_CPUAddressWidth'           = [wmisearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
             '_Bios'                      = $SMBiosInformation.SMBIOSBIOSVersion

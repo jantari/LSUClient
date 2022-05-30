@@ -18,10 +18,10 @@
     Write-Verbose "Looking for packages in repository '${Repository}' (Type: ${RepositoryType})"
 
     if ($RepositoryType -eq 'HTTP') {
-        $ModelXmlPath    = $Repository.TrimEnd('/', '\') + "/${Model}_$($CachedHardwareTable['_OS']).xml"
+        $ModelXmlPath    = $Repository.TrimEnd('/', '\') + "/${Model}_Win$($CachedHardwareTable['_OS']).xml"
         $DatabaseXmlPath = $Repository.TrimEnd('/', '\') + '/database.xml'
     } elseif ($RepositoryType -eq 'FILE') {
-        $ModelXmlPath    = Join-Path -Path $Repository -ChildPath "${Model}_$($CachedHardwareTable['_OS']).xml"
+        $ModelXmlPath    = Join-Path -Path $Repository -ChildPath "${Model}_Win$($CachedHardwareTable['_OS']).xml"
         $DatabaseXmlPath = Join-Path -Path $Repository -ChildPath "database.xml"
     }
 
@@ -92,24 +92,26 @@
             [xml]$PARSEDXML = $XmlString -replace "^$UTF8ByteOrderMark"
         }
 
-        foreach ($Package in $PARSEDXML.Database.package) {
-            if ($Package.SystemCompatibility.System.mtm -contains $Model) {
-                $PathInfo = Get-PackagePathInfo -Path $Package.LocalPath -BasePath $Repository
-                if ($PathInfo.Valid) {
-                    [PackageXmlPointer]::new(
-                        $PathInfo.AbsoluteLocation,
-                        $PathInfo.Type,
-                        'XmlDefinition',
-                        $Package.checksum.'#text',
-                        0,
-                        $Package.category
-                    )
-                } else {
-                    Write-Error "The package definition at $($Package.LocalPath) could not be found or accessed"
+        :NextPackage foreach ($Package in $PARSEDXML.Database.package) {
+            foreach ($CompatibleSystem in $Package.SystemCompatibility.System) {
+                if ($CompatibleSystem.mtm -eq $Model -and $CompatibleSystem.os -eq "Windows $($CachedHardwareTable['_OS'])") {
+                    $PathInfo = Get-PackagePathInfo -Path $Package.LocalPath -BasePath $Repository
+                    if ($PathInfo.Valid) {
+                        [PackageXmlPointer]::new(
+                            $PathInfo.AbsoluteLocation,
+                            $PathInfo.Type,
+                            'XmlDefinition',
+                            $Package.checksum.'#text',
+                            0,
+                            $Package.category
+                        )
+                    } else {
+                        Write-Error "The package definition at $($Package.LocalPath) could not be found or accessed"
+                    }
+                    continue NextPackage
                 }
-            } else {
-                Write-Debug "Discovered package $($Package.LocalPath) is not applicable to the computer model"
             }
+            Write-Debug "Discovered package $($Package.LocalPath) is not applicable to the computer model and OS"
         }
     } else {
         Write-Warning "The repository '${Repository}' did not contain either a '${Model}_Win10.xml' or 'database.xml' file to get packages from"
