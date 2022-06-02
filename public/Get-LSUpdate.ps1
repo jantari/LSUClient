@@ -3,12 +3,15 @@
         .SYNOPSIS
         Fetches available driver packages and updates for Lenovo computers
 
+        .DESCRIPTION
+        Fetches available driver packages and updates for Lenovo computers
+
         .PARAMETER Model
         Specify an alternative Lenovo Computer Model to retrieve update packages for.
         You may want to use this together with '-All' so that packages are not filtered against your local machines configuration.
 
         .PARAMETER Proxy
-        Specifies a proxy server for the connection to Lenovo. Enter the URI of a network proxy server.
+        Specifies the URL of a proxy server to use for the connection to the update repository.
 
         .PARAMETER ProxyCredential
         Specifies a user account that has permission to use the proxy server that is specified by the -Proxy
@@ -20,17 +23,19 @@
 
         .PARAMETER All
         Return all packages, regardless of whether they are applicable to this specific machine or whether they are already installed.
-        E.g. this will return LTE-Modem drivers even on machines that do not have the optional LTE-Modem installed, or 32-bit drivers on a 64-bit OS.
-        Attempting to install such drivers will likely fail.
+        E.g. this will return LTE-Modem drivers even on machines that do not have the optional LTE-Modem installed, or 32-bit drivers
+        on a 64-bit OS. Attempting to install such inapplicable drivers will likely fail. Re-installing an already installed driver can
+        sometimes be useful to fix a driver that got corrupted.
 
         .PARAMETER IncludePhantomDevices
-        Consider currently disconnected ("phantom") devices as well when evaluating relevant packages.
+        Consider currently disconnected (phantom) devices as well when evaluating relevant packages.
 
         .PARAMETER ScratchDirectory
-        The path to a directory where temporary files are downloaded to for use during the search for packages. Defaults to $env:TEMP.
+        The path to a directory where temporary files are downloaded to for use during the search for packages. These files are cleaned
+        up automatically. Defaults to $env:TEMP.
 
         .PARAMETER Repository
-        The path to a package repository. This can either be a HTTP/S URL pointing to a webserver or a filesystem path to a directory.
+        The path to a package repository. This can either be an HTTP(S) URL pointing to a webserver or a filesystem path to a directory.
 
         .PARAMETER NoTestApplicable
         Do not check whether packages are applicable to the computer. The IsApplicable property of the package objects will be set to $null.
@@ -47,18 +52,26 @@
         their static, default severity classification. This switch is available both with and without -All.
 
         .PARAMETER FailUnsupportedDependencies
-        Lenovo specifies different tests to determine whether each package is applicable to a machine or not.
+        Lenovo specifies different tests with each package to determine whether it is applicable to a machine or not.
         This module makes a best effort to parse, understand and check these.
         However, new kinds of tests may be added by Lenovo at any point and some currently in use are not supported yet either.
-        By default, any unknown applicability test will be treated as passed which could result in packages that are not actually applicable being detected as applicable.
-        This switch will make all applicability tests we can't really check fail instead, which could lead to an applicable package being detected as not applicable instead.
+        By default, any unknown applicability tests will be treated as passed which may result in a package that is really not applicable being classified as applicable.
+        This switch will make all unsupported applicability tests fail instead, which in turn could lead to an applicable package being detected as not applicable instead.
 
         .PARAMETER PassUnsupportedInstallTests
-        Lenovo specifies different tests to determine whether each package is already installed or not.
+        Lenovo specifies different tests with each package to determine whether it is already installed or not.
         This module makes a best effort to parse, understand and check these.
         However, new kinds of tests may be added by Lenovo at any point and some currently in use are not supported yet either.
-        By default, any unknown install tests will be treated as failed which could result in a package that is actually installed being detected as missing.
-        This switch will make all tests we can't really check pass instead, which could lead to a missing update being detected as installed instead.
+        By default, any unknown install tests will be treated as failed which may result in a package that is already installed being classified as missing.
+        This switch will make all unsupported install tests pass instead, which in turn could lead to a missing update being detected as installed instead.
+
+        .EXAMPLE
+        # Get available updates for the local computer
+        PS> Get-LSUpdate 
+
+        .EXAMPLE
+        # Get all available packages for a different computer model
+        PS> Get-LSUpdate -Model 20K70000GE -All
     #>
 
     [CmdletBinding()]
