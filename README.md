@@ -74,7 +74,7 @@ In this case you almost always want to use `-All` too so that the packages found
 
 ---
 
-For further documentation please see 🔗 https://jantari.github.io/LSUClient-docs/ and
+For further documentation please see [the documentation site](https://jantari.github.io/LSUClient-docs/) and
 run `Get-Help -Detailed` on the functions in this module.
 
 ## Misc
