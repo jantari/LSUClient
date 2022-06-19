@@ -140,8 +140,7 @@
                 }
                 'INF' {
                     $InfSuccessCodes = @(0, 3010) + $PackageToProcess.Installer.SuccessCodes
-                    $InstallCMD = "${env:SystemRoot}\system32\pnputil.exe /add-driver $($PackageToProcess.Installer.InfFile) /install"
-                    $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
+                    $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Executable "${env:SystemRoot}\system32\pnputil.exe" -Arguments "/add-driver $($PackageToProcess.Installer.InfFile) /install"
 
                     $Success = $installProcess.Err -eq [ExternalProcessError]::NONE -and $installProcess.Info.ExitCode -in $InfSuccessCodes
 

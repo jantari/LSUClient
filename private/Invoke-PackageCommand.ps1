@@ -3,6 +3,20 @@
         .SYNOPSIS
         Tries to run a command and returns an object containing an error
         code and optionally information about the process that was run.
+
+        .PARAMETER Path
+
+        .PARAMETER Command
+        File path to the excutable and its arguments in one string.
+        The string can contain environment variables as well.
+
+        .PARAMETER Executable
+        File path to the executable to run. The path to the executable is currently not
+        resolved to an absolute path but run as-is. Variables are not expanded either.
+        Because of this the caller should already pass an absolute, verbatim path toArguments this parameter.
+
+        .PARAMETER Arguments
+        The optional command line arguments to run the executable with, as a single string.
     #>
 
     [CmdletBinding()]
@@ -11,8 +25,12 @@
         [ValidateNotNullOrEmpty()]
         [string]$Path,
         [ValidateNotNullOrEmpty()]
-        [Parameter( Mandatory = $true )]
+        [Parameter( Mandatory = $true, ParameterSetName = 'CommandString' )]
         [string]$Command,
+        [Parameter( Mandatory = $true, ParameterSetName = 'ExeAndArgs' )]
+        [string]$Executable,
+        [Parameter( ParameterSetName = 'ExeAndArgs' )]
+        [string]$Arguments = '',
         [switch]$FallbackToShellExecute
     )
 
@@ -21,22 +39,24 @@
     # extra backslashes, but this will make the path look more sane in errors and warnings.
     $Path = $Path.TrimEnd('\')
 
-    # Lenovo sometimes forgets to put a directory separator betweeen %PACKAGEPATH% and the executable so make sure it's there
-    # If we end up with two backslashes, Split-ExecutableAndArguments removes the duplicate from the executable path, but
-    # we could still end up with a double-backslash after %PACKAGEPATH% somewhere in the arguments for now.
-    [string]$ExpandedCommandString = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "${Path}\"; 'WINDOWS' = $env:SystemRoot}
-    $ExeAndArgs = Split-ExecutableAndArguments -Command $ExpandedCommandString -WorkingDirectory $Path
-    # Split-ExecutableAndArguments returns NULL if no executable could be found
-    if (-not $ExeAndArgs) {
-        Write-Warning "The command or file '$Command' could not be found from '$Path' and was not run"
-        return [ExternalProcessResult]::new(
-            [ExternalProcessError]::FILE_NOT_FOUND,
-            $null
-        )
+    if ($PSCmdlet.ParameterSetName -eq 'CommandString') {
+        # Lenovo sometimes forgets to put a directory separator betweeen %PACKAGEPATH% and the executable so make sure it's there
+        # If we end up with two backslashes, Split-ExecutableAndArguments removes the duplicate from the executable path, but
+        # we could still end up with a double-backslash after %PACKAGEPATH% somewhere in the arguments for now.
+        [string]$ExpandedCommandString = Resolve-CmdVariable -String $Command -ExtraVariables @{'PACKAGEPATH' = "${Path}\"; 'WINDOWS' = $env:SystemRoot}
+        $Executable, $Arguments = Split-ExecutableAndArguments -Command $ExpandedCommandString -WorkingDirectory $Path
+        # Split-ExecutableAndArguments returns NULL if no executable could be found
+        if (-not $Executable) {
+            Write-Warning "The command or file '$Command' could not be found from '$Path' and was not run"
+            return [ExternalProcessResult]::new(
+                [ExternalProcessError]::FILE_NOT_FOUND,
+                $null
+            )
+        }
+        $Arguments = Remove-CmdEscapeCharacter -String $Arguments
     }
 
-    $ExeAndArgs.Arguments = Remove-CmdEscapeCharacter -String $ExeAndArgs.Arguments
-    Write-Debug "Starting external process:`r`n  File: $($ExeAndArgs.Executable)`r`n  Arguments: $($ExeAndArgs.Arguments)`r`n  WorkingDirectory: $Path"
+    Write-Debug "Starting external process:`r`n  File: ${Executable}`r`n  Arguments: ${Arguments}`r`n  WorkingDirectory: ${Path}"
 
     $Runspace = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateOutOfProcessRunspace($null)
     $Runspace.Open()
@@ -137,8 +157,8 @@
 
     [void]$Powershell.AddParameters(@{
         'WorkingDirectory'       = $Path
-        'Executable'             = $ExeAndArgs.Executable
-        'Arguments'              = $ExeAndArgs.Arguments
+        'Executable'             = $Executable
+        'Arguments'              = $Arguments
         'FallbackToShellExecute' = $FallbackToShellExecute
     })
 
@@ -182,8 +202,8 @@
                 return [ExternalProcessResult]::new(
                     [ExternalProcessError]::NONE,
                     [ProcessReturnInformation]@{
-                        'FilePath'         = $ExeAndArgs.Executable
-                        'Arguments'        = $ExeAndArgs.Arguments
+                        'FilePath'         = $Executable
+                        'Arguments'        = $Arguments
                         'WorkingDirectory' = $Path
                         'StandardOutput'   = $StdOutTrimmed
                         'StandardError'    = $StdErrTrimmed
@@ -195,7 +215,7 @@
             # Error cases that are handled explicitly inside the runspace
             1 {
                 Write-Warning "No new process was created or a handle to it could not be obtained."
-                Write-Warning "Executable was: '$($ExeAndArgs.Executable)' - this should *probably* not have happened"
+                Write-Warning "Executable was: '${Executable}' - this should *probably* not have happened"
                 return [ExternalProcessResult]::new(
                     [ExternalProcessError]::PROCESS_NONE_CREATED,
                     $null
@@ -217,7 +237,7 @@
                 if (-not $FallbackToShellExecute) {
                     Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
                     Write-Warning "Process output cannot be captured when running with ShellExecute!"
-                    return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
+                    return (Invoke-PackageCommand -Path:$Path -Executable:$Executable -Arguments:$Arguments -FallbackToShellExecute)
                 } else {
                     return [ExternalProcessResult]::new(
                         [ExternalProcessError]::PROCESS_REQUIRES_ELEVATION,
@@ -228,7 +248,7 @@
             193 {
                 if (-not $FallbackToShellExecute) {
                     Write-Warning "The file to be run is not an executable - falling back to ShellExecute"
-                    return (Invoke-PackageCommand -Path:$Path -Command:$Command -FallbackToShellExecute)
+                    return (Invoke-PackageCommand -Path:$Path -Executable:$Executable -Arguments:$Arguments -FallbackToShellExecute)
                 } else {
                     return [ExternalProcessResult]::new(
                         [ExternalProcessError]::FILE_NOT_EXECUTABLE,
