@@ -218,13 +218,24 @@
         [CmdletBinding()]
         Param (
             [IntPtr]$Parent,
-            [int]$DebugIndent = 4
+            [switch]$Recurse,
+            [int]$RecursionDepth = 1
         )
 
         $ChildWindows = [System.Collections.Generic.List[IntPtr]]::new()
         $ECW_RETURN = [User32]::EnumChildWindows($Parent, { Param([IntPtr]$handle, $lParam) $ChildWindows.Add($handle) }, [IntPtr]::Zero)
-        Write-Debug "$(' ' * $DebugIndent)[ECW: $ECW_RETURN]: window $Parent has $($ChildWindows.Count) child windows"
-        return $ChildWindows
+        #Write-Debug "$('  ' * ($RecursionDepth + 1))[ECW: $ECW_RETURN]: window $Parent has $($ChildWindows.Count) child windows"
+        foreach ($Window in $ChildWindows) {
+            [PSCustomObject]@{
+                'RecursionDepth' = $RecursionDepth
+                'Window' = $Window
+            }
+            if ($Recurse) {
+                $RecursionDepth++
+                Get-ChildWindows -Parent $Window -RecursionDepth $RecursionDepth -Recurse
+                $RecursionDepth--
+            }
+        }
     }
 
     function Get-WindowInfo {
@@ -278,10 +289,10 @@
                 $TimeStamp = Get-Date -Format 'HH:mm:ss'
 
                 Write-Debug "[$TimeStamp] Process $($process.ID) has been running for $ProcessRuntimeElapsed"
-                Write-Debug "Process has $($process.Threads.Count) threads"
+                #Write-Debug "Process has $($process.Threads.Count) threads"
                 [array]$ChildProcesses = $process.ID
                 [array]$ChildProcesses += Get-ChildProcesses -ParentProcessId $process.ID -Verbose:$false
-                Write-Debug "Process has $($ChildProcesses.Count - 1) child processes"
+                #Write-Debug "Process has $($ChildProcesses.Count - 1) child processes"
 
                 foreach ($SpawnedProcessID in $ChildProcesses) {
                     $SpawnedProcess = Get-Process -Id $SpawnedProcessID
@@ -307,36 +318,52 @@
                         Write-Debug "  has main window:"
                         Write-Debug "    Window $($SpawnedProcess.MainWindowHandle), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
 
+                        # I am pretty sure the MainWindow of a process is always also the window of
+                        # a thread, idk where else it would come from - but maybe find definitive
+                        # confirmation for that so this code can be removed
                         $ChildWindows = Get-ChildWindows -Parent $SpawnedProcess.MainWindowHandle
-                        foreach ($ChildWindow in $ChildWindows) {
+                        foreach ($ChildWindow in $ChildWindows.Window) {
                             $null = Get-WindowInfo -WindowHandle $ChildWindow # Recurse this at some point
                         }
                     }
 
                     if ($SpawnedProcess.Threads.ThreadState -ne 'Wait') {
                         $AllThreadsWaiting = $false
-                    } else {
-                        Write-Debug "  All threads are waiting:"
-                        '    ' + ($SpawnedProcess.Threads.WaitReason | Group-Object -NoElement | Sort-Object Count -Descending | % { "$($_.Count)x $($_.Name)" } ) -join ", " | Write-Debug
+                    #} else {
+                    #    Write-Debug "  All threads are waiting:"
+                    #    '    ' + ($SpawnedProcess.Threads.WaitReason | Group-Object -NoElement | Sort-Object Count -Descending | % { "$($_.Count)x $($_.Name)" } ) -join ", " | Write-Debug
                     }
 
                     foreach ($Thread in $SpawnedProcess.Threads) {
                         $ThreadWindows = [System.Collections.Generic.List[IntPtr]]::new()
                         $null = [User32]::EnumThreadWindows($thread.id, { Param($hwnd, $lParam) $ThreadWindows.Add($hwnd); return $true }, [System.IntPtr]::Zero)
 
-                        Write-Debug "  Thread $($thread.id) in state $($thread.ThreadState) ($($thread.WaitReason)) has $($ThreadWindows.Count) windows:"
+                        if ($ThreadWindows) {
+                            Write-Debug "  Thread $($thread.id) in state $($thread.ThreadState) ($($thread.WaitReason)) has $($ThreadWindows.Count) windows:"
+                        } else {
+                            Write-Debug "  Thread $($thread.id) in state $($thread.ThreadState) ($($thread.WaitReason)) has no windows"
+                        }
                         foreach ($window in $ThreadWindows) {
                             $WindowInfo = Get-WindowInfo -WindowHandle $window
 
                             if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
                                 $InteractableWindowOpen = $true
+                                # Print the debug output of the interactable window in capital letters to identify it easily
+                                Write-Debug "    Window ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'".ToUpper()
+                            } else {
+                                Write-Debug "    Window ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
                             }
 
-                            Write-Debug "    Window ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
-
-                            $ChildWindows = Get-ChildWindows -Parent $window
-                            foreach ($ChildWindow in $ChildWindows) {
-                                $null = Get-WindowInfo -WindowHandle $ChildWindow # Recurse this at some point
+                            $AllChildWindows = @(Get-ChildWindows -Parent $window -Recurse)
+                            foreach ($ChildWindow in $AllChildWindows) {
+                                $WindowInfo = Get-WindowInfo -WindowHandle $ChildWindow.Window
+                                if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
+                                    $InteractableWindowOpen = $true
+                                    # Print the debug output of the interactable window in capital letters to identify it easily
+                                    Write-Debug "$('  ' * $ChildWindow.RecursionDepth)    Window $($ChildWindow.Window), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'".ToUpper()
+                                } else {
+                                    Write-Debug "$('  ' * $ChildWindow.RecursionDepth)    Window $($ChildWindow.Window), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
+                                }
                             }
                         }
                     }
