@@ -144,6 +144,9 @@
 
     [string]$STDOUT = $process.StandardOutput.ReadToEnd()
 
+    # If the output is the parameter help text that means an unknown
+    # argument was passed aka /sccm was not recognized and is not supported.
+    # If the help output cannot be detected then /sccm was a known parameter.
     if (-not [System.String]::IsNullOrEmpty($STDOUT)) {
         if (-not [regex]::Match($STDOUT, '^Usage',      'Multiline').Success -and
             -not [regex]::Match($STDOUT, '^Arguments:', 'Multiline').Success -and

@@ -62,6 +62,7 @@
     $Runspace.Open()
 
     $Powershell = [PowerShell]::Create().AddScript{
+        [CmdletBinding()]
         Param (
             [ValidateNotNullOrEmpty()]
             [string]$WorkingDirectory,
@@ -110,7 +111,7 @@
             # In case we get ERROR_BAD_EXE_FORMAT (193) retry with ShellExecute to open files like MSI
             } elseif ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException.NativeErrorCode -eq 193) {
                 $HandledError = 193
-            # In case we get ERROR_ACCESS_DENIED (5, only observed on PowerShell 7 so far)
+            # In case we get ERROR_ACCESS_DENIED (5) e.g. when the file could not be accessed by the running user
             } elseif ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException.NativeErrorCode -eq 5) {
                 $HandledError = 5
             } else {
@@ -163,7 +164,28 @@
     })
 
     $Powershell.Runspace = $Runspace
-    $RunspaceStandardOut = $Powershell.Invoke()
+    $RunspaceStandardInput = [System.Management.Automation.PSDataCollection[PSObject]]::new()
+    $RunspaceStandardInput.Complete()
+    $RunspaceStandardOut = [System.Management.Automation.PSDataCollection[PSObject]]::new()
+    $RunspaceTimer = [System.Diagnostics.Stopwatch]::new()
+    $RunspaceTimer.Start()
+    $PSAsyncRunspace = $Powershell.BeginInvoke($RunspaceStandardInput, $RunspaceStandardOut)
+
+    $WasPrinted = $true
+    while ($PSAsyncRunspace.IsCompleted -eq $false) {
+        # Print message once every 5 minutes
+        if ($RunspaceTimer.Elapsed.Minutes % 5 -eq 0) {
+            if (-not $WasPrinted) {
+                Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
+                $WasPrinted = $true
+            }
+        } else {
+            $WasPrinted = $false
+        }
+        Start-Sleep -Milliseconds 200
+    }
+
+    $RunspaceTimer.Stop()
 
     # Print any unhandled / unexpected errors as warnings
     if ($PowerShell.Streams.Error.Count -gt 0) {
