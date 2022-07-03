@@ -270,10 +270,11 @@
             #$mainwindowUIA = $root.FindFirst([Windows.Automation.TreeScope]::Children, $condition)
             $mainwindowUIA = [System.Windows.Automation.AutomationElement]::FromHandle($WindowHandle)
             if ($mainwindowUIA) {
-                $UIAElements = $mainwindowUIA.FindAll([Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition).Current |
+                $UIAElements = $mainwindowUIA.FindAll([Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+                $UIAElementsCustom = @($mainwindowUIA.Current) + @($UIAElements.Current) |
                     Select-Object @{n = 'ControlType'; e = { $_.ControlType.ProgrammaticName }}, ClassName, HasKeyboardFocus, IsKeyboardFocusable, IsContentElement, Name
                 if ($UIAElements) {
-                    $InfoHashtable['UIAElements'] = @($UIAElements)
+                    $InfoHashtable['UIAElements'] = @($UIAElementsCustom)
                 }
             }
         }
@@ -335,8 +336,8 @@
                             $UIAElements = $mainwindowUIA.FindAll([Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition).Current |
                                 Select-Object @{n = 'ControlType'; e = { $_.ControlType.ProgrammaticName }}, ClassName, HasKeyboardFocus, IsKeyboardFocusable, IsContentElement, Name
 
-                            Write-Debug "    UIA Info: Got $($UIAElements.Count) UIAElements from this main window handle:"
-                            foreach ($UIAElement in $UIAElements) {
+                            Write-Debug "    UIA Info: Got $($UIAElements.Count + 1) UIAElements from this main window handle:"
+                            foreach ($UIAElement in @($mainwindowUIA.Current) + @($UIAElements)) {
                                 Write-Debug "      Type: $($UIAElement.ControlType), Name: $($UIAElement.Name -replace '(?s)^(.{50})(.*)', '$1...')"
                             }
                         } else {
@@ -360,7 +361,7 @@
                         $UIAElements = $setupUI.FindAll([Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition).Current |
                             Select-Object @{n = 'ControlType'; e = { $_.ControlType.ProgrammaticName }}, ClassName, HasKeyboardFocus, IsKeyboardFocusable, IsContentElement, Name
 
-                        foreach ($UIAElement in $UIAElements) {
+                        foreach ($UIAElement in @($setupUI.Current) + @($UIAElements)) {
                             Write-Debug "    Type: $($UIAElement.ControlType), Name: $($UIAElement.Name -replace '(?s)^(.{50})(.*)', '$1...')"
                         }
                     } else {
