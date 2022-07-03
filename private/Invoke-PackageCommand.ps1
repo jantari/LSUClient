@@ -152,6 +152,9 @@
     [Datetime]$RunspaceStartTime = Get-Date
     $PSAsyncRunspace = $Powershell.BeginInvoke($RunspaceStandardInput, $RunspaceStandardOut)
 
+    Add-Type -AssemblyName UIAutomationClient
+    Add-Type -AssemblyName UIAutomationTypes
+
     Add-Type -Debug:$false -TypeDefinition @'
     using System;
     using System.Text;
@@ -230,7 +233,8 @@
 
     function Get-WindowInfo {
         Param (
-            [IntPtr]$WindowHandle
+            [IntPtr]$WindowHandle,
+            [switch]$IncludeUIAInfo
         )
 
         [int]$WM_GETTEXT = 0xD
@@ -250,14 +254,31 @@
         [User32+RECT]$RECT = New-Object 'User32+RECT'
         $null = [User32]::GetWindowRect($WindowHandle, [ref]$RECT)
 
-        [PSCustomObject]@{
+        $InfoHashtable = @{
             'Title'      = $windowTitle
             'Width'      = $RECT.Right - $RECT.Left
             'Height'     = $RECT.Bottom - $RECT.Top
             'IsVisible'  = $IsVisible
             'IsDisabled' = ($style -band $WS_DISABLED) -eq $WS_DISABLED
             'Style'      = $style
+            'UIAElements' = @()
         }
+
+        if ($IncludeUIAInfo) {
+            #$root = [Windows.Automation.AutomationElement]::RootElement
+            #$condition = New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::NativeWindowHandleProperty, $WindowHandle.ToInt32())
+            #$mainwindowUIA = $root.FindFirst([Windows.Automation.TreeScope]::Children, $condition)
+            $mainwindowUIA = [System.Windows.Automation.AutomationElement]::FromHandle($WindowHandle)
+            if ($mainwindowUIA) {
+                $UIAElements = $mainwindowUIA.FindAll([Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition).Current |
+                    Select-Object @{n = 'ControlType'; e = { $_.ControlType.ProgrammaticName }}, ClassName, HasKeyboardFocus, IsKeyboardFocusable, IsContentElement, Name
+                if ($UIAElements) {
+                    $InfoHashtable['UIAElements'] = @($UIAElements)
+                }
+            }
+        }
+
+        return [PSCustomObject]$InfoHashtable
     }
 
     # Very experimental code to try and detect hanging processes
@@ -301,12 +322,26 @@
                     if ($SpawnedProcess.MainWindowHandle -ne [IntPtr]::Zero) {
                         $WindowInfo = Get-WindowInfo -WindowHandle $SpawnedProcess.MainWindowHandle
 
+                        Write-Debug "  has main window:"
                         if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
                             $InteractableWindowOpen = $true
+                            Write-Debug "    Window $($SpawnedProcess.MainWindowHandle), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'".ToUpper()
+                        } else {
+                            Write-Debug "    Window $($SpawnedProcess.MainWindowHandle), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
                         }
 
-                        Write-Debug "  has main window:"
-                        Write-Debug "    Window $($SpawnedProcess.MainWindowHandle), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
+                        $mainwindowUIA = [System.Windows.Automation.AutomationElement]::FromHandle($SpawnedProcess.MainWindowHandle)
+                        if ($mainwindowUIA) {
+                            $UIAElements = $mainwindowUIA.FindAll([Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition).Current |
+                                Select-Object @{n = 'ControlType'; e = { $_.ControlType.ProgrammaticName }}, ClassName, HasKeyboardFocus, IsKeyboardFocusable, IsContentElement, Name
+
+                            Write-Debug "    UIA Info: Got $($UIAElements.Count) UIAElements from this main window handle:"
+                            foreach ($UIAElement in $UIAElements) {
+                                Write-Debug "      Type: $($UIAElement.ControlType), Name: $($UIAElement.Name -replace '(?s)^(.{50})(.*)', '$1...')"
+                            }
+                        } else {
+                            Write-Debug "    Process main window is not accessible via UIAutomation (by window handle)"
+                        }
 
                         # I am pretty sure the MainWindow of a process is always also the window of
                         # a thread, idk where else it would come from - but maybe find definitive
@@ -315,6 +350,21 @@
                         foreach ($ChildWindow in $ChildWindows) {
                             $null = Get-WindowInfo -WindowHandle $ChildWindow # Recurse this at some point
                         }
+                    }
+
+                    Write-Debug "  Getting UIA elements of process $($SpawnedProcess.Id):"
+                    $root = [Windows.Automation.AutomationElement]::RootElement
+                    $condition = New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ProcessIdProperty, $SpawnedProcess.Id)
+                    $setupUI = $root.FindFirst([Windows.Automation.TreeScope]::Children, $condition)
+                    if ($setupUI) {
+                        $UIAElements = $setupUI.FindAll([Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition).Current |
+                            Select-Object @{n = 'ControlType'; e = { $_.ControlType.ProgrammaticName }}, ClassName, HasKeyboardFocus, IsKeyboardFocusable, IsContentElement, Name
+
+                        foreach ($UIAElement in $UIAElements) {
+                            Write-Debug "    Type: $($UIAElement.ControlType), Name: $($UIAElement.Name -replace '(?s)^(.{50})(.*)', '$1...')"
+                        }
+                    } else {
+                        Write-Debug "  Process either has no windows or they're not accessible via UIAutomation (by ProcessId)"
                     }
 
                     if ($SpawnedProcess.Threads.ThreadState -ne 'Wait') {
@@ -334,23 +384,31 @@
                             Write-Debug "  Thread $($thread.id) in state $($thread.ThreadState) ($($thread.WaitReason)) has no windows"
                         }
                         foreach ($window in $ThreadWindows) {
-                            $WindowInfo = Get-WindowInfo -WindowHandle $window
+                            $WindowInfo = Get-WindowInfo -WindowHandle $window -IncludeUIAInfo
 
                             if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
                                 $InteractableWindowOpen = $true
                                 # Print the debug output of the interactable window in capital letters to identify it easily
                                 Write-Debug "    Window ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'".ToUpper()
+                                Write-Debug "      UIA Info: Got $($WindowInfo.UIAElements.Count) UIAElements from this window handle:"
+                                foreach ($UIAElement in $WindowInfo.UIAElements) {
+                                    Write-Debug "        Type: $($UIAElement.ControlType), Name: $($UIAElement.Name -replace '(?s)^(.{50})(.*)', '$1...')"
+                                }
                             } else {
                                 Write-Debug "    Window ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
                             }
 
                             $AllChildWindows = @(Get-ChildWindows -Parent $window)
                             foreach ($ChildWindow in $AllChildWindows) {
-                                $WindowInfo = Get-WindowInfo -WindowHandle $ChildWindow
+                                $WindowInfo = Get-WindowInfo -WindowHandle $ChildWindow -IncludeUIAInfo
                                 if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
                                     $InteractableWindowOpen = $true
                                     # Print the debug output of the interactable window in capital letters to identify it easily
                                     Write-Debug "      Window $($ChildWindow), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'".ToUpper()
+                                    Write-Debug "        UIA Info: Got $($WindowInfo.UIAElements.Count) UIAElements from this window handle:"
+                                    foreach ($UIAElement in $WindowInfo.UIAElements) {
+                                        Write-Debug "          Type: $($UIAElement.ControlType), Name: $($UIAElement.Name -replace '(?s)^(.{50})(.*)', '$1...')"
+                                    }
                                 } else {
                                     Write-Debug "      Window $($ChildWindow), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
                                 }
