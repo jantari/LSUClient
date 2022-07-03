@@ -204,6 +204,7 @@
     function Get-ChildProcesses {
         [CmdletBinding()]
         Param (
+            [Parameter(Mandatory = $true)]
             $ParentProcessId
         )
         Get-CimInstance -ClassName Win32_Process -Filter "ParentProcessId = '$ParentProcessId'" | Foreach-Object {
@@ -217,25 +218,14 @@
     function Get-ChildWindows {
         [CmdletBinding()]
         Param (
-            [IntPtr]$Parent,
-            [switch]$Recurse,
-            [int]$RecursionDepth = 1
+            [IntPtr]$Parent
         )
 
         $ChildWindows = [System.Collections.Generic.List[IntPtr]]::new()
-        $ECW_RETURN = [User32]::EnumChildWindows($Parent, { Param([IntPtr]$handle, $lParam) $ChildWindows.Add($handle) }, [IntPtr]::Zero)
-        #Write-Debug "$('  ' * ($RecursionDepth + 1))[ECW: $ECW_RETURN]: window $Parent has $($ChildWindows.Count) child windows"
-        foreach ($Window in $ChildWindows) {
-            [PSCustomObject]@{
-                'RecursionDepth' = $RecursionDepth
-                'Window' = $Window
-            }
-            if ($Recurse) {
-                $RecursionDepth++
-                Get-ChildWindows -Parent $Window -RecursionDepth $RecursionDepth -Recurse
-                $RecursionDepth--
-            }
-        }
+        $ECW_RETURN = [User32]::EnumChildWindows($Parent, { Param([IntPtr]$handle, $lParam) $ChildWindows.Add($handle); $true }, [IntPtr]::Zero)
+        #Write-Debug "[ECW: $ECW_RETURN]: window $Parent has $($ChildWindows.Count) child windows total"
+
+        return $ChildWindows
     }
 
     function Get-WindowInfo {
@@ -322,7 +312,7 @@
                         # a thread, idk where else it would come from - but maybe find definitive
                         # confirmation for that so this code can be removed
                         $ChildWindows = Get-ChildWindows -Parent $SpawnedProcess.MainWindowHandle
-                        foreach ($ChildWindow in $ChildWindows.Window) {
+                        foreach ($ChildWindow in $ChildWindows) {
                             $null = Get-WindowInfo -WindowHandle $ChildWindow # Recurse this at some point
                         }
                     }
@@ -354,15 +344,15 @@
                                 Write-Debug "    Window ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
                             }
 
-                            $AllChildWindows = @(Get-ChildWindows -Parent $window -Recurse)
+                            $AllChildWindows = @(Get-ChildWindows -Parent $window)
                             foreach ($ChildWindow in $AllChildWindows) {
-                                $WindowInfo = Get-WindowInfo -WindowHandle $ChildWindow.Window
+                                $WindowInfo = Get-WindowInfo -WindowHandle $ChildWindow
                                 if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
                                     $InteractableWindowOpen = $true
                                     # Print the debug output of the interactable window in capital letters to identify it easily
-                                    Write-Debug "$('  ' * $ChildWindow.RecursionDepth)    Window $($ChildWindow.Window), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'".ToUpper()
+                                    Write-Debug "      Window $($ChildWindow), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'".ToUpper()
                                 } else {
-                                    Write-Debug "$('  ' * $ChildWindow.RecursionDepth)    Window $($ChildWindow.Window), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
+                                    Write-Debug "      Window $($ChildWindow), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
                                 }
                             }
                         }
