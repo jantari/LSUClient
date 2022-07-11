@@ -39,8 +39,10 @@
     if ([System.Uri]::IsWellFormedUriString($Path, [System.UriKind]::Absolute)) {
         $UriToUse = $Path
     } elseif ($BasePath) {
-        # Escape the relative part of the URL as it can contain a filename that is not directly URL-compatible, see issue #39
-        $JoinedUrl = $BasePath.TrimEnd('/', '\') + '/' + [System.Uri]::EscapeUriString($Path.TrimStart('/', '\'))
+        # When combining BasePath and Path to a URL, replace any backslashes in Path with forward-slashes as it is 99.9% likely
+        # they are meant as path separators. This allows for repositories created with Update Retriever to be served as-is via HTTP.
+        # Then escape the relative part of the URL as it can contain a filename that is not directly URL-compatible, see issue #39
+        $JoinedUrl = $BasePath.TrimEnd('/', '\') + '/' + [System.Uri]::EscapeUriString($Path.TrimStart('/', '\').Replace('\', '/'))
         if ([System.Uri]::IsWellFormedUriString($JoinedUrl, [System.UriKind]::Absolute)) {
             $UriToUse = $JoinedUrl
         }
