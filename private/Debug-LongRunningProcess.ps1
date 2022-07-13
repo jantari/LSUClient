@@ -1,6 +1,7 @@
 ﻿function Debug-LongRunningProcess {
     [CmdletBinding()]
     Param (
+        [Parameter( Mandatory = $true )]
         [System.Diagnostics.Process]$Process
     )
 
@@ -14,12 +15,6 @@
     using System.Runtime.InteropServices;
 
     public class User32 {
-        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-        public static extern int GetWindowTextLength(IntPtr hWnd);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        public static extern IntPtr SendMessage(IntPtr hWnd, UInt32 Msg, int wParam, StringBuilder lParam);
-
         // callbacks
         public delegate bool EnumThreadDelegate(IntPtr hWnd, IntPtr lParam);
         public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
@@ -74,7 +69,7 @@
         )
 
         $ChildWindows = [System.Collections.Generic.List[IntPtr]]::new()
-        $ECW_RETURN = [User32]::EnumChildWindows($Parent, { Param([IntPtr]$handle, $lParam) $ChildWindows.Add($handle); $true }, [IntPtr]::Zero)
+        $null = [User32]::EnumChildWindows($Parent, { Param([IntPtr]$handle, $lParam) $ChildWindows.Add($handle); $true }, [IntPtr]::Zero)
         #Write-Debug "[ECW: $ECW_RETURN]: window $Parent has $($ChildWindows.Count) child windows total"
 
         return $ChildWindows
@@ -87,16 +82,9 @@
             [switch]$IncludeUIAInfo
         )
 
-        [int]$WM_GETTEXT = 0xD
         [int]$GWL_STYLE = -16
         [Uint32]$WS_DISABLED = 0x08000000
         [Uint32]$WS_VISIBLE  = 0x10000000
-
-        $WindowTextLen = [User32]::GetWindowTextLength($WindowHandle) + 1
-
-        [System.Text.StringBuilder]$sb = [System.Text.StringBuilder]::new($WindowTextLen)
-        $null = [User32]::SendMessage($WindowHandle, $WM_GETTEXT, $WindowTextLen, $sb)
-        $windowTitle = $sb.Tostring()
 
         $IsVisible = [User32]::IsWindowVisible($WindowHandle)
 
@@ -105,7 +93,6 @@
         $null = [User32]::GetWindowRect($WindowHandle, [ref]$RECT)
 
         $InfoHashtable = @{
-            'Title'      = $windowTitle
             'Width'      = $RECT.Right - $RECT.Left
             'Height'     = $RECT.Bottom - $RECT.Top
             'IsVisible'  = $IsVisible
@@ -147,7 +134,6 @@
         return [PSCustomObject]$InfoHashtable
     }
 
-    [int]$WM_GETTEXT = 0xD
     [int]$GWL_STYLE = -16
     [Uint32]$WS_DISABLED = 0x08000000
     [Uint32]$WS_VISIBLE  = 0x10000000
@@ -184,7 +170,7 @@
                 }
 
                 # Print the debug output of the interactable window in capital letters to identify it easily
-                Write-Debug "    ThreadWindow ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
+                Write-Debug "    ThreadWindow ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height):"
                 Write-Debug "      UIA Info: Got $($WindowInfo.UIAElements.Count) UIAElements from this window handle:"
                 foreach ($UIAElement in $WindowInfo.UIAElements) {
                     if ($UIAElement.Text) {
@@ -202,7 +188,7 @@
                     }
 
                     # Print the debug output of the interactable window in capital letters to identify it easily
-                    Write-Debug "      ChildWindow $($ChildWindow), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height), TitleCaption '$($WindowInfo.Title)'"
+                    Write-Debug "      ChildWindow $($ChildWindow), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height):"
                     Write-Debug "        UIA Info: Got $($WindowInfo.UIAElements.Count) UIAElements from this window handle:"
                     foreach ($UIAElement in $WindowInfo.UIAElements) {
                         if ($UIAElement.Text) {
