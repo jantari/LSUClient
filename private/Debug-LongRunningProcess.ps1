@@ -139,14 +139,20 @@
     [Uint32]$WS_VISIBLE  = 0x10000000
 
     # Look into the process
-    [bool]$InteractableWindowOpen = $false
-    [bool]$AllThreadsWaiting      = $true
+    [bool]$InteractableWindowOpen    = $false
+    [bool]$AllThreadsWaiting         = $true
+    [UInt32]$ProcessCount            = 0
+    [UInt32]$ThreadCount             = 0
+    [UInt32]$WindowCount             = 0
+    [UInt32]$InteractableWindowCount = 0
+    [System.Text.StringBuilder]$InteractableWindowText = [System.Text.StringBuilder]::new()
 
     # Get all child processes too
     [array]$ChildProcesses = $Process.ID
     [array]$ChildProcesses += Get-ChildProcesses -ParentProcessId $Process.ID -Verbose:$false
 
     foreach ($SpawnedProcessID in $ChildProcesses) {
+        $ProcessCount++
         $SpawnedProcess = Get-Process -Id $SpawnedProcessID
         Write-Debug "Process $($SpawnedProcess.ID) ('$($SpawnedProcess.ProcessName)')"
 
@@ -155,6 +161,8 @@
         }
 
         foreach ($Thread in $SpawnedProcess.Threads) {
+            $ThreadCount++
+
             $ThreadWindows = [System.Collections.Generic.List[IntPtr]]::new()
             $null = [User32]::EnumThreadWindows($thread.id, { Param($hwnd, $lParam) $ThreadWindows.Add($hwnd); return $true }, [System.IntPtr]::Zero)
 
@@ -164,9 +172,15 @@
                 Write-Debug "  Thread $($thread.id) in state $($thread.ThreadState) ($($thread.WaitReason)) has no windows"
             }
             foreach ($window in $ThreadWindows) {
+                $WindowCount++
+
                 $WindowInfo = Get-WindowInfo -WindowHandle $window -IncludeUIAInfo
                 if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
                     $InteractableWindowOpen = $true
+                    $InteractableWindowCount++
+                    $WindowIsInteractable = $true
+                } else {
+                    $WindowIsInteractable = $false
                 }
 
                 # Print the debug output of the interactable window in capital letters to identify it easily
@@ -174,6 +188,9 @@
                 Write-Debug "      UIA Info: Got $($WindowInfo.UIAElements.Count) UIAElements from this window handle:"
                 foreach ($UIAElement in $WindowInfo.UIAElements) {
                     if ($UIAElement.Text) {
+                        if ($WindowIsInteractable) {
+                            $null = $InteractableWindowText.AppendLine($UIAElement.Text)
+                        }
                         Write-Debug "        Type: $($UIAElement.ControlType), Text: $($UIAElement.Text -replace '(?s)^(.{60})(.*)', '$1...')"
                     } else {
                         Write-Debug "        Type: $($UIAElement.ControlType), no Text"
@@ -182,9 +199,15 @@
 
                 $AllChildWindows = @(Get-ChildWindows -Parent $window)
                 foreach ($ChildWindow in $AllChildWindows) {
+                    $WindowCount++
+
                     $WindowInfo = Get-WindowInfo -WindowHandle $ChildWindow -IncludeUIAInfo
                     if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
                         $InteractableWindowOpen = $true
+                        $InteractableWindowCount++
+                        $WindowIsInteractable = $true
+                    } else {
+                        $WindowIsInteractable = $false
                     }
 
                     # Print the debug output of the interactable window in capital letters to identify it easily
@@ -192,6 +215,12 @@
                     Write-Debug "        UIA Info: Got $($WindowInfo.UIAElements.Count) UIAElements from this window handle:"
                     foreach ($UIAElement in $WindowInfo.UIAElements) {
                         if ($UIAElement.Text) {
+                            # Don't add ChildWindow text, we likely already got it from its parent window
+                            <#
+                            if ($WindowIsInteractable) {
+                                $null = $InteractableWindowText.AppendLine($UIAElement.Text)
+                            }
+                            #>
                             Write-Debug "          Type: $($UIAElement.ControlType), Text: $($UIAElement.Text -replace '(?s)^(.{60})(.*)', '$1...')"
                         } else {
                             Write-Debug "          Type: $($UIAElement.ControlType), no Text"
@@ -203,4 +232,13 @@
     }
 
     Write-Debug "CONCLUSION: The process looks $( if ($InteractableWindowOpen -and $AllThreadsWaiting) { 'blocked' } else { 'normal' } )."
+
+    return [PSCustomObject]@{
+        'ProcessCount'            = $ProcessCount
+        'ThreadCount'             = $ThreadCount
+        'AllThreadsWaiting'       = $AllThreadsWaiting
+        'WindowCount'             = $WindowCount
+        'InteractableWindowCount' = $InteractableWindowCount
+        'InteractableWindowText'  = $InteractableWindowText.ToString()
+    }
 }
