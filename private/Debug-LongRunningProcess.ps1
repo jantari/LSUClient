@@ -15,16 +15,11 @@
     using System.Runtime.InteropServices;
 
     public class User32 {
-        // callbacks
+        // callback
         public delegate bool EnumThreadDelegate(IntPtr hWnd, IntPtr lParam);
-        public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
 
         [DllImport("user32.dll", CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall, SetLastError = true)]
         public static extern bool EnumThreadWindows(int dwThreadId, EnumThreadDelegate lpfn, IntPtr lParam);
-
-        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool EnumChildWindows(IntPtr window, EnumWindowsProc callback, IntPtr i);
 
         [DllImport("user32.dll", SetLastError=true, CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -60,19 +55,6 @@
                 Get-ChildProcesses -ParentProcessId $_.ProcessId
             }
         }
-    }
-
-    function Get-ChildWindows {
-        [CmdletBinding()]
-        Param (
-            [IntPtr]$Parent
-        )
-
-        $ChildWindows = [System.Collections.Generic.List[IntPtr]]::new()
-        $null = [User32]::EnumChildWindows($Parent, { Param([IntPtr]$handle, $lParam) $ChildWindows.Add($handle); $true }, [IntPtr]::Zero)
-        #Write-Debug "[ECW: $ECW_RETURN]: window $Parent has $($ChildWindows.Count) child windows total"
-
-        return $ChildWindows
     }
 
     function Get-WindowInfo {
@@ -194,37 +176,6 @@
                         Write-Debug "        Type: $($UIAElement.ControlType), Text: $($UIAElement.Text -replace '(?s)^(.{60})(.*)', '$1...')"
                     } else {
                         Write-Debug "        Type: $($UIAElement.ControlType), no Text"
-                    }
-                }
-
-                $AllChildWindows = @(Get-ChildWindows -Parent $window)
-                foreach ($ChildWindow in $AllChildWindows) {
-                    $WindowCount++
-
-                    $WindowInfo = Get-WindowInfo -WindowHandle $ChildWindow -IncludeUIAInfo
-                    if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
-                        $InteractableWindowOpen = $true
-                        $InteractableWindowCount++
-                        $WindowIsInteractable = $true
-                    } else {
-                        $WindowIsInteractable = $false
-                    }
-
-                    # Print the debug output of the interactable window in capital letters to identify it easily
-                    Write-Debug "      ChildWindow $($ChildWindow), IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height):"
-                    Write-Debug "        UIA Info: Got $($WindowInfo.UIAElements.Count) UIAElements from this window handle:"
-                    foreach ($UIAElement in $WindowInfo.UIAElements) {
-                        if ($UIAElement.Text) {
-                            # Don't add ChildWindow text, we likely already got it from its parent window
-                            <#
-                            if ($WindowIsInteractable) {
-                                $null = $InteractableWindowText.AppendLine($UIAElement.Text)
-                            }
-                            #>
-                            Write-Debug "          Type: $($UIAElement.ControlType), Text: $($UIAElement.Text -replace '(?s)^(.{60})(.*)', '$1...')"
-                        } else {
-                            Write-Debug "          Type: $($UIAElement.ControlType), no Text"
-                        }
                     }
                 }
             }
