@@ -102,9 +102,14 @@
                         $ElementText = $UIAE.Current.Name
                     }
 
+                    [string[]]$ElementText = $ElementText.Split(
+                        [string[]]("`r`n", "`r", "`n"),
+                        [StringSplitOptions]::None
+                    ) | ForEach-Object -MemberName TrimEnd
+
                     $UIAE.Current |
                         Select-Object @{n = 'ControlType'; e = { $_.ControlType.ProgrammaticName }}, ClassName, HasKeyboardFocus,
-                            IsKeyboardFocusable, IsContentElement, Name, @{'n' = 'Text'; 'e' = { $ElementText }}
+                            IsKeyboardFocusable, IsContentElement, Name, @{'n' = 'Text'; 'e' = { $ElementText -join "`r`n" }}
                 }
 
                 if ($UIAElements) {
