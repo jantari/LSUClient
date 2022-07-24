@@ -166,7 +166,14 @@
                 Write-Debug "[$TimeStamp] Process $($process.ID) has been running for $ProcessRuntimeElapsed"
 
                 # CALL DEBUG-LONGRUNNINGPROCESS
-                Debug-LongRunningProcess -Process $process
+                $ProcessDiagnostics = Debug-LongRunningProcess -Process $process
+                $ProcessDiagnostics | ConvertTo-Json -Depth 10 | Out-Host
+
+                if ($ProcessDiagnostics.AllThreadsWaiting -and $ProcessDiagnostics.InteractableWindows.Count -gt 0) {
+                    Write-Debug "CONCLUSION: The process looks blocked."
+                } else {
+                    Write-Debug "CONCLUSION: The process looks normal."
+                }
                 Write-Debug ""
             }
 

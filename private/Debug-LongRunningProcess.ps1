@@ -80,18 +80,41 @@
             'IsVisible'  = $IsVisible
             'IsDisabled' = ($style -band $WS_DISABLED) -eq $WS_DISABLED
             'Style'      = $style
-            'UIAElements' = @()
+            'UIAWindowTitle' = ''
+            'UIAElements'    = @()
         }
 
         if ($IncludeUIAInfo) {
-            #$root = [Windows.Automation.AutomationElement]::RootElement
-            #$condition = New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::NativeWindowHandleProperty, $WindowHandle.ToInt32())
-            #$mainwindowUIA = $root.FindFirst([Windows.Automation.TreeScope]::Children, $condition)
-            $mainwindowUIA = [System.Windows.Automation.AutomationElement]::FromHandle($WindowHandle)
-            if ($mainwindowUIA) {
-                $UIAElements = $mainwindowUIA.FindAll([Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+            $WindowUIA = [System.Windows.Automation.AutomationElement]::FromHandle($WindowHandle)
+            if ($WindowUIA) {
 
-                $UIAElementsCustom = foreach ($UIAE in @($mainwindowUIA) + @($UIAElements)) {
+                # Get element text by implementing https://stackoverflow.com/a/23851560
+                $patternObj = $null
+                if ($WindowUIA.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref] $patternObj)) {
+                    $ElementText = $patternObj.Current.Value
+                } elseif ($WindowUIA.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref] $patternObj)) {
+                    $ElementText = $patternObj.DocumentRange.GetText(-1).TrimEnd("`r") # often there is an extra CR hanging off the end
+                } else {
+                    $ElementText = $WindowUIA.Current.Name
+                }
+
+                if ([string]::IsNullOrWhiteSpace($ElementText)) {
+                    # If the ElementText is entirely blank (e.g. empty terminal window)
+                    # then discard the whitespace and just set it to an empty string
+                    $ElementText = ''
+                } else {
+                    # If there is non-whitespace content in the ElementText,
+                    # only trim whitespace from the end of every line
+                    [string[]]$ElementText = $ElementText.Split(
+                        [string[]]("`r`n", "`r", "`n"),
+                        [StringSplitOptions]::None
+                    ) | ForEach-Object -MemberName TrimEnd
+                }
+
+                $InfoHashtable['UIAWindowTitle'] = $ElementText -join "`r`n"
+
+                $UIADescendants = $WindowUIA.FindAll([Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+                $UIAElements = foreach ($UIAE in @($UIADescendants)) {
                     # Get element text by implementing https://stackoverflow.com/a/23851560
                     $patternObj = $null
                     if ($UIAE.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref] $patternObj)) {
@@ -102,18 +125,27 @@
                         $ElementText = $UIAE.Current.Name
                     }
 
-                    [string[]]$ElementText = $ElementText.Split(
-                        [string[]]("`r`n", "`r", "`n"),
-                        [StringSplitOptions]::None
-                    ) | ForEach-Object -MemberName TrimEnd
+                    if ([string]::IsNullOrWhiteSpace($ElementText)) {
+                        # If the ElementText is entirely blank (e.g. empty terminal window)
+                        # then discard the whitespace and just set it to an empty string
+                        $ElementText = ''
+                    } else {
+                        # If there is non-whitespace content in the ElementText,
+                        # only trim whitespace from the end of every line
+                        [string[]]$ElementText = $ElementText.Split(
+                            [string[]]("`r`n", "`r", "`n"),
+                            [StringSplitOptions]::None
+                        ) | ForEach-Object -MemberName TrimEnd
+                    }
 
-                    $UIAE.Current |
-                        Select-Object @{n = 'ControlType'; e = { $_.ControlType.ProgrammaticName }}, ClassName, HasKeyboardFocus,
-                            IsKeyboardFocusable, IsContentElement, Name, @{'n' = 'Text'; 'e' = { $ElementText -join "`r`n" }}
+                    [PSCustomObject]@{
+                        'ControlType' = $UIAE.Current.ControlType.ProgrammaticName
+                        'Text' = $ElementText -join "`r`n"
+                    }
                 }
 
                 if ($UIAElements) {
-                    $InfoHashtable['UIAElements'] = @($UIAElementsCustom)
+                    $InfoHashtable['UIAElements'] = @($UIAElements)
                 }
             }
         }
@@ -131,8 +163,8 @@
     [UInt32]$ProcessCount            = 0
     [UInt32]$ThreadCount             = 0
     [UInt32]$WindowCount             = 0
-    [UInt32]$InteractableWindowCount = 0
     [System.Text.StringBuilder]$InteractableWindowText = [System.Text.StringBuilder]::new()
+    $InteractableWindows = [System.Collections.Generic.List[PSObject]]::new()
 
     # Get all child processes too
     [array]$ChildProcesses = $Process.ID
@@ -164,8 +196,11 @@
                 $WindowInfo = Get-WindowInfo -WindowHandle $window -IncludeUIAInfo
                 if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
                     $InteractableWindowOpen = $true
-                    $InteractableWindowCount++
                     $WindowIsInteractable = $true
+                    $InteractableWindows.Add([PSCustomObject]@{
+                        'WindowTitle' = $WindowInfo.UIAWindowTitle
+                        'WindowElements' = $WindowInfo.UIAElements
+                    })
                 } else {
                     $WindowIsInteractable = $false
                 }
@@ -187,14 +222,11 @@
         }
     }
 
-    Write-Debug "CONCLUSION: The process looks $( if ($InteractableWindowOpen -and $AllThreadsWaiting) { 'blocked' } else { 'normal' } )."
-
     return [PSCustomObject]@{
         'ProcessCount'            = $ProcessCount
         'ThreadCount'             = $ThreadCount
         'AllThreadsWaiting'       = $AllThreadsWaiting
         'WindowCount'             = $WindowCount
-        'InteractableWindowCount' = $InteractableWindowCount
-        'InteractableWindowText'  = $InteractableWindowText.ToString()
+        'InteractableWindows'     = $InteractableWindows
     }
 }
