@@ -141,11 +141,13 @@
                     [PSCustomObject]@{
                         'ControlType' = $UIAE.Current.ControlType.ProgrammaticName
                         'Text' = $ElementText -join "`r`n"
+                        'XPosition' = $UIAE.Current.BoundingRectangle.X
+                        'YPosition' = $UIAE.Current.BoundingRectangle.Y
                     }
                 }
 
                 if ($UIAElements) {
-                    $InfoHashtable['UIAElements'] = @($UIAElements)
+                    $InfoHashtable['UIAElements'] = @($UIAElements | Sort-Object -Property YPosition, XPosition)
                 }
             }
         }
