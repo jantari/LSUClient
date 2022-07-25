@@ -8,15 +8,15 @@ Describe 'Split-ExecutableAndArguments' {
         $split = Split-ExecutableAndArguments -Command "$env:SystemRoot\System32\ipconfig.exe -all" -WorkingDirectory "$env:SystemRoot\System32"
 
         $split | Should -Not -Be $null
-        $split.Executable | Should -BeLike '*ipconfig.exe'
-        $split.Arguments | Should -BeExactly '-all'
+        $split[0] | Should -BeLike '*ipconfig.exe'
+        $split[1] | Should -BeExactly '-all'
     }
     It 'File that exists by relative path' {
         $split = Split-ExecutableAndArguments -Command "ipconfig.exe -all" -WorkingDirectory "$env:SystemRoot\System32"
 
         $split | Should -Not -Be $null
-        $split.Executable | Should -BeLike '*ipconfig.exe'
-        $split.Arguments | Should -BeExactly '-all'
+        $split[0] | Should -BeLike '*ipconfig.exe'
+        $split[1] | Should -BeExactly '-all'
     }
     It "File that doesn't exist by absolute path" {
         $split = Split-ExecutableAndArguments -Command "$env:SystemRoot\doesntexist.mock" -WorkingDirectory "$env:SystemRoot\System32"
