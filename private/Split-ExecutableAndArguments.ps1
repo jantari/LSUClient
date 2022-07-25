@@ -2,6 +2,8 @@
     <#
         .SYNOPSIS
         This function seperates the exeutable path from its command line arguments
+        and returns the absolute path to the executable (resolves relative) as well
+        as the arguments separately.
 
         Returns NULL if unsuccessful
     #>
@@ -22,19 +24,19 @@
         $testPath = $testPath.Trim('"')
 
         if ( [System.IO.File]::Exists($testPath) ) {
-            return [PSCustomObject]@{
-                "Executable" = [System.IO.Path]::GetFullPath($testPath)
-                "Arguments"  = "$($pathParts | Select-Object -Skip ($i + 1))"
-            }
+            return @(
+                [System.IO.Path]::GetFullPath($testPath),
+                "$($pathParts | Select-Object -Skip ($i + 1))"
+            )
         }
 
         $testPathRelative = Join-Path -Path $WorkingDirectory -ChildPath $testPath
 
         if ( [System.IO.File]::Exists($testPathRelative) ) {
-            return [PSCustomObject]@{
-                "Executable" = [System.IO.Path]::GetFullPath($testPathRelative)
-                "Arguments"  = "$($pathParts | Select-Object -Skip ($i + 1))"
-            }
+            return @(
+                [System.IO.Path]::GetFullPath($testPathRelative),
+                "$($pathParts | Select-Object -Skip ($i + 1))"
+            )
         }
     }
 }

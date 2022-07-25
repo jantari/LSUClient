@@ -3,6 +3,9 @@
         .SYNOPSIS
         Installs a Lenovo update package. Downloads it if not previously downloaded.
 
+        .DESCRIPTION
+        Installs a Lenovo update package. Downloads it if not previously downloaded.
+
         .PARAMETER Package
         The Lenovo package object to install
 
@@ -13,6 +16,18 @@
         If a BIOS update is successfully installed, write information about it to 'HKLM\Software\LSUClient\BIOSUpdate'.
         This is useful in automated deployment scenarios, especially the 'ActionNeeded' key which will tell you whether a shutdown or reboot is required to apply the BIOS update.
         The created registry values will not be deleted by this module, only overwritten on the next installed BIOS Update.
+
+        .PARAMETER Proxy
+        Specifies the URL of a proxy server to use for the connection to the update repository.
+        Used if a package still needs to be downloaded before it can be installed.
+
+        .PARAMETER ProxyCredential
+        Specifies a user account that has permission to use the proxy server that is specified by the -Proxy
+        parameter.
+
+        .PARAMETER ProxyUseDefaultCredentials
+        Indicates that the cmdlet uses the credentials of the current user to access the proxy server that is
+        specified by the -Proxy parameter.
     #>
 
     [CmdletBinding()]
@@ -125,8 +140,7 @@
                 }
                 'INF' {
                     $InfSuccessCodes = @(0, 3010) + $PackageToProcess.Installer.SuccessCodes
-                    $InstallCMD = "${env:SystemRoot}\system32\pnputil.exe /add-driver $($PackageToProcess.Installer.InfFile) /install"
-                    $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
+                    $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Executable "${env:SystemRoot}\system32\pnputil.exe" -Arguments "/add-driver $($PackageToProcess.Installer.InfFile) /install"
 
                     $Success = $installProcess.Err -eq [ExternalProcessError]::NONE -and $installProcess.Info.ExitCode -in $InfSuccessCodes
 

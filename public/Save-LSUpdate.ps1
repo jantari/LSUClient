@@ -1,13 +1,16 @@
 ﻿function Save-LSUpdate {
     <#
         .SYNOPSIS
-        Downloads a Lenovo update package to disk
+        Downloads Lenovo update packages to disk
+
+        .DESCRIPTION
+        Downloads Lenovo update packages to disk
 
         .PARAMETER Package
         The Lenovo package or packages to download
 
         .PARAMETER Proxy
-        Specifies a proxy server for the connection to Lenovo. Enter the URI of a network proxy server.
+        Specifies the URL of a proxy server to use for the connection to the update repository.
 
         .PARAMETER ProxyCredential
         Specifies a user account that has permission to use the proxy server that is specified by the -Proxy
@@ -22,11 +25,11 @@
         as downloads can be quite large and without any progress output the script may appear stuck
 
         .PARAMETER Force
-        Redownload and overwrite packages even if they have already been downloaded previously
+        Redownload and overwrite packages even if the files already exist in the target path.
 
         .PARAMETER Path
-        The target directory to which to download the packages to. In this directory,
-        a subfolder will be created for each downloaded package.
+        The target directory to download the packages to. In this directory,
+        a subfolder will be created for each downloaded package containing its files.
     #>
 
     [CmdletBinding()]

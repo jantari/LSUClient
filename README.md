@@ -1,29 +1,33 @@
-<div>
-<img align="left" src="logo_220px.png" alt="LSUClient PowerShell Module PNG Logo" style="padding-right: 40px"/>
+<h1 align="center">LSUClient</h1>
 
-# LSUClient
+<p align="center">
+  <img src="https://img.shields.io/powershellgallery/dt/LSUClient?label=PowerShell%20Gallery&amp;logo=Powershell&amp;logoColor=FFFFFF&amp;style=flat" alt="PowerShell Gallery">
+  <img src="https://img.shields.io/powershellgallery/v/lsuclient?label=Latest&amp;logo=powershell&amp;logoColor=FFF" alt="PowerShell Gallery Version">
+  <img src="https://img.shields.io/github/v/release/jantari/lsuclient?label=Latest&amp;logo=github" alt="GitHub release (latest by date)">
+</p>
+<p align="center">
+  <img src="logo_220px.png" alt="LSUClient PowerShell Module PNG Logo" />
+</p>
+<p align="center">
+  Orchestrate driver, BIOS/UEFI and firmware updates for Lenovo computers - with PowerShell!
+</p>
 
-![PowerShell Gallery](https://img.shields.io/powershellgallery/dt/LSUClient?label=PowerShell%20Gallery&logo=Powershell&logoColor=FFFFFF&style=flat)  
-A PowerShell module that partially reimplements the "Lenovo System Update" program for convenient,
-automatable and worry-free driver and system updates for Lenovo computers.
+## Installation
 
 ```powershell
 Install-Module -Name 'LSUClient'
 ```
-</div>
-
-<br>
 
 ## Highlight features
 
 - Does driver, BIOS/UEFI, firmware and utility software updates
+- Allows for fully silent and unattended update runs
+- Work with updates and even their results as PowerShell objects to build any custom logic imaginable
+- Fetch the latest updates directly from Lenovo or use an internal repository of your own for more control
+- Can work alongside, but does not require Lenovo System Update or any other external program
 - Run locally or manage/report on an entire fleet of computers remotely
-- Allows for fully silent and unattended updates
-- Supports not only business computers but consumer lines too (e.g. IdeaPad)
 - Full Web-Proxy support including authentication
-- Fetch updates from Lenovo directly or use an internal repository
-- Work with updates as PowerShell objects to build any custom logic imaginable
-- Accounts for and works around some bugs and mistakes in the official tool
+- Supports not only business computers but consumer lines too (e.g. IdeaPad)
 - Free and open-source!
 
 ## Examples and tips
@@ -69,57 +73,9 @@ Using the `-Model` parameter of `Get-LSUpdate` you can retrieve packages for ano
 In this case you almost always want to use `-All` too so that the packages found are not filtered against your computer and all packages are downloaded.
 
 ---
-For more details, available parameters and guidance on how to use them run `Get-Help -Detailed` on the functions in this module.
 
-### Dealing with BIOS/UEFI and other firmware updates
-
-It is important to know that some Lenovo computers require a reboot to apply BIOS updates while other models require a shutdown - the BIOS will then wake the machine from the power-off state, apply the update and boot into Windows. Other, non-BIOS firmware updates typically always require a reboot.
-So as to not interrupt a deployment or someone working, this module will never initiate reboots or shutdowns on its own - however it's easy for you to:
-
-1. Capture the output of `Install-LSUpdate`, e.g.:
-
-    ```powershell
-    [array]$results = Install-LSUpdate -Package $updates
-    ```
-
-2. Then test for the `PendingAction` values `REBOOT_MANDATORY` or `SHUTDOWN` and handle them in your script:
-    ```powershell
-    if ($results.PendingAction -contains 'REBOOT_MANDATORY') {
-        # reboot immediately or set a marker for yourself to handle the reboot shortly
-    }
-    if ($results.PendingAction -contains 'SHUTDOWN') {
-        # shutdown immediately or set a marker for yourself to handle the shutdown shortly
-    }
-    ```
-    if you prefer to loop through the updates and handle their result immediately, you can use `-eq` or a switch statement:
-    ```powershell
-    foreach ($update in $updates) {
-        $result = Install-LSUpdate -Package $update
-        switch ($result.PendingAction) {
-            # your logic here
-        }
-    }
-    ```
-
-
-If you want to exclude BIOS/UEFI updates, I recommend filtering them by Type and possibly Category or Title as a fallback:
-```powershell
-$updates = Get-LSUpdate |
-    Where-Object { $_.Type -ne 'BIOS' } |
-    Where-Object { $_.Category -notmatch "BIOS|UEFI" } |
-    Where-Object { $_.Title -notmatch "BIOS|UEFI" }
-```
-Other firmware updates can also be filtered out similarly:
-```powershell
-$updates = Get-LSUpdate |
-    Where-Object { $_.Type -ne 'Firmware' } |
-    Where-Object { $_.RebootType -ne 5 } |
-    Where-Object { $_.Category -notlike "*Firmware*" } |
-    Where-Object { $_.Title -notlike "*Firmware*" }
-```
-
-NOTE: Not all packages have type information and packages sourced from an internal repository created with "Lenovo Update Retriever" never have Category information.
-When using a self-hosted repository it is best to either not have BIOS updates in your repository at all or to filter them by their IDs before installing.
+For further documentation please see [the documentation site](https://jantari.github.io/LSUClient-docs/) and
+run `Get-Help -Detailed` on the functions in this module.
 
 ## Misc
 
