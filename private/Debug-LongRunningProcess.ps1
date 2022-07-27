@@ -87,7 +87,6 @@
         if ($IncludeUIAInfo) {
             $WindowUIA = [System.Windows.Automation.AutomationElement]::FromHandle($WindowHandle)
             if ($WindowUIA) {
-
                 # Get element text by implementing https://stackoverflow.com/a/23851560
                 $patternObj = $null
                 if ($WindowUIA.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref] $patternObj)) {
@@ -155,16 +154,11 @@
         return [PSCustomObject]$InfoHashtable
     }
 
-    [int]$GWL_STYLE = -16
-    [Uint32]$WS_DISABLED = 0x08000000
-    [Uint32]$WS_VISIBLE  = 0x10000000
-
     # Look into the process
-    [bool]$InteractableWindowOpen    = $false
-    [bool]$AllThreadsWaiting         = $true
-    [UInt32]$ProcessCount            = 0
-    [UInt32]$ThreadCount             = 0
-    [UInt32]$WindowCount             = 0
+    [bool]$AllThreadsWaiting = $true
+    [UInt32]$ProcessCount    = 0
+    [UInt32]$ThreadCount     = 0
+    [UInt32]$WindowCount     = 0
     [System.Text.StringBuilder]$InteractableWindowText = [System.Text.StringBuilder]::new()
     $InteractableWindows = [System.Collections.Generic.List[PSObject]]::new()
 
@@ -197,11 +191,11 @@
 
                 $WindowInfo = Get-WindowInfo -WindowHandle $window -IncludeUIAInfo
                 if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
-                    $InteractableWindowOpen = $true
                     $WindowIsInteractable = $true
                     $InteractableWindows.Add([PSCustomObject]@{
-                        'WindowTitle' = $WindowInfo.UIAWindowTitle
+                        'WindowTitle'    = $WindowInfo.UIAWindowTitle
                         'WindowElements' = $WindowInfo.UIAElements
+                        'WindowText'     = $WindowInfo.UIAElements.Text
                     })
                 } else {
                     $WindowIsInteractable = $false
@@ -225,10 +219,10 @@
     }
 
     return [PSCustomObject]@{
-        'ProcessCount'            = $ProcessCount
-        'ThreadCount'             = $ThreadCount
-        'AllThreadsWaiting'       = $AllThreadsWaiting
-        'WindowCount'             = $WindowCount
-        'InteractableWindows'     = $InteractableWindows
+        'ProcessCount'        = $ProcessCount
+        'ThreadCount'         = $ThreadCount
+        'AllThreadsWaiting'   = $AllThreadsWaiting
+        'WindowCount'         = $WindowCount
+        'InteractableWindows' = $InteractableWindows
     }
 }
