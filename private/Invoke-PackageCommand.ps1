@@ -173,40 +173,64 @@
     $RunspaceTimer.Start()
     $PSAsyncRunspace = $Powershell.BeginInvoke($RunspaceStandardInput, $RunspaceStandardOut)
 
-    $WasPrinted = $true
+    [Int32]$LastPrinted = 0
     while ($PSAsyncRunspace.IsCompleted -eq $false) {
-        # Print message once every 5 minutes
-        if ($RunspaceTimer.Elapsed.Minutes % 5 -eq 0) {
-            if (-not $WasPrinted) {
-                Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
-                $WasPrinted = $true
-            }
-        } else {
-            $WasPrinted = $false
-        }
-
         # Only start looking into processes if they have been running for x time,
         # many are really short lived and don't need to be tested for 'hanging'
-        if ($RunspaceTimer.Elapsed.TotalMinutes -gt 1) { # Set to low time of 1 minute intentionally during testing
-            if ($RunspaceStandardOut.Count -ge 1) {
+        if ($RunspaceTimer.Elapsed.TotalMinutes -gt 2) { # Set to low time of 2 minutes intentionally during testing
+            # Print message once every minute
+            if ($RunspaceTimer.Elapsed.Minutes - $LastPrinted -gt 0) {
+                Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
+                $LastPrinted = $RunspaceTimer.Elapsed.Minutes
+                if ($RunspaceStandardOut.Count -ge 1) {
+                    $ProcessID = $RunspaceStandardOut[0]
+                    $Process   = Get-Process -Id $ProcessID
 
-                $ProcessID = $RunspaceStandardOut[0]
-                $process   = Get-Process -Id $ProcessID
+                    $ProcessDiagnostics = Debug-LongRunningProcess -Process $Process
+                    $ProcessDiagnostics | ConvertTo-Json -Depth 10 | Out-Host
 
-                # CALL DEBUG-LONGRUNNINGPROCESS
-                $ProcessDiagnostics = Debug-LongRunningProcess -Process $process
-                $ProcessDiagnostics | ConvertTo-Json -Depth 10 | Out-Host
+                    if ($ProcessDiagnostics.AllThreadsWaiting -and $ProcessDiagnostics.InteractableWindows.Count -gt 0) {
+                        Write-Debug "CONCLUSION: The process looks blocked."
+                    } else {
+                        Write-Debug "CONCLUSION: The process looks normal."
+                    }
+                    Write-Debug ""
 
-                if ($ProcessDiagnostics.AllThreadsWaiting -and $ProcessDiagnostics.InteractableWindows.Count -gt 0) {
-                    Write-Debug "CONCLUSION: The process looks blocked."
-                } else {
-                    Write-Debug "CONCLUSION: The process looks normal."
+                    # Stop processes after 10 minutes
+                    if ($RunspaceTimer.Elapsed.TotalMinutes -gt 10) {
+                        foreach ($ProcessID2 in $ProcessDiagnostics.AllProcesses) {
+                            $Process2 = Get-Process -Id $ProcessID2
+                            Write-Debug "Going to close Process $ProcessID2 ('$($Process2.ProcessName)') ..."
+
+                            [Bool]$cmwSent = $false
+                            try {
+                                $cmwSent = $Process2.CloseMainWindow()
+                            }
+                            catch [InvalidOperationException] {
+                                Write-Debug "CloseMainWindow() threw InvalidOperationException: The process has already closed"
+                            }
+
+                            if ($cmwSent) {
+                                Write-Debug "CloseMainWindow() returned True: WM_CLOSE message successfully sent"
+                            } else {
+                                Write-Debug "CloseMainWindow() returned False: No MainWindow or its message loop is blocked, would have to kill this process"
+                            }
+                        }
+
+                        # Allow 20 seconds for the process to gracefully close after WM_CLOSE
+                        Start-Sleep -Seconds 20
+
+                        if (-not $Process.HasExited) {
+                            Write-Debug "Recursively killing process $ProcessID ('$($Process.ProcessName)') due to timeout"
+                            $Process.Kill($true)
+                        }
+                    }
                 }
+
                 Write-Debug ""
             }
-
-            Start-Sleep -Seconds 30
         }
+
         Start-Sleep -Milliseconds 200
     }
 

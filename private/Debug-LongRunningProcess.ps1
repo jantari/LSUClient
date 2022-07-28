@@ -220,6 +220,7 @@
 
     return [PSCustomObject]@{
         'ProcessCount'        = $ProcessCount
+        'AllProcesses'        = $ChildProcesses
         'ThreadCount'         = $ThreadCount
         'AllThreadsWaiting'   = $AllThreadsWaiting
         'WindowCount'         = $WindowCount
