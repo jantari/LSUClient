@@ -198,7 +198,8 @@
                     Write-Debug ""
 
                     # Stop processes after 10 minutes
-                    if ($RunspaceTimer.Elapsed.TotalMinutes -gt 5) {
+                    if ($RunspaceTimer.Elapsed.TotalMinutes -gt 10) {
+                        # Try graceful stop with WM_CLOSE
                         foreach ($ProcessID2 in $ProcessDiagnostics.AllProcesses) {
                             $Process2 = Get-Process -Id $ProcessID2
                             Write-Debug "Going to close Process $ProcessID2 ('$($Process2.ProcessName)') ..."
@@ -218,12 +219,15 @@
                             }
                         }
 
-                        # Allow 20 seconds for the process to gracefully close after WM_CLOSE
-                        Start-Sleep -Seconds 20
-
-                        if (-not $Process.HasExited) {
-                            Write-Debug "Recursively killing process $ProcessID ('$($Process.ProcessName)') due to timeout"
-                            $Process.Kill($true)
+                        # Allow up to 10 seconds for the process to gracefully close, then kill process tree
+                        if (-not $Process.WaitForExit(10000)) {
+                            Write-Debug "Killing processes due to timeout ..."
+                            Get-Process -Id $ProcessDiagnostics.AllProcesses -ErrorAction Ignore | ForEach-Object {
+                                try {
+                                    $_.Kill()
+                                }
+                                catch [InvalidOperationException] { <# Process has exited in the meantime, which is fine #> }
+                            }
                         }
 
                         $ProcessKilledTimeout = $true
@@ -279,13 +283,13 @@
                     'WorkingDirectory' = $Path
                     'StandardOutput'   = $StdOutTrimmed
                     'StandardError'    = $StdErrTrimmed
-                    'WindowText'       = @()
+                    'OpenWindows'      = @()
                     'ExitCode'         = $RunspaceStandardOut[-1].ExitCode
                     'Runtime'          = $RunspaceStandardOut[-1].Runtime
                 }
 
                 if ($ProcessKilledTimeout) {
-                    $ProcessReturnInformation.WindowText = $ProcessDiagnostics.InteractableWindows.WindowText
+                    $ProcessReturnInformation.OpenWindows = @($ProcessDiagnostics.InteractableWindows | Select-Object -Property WindowTitle, WindowText)
                     return [ExternalProcessResult]::new(
                         [ExternalProcessError]::PROCESS_KILLED_TIMEOUT,
                         $ProcessReturnInformation

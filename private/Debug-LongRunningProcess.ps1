@@ -159,7 +159,6 @@
     [UInt32]$ProcessCount    = 0
     [UInt32]$ThreadCount     = 0
     [UInt32]$WindowCount     = 0
-    [System.Text.StringBuilder]$InteractableWindowText = [System.Text.StringBuilder]::new()
     $InteractableWindows = [System.Collections.Generic.List[PSObject]]::new()
 
     # Get all child processes too
@@ -191,14 +190,11 @@
 
                 $WindowInfo = Get-WindowInfo -WindowHandle $window -IncludeUIAInfo
                 if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
-                    $WindowIsInteractable = $true
                     $InteractableWindows.Add([PSCustomObject]@{
                         'WindowTitle'    = $WindowInfo.UIAWindowTitle
                         'WindowElements' = $WindowInfo.UIAElements
-                        'WindowText'     = $WindowInfo.UIAElements.Text
+                        'WindowText'     = if ($WindowInfo.UIAElements) { $WindowInfo.UIAElements.Text }
                     })
-                } else {
-                    $WindowIsInteractable = $false
                 }
 
                 # Print the debug output of the interactable window in capital letters to identify it easily
@@ -206,9 +202,6 @@
                 Write-Debug "      UIA Info: Got $($WindowInfo.UIAElements.Count) UIAElements from this window handle:"
                 foreach ($UIAElement in $WindowInfo.UIAElements) {
                     if ($UIAElement.Text) {
-                        if ($WindowIsInteractable) {
-                            $null = $InteractableWindowText.AppendLine($UIAElement.Text)
-                        }
                         Write-Debug "        Type: $($UIAElement.ControlType), Text: $($UIAElement.Text -replace '(?s)^(.{60})(.*)', '$1...')"
                     } else {
                         Write-Debug "        Type: $($UIAElement.ControlType), no Text"

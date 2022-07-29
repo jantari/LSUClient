@@ -123,7 +123,7 @@
                         ExitCode       = $installProcess.Info.ExitCode
                         StandardOutput = $installProcess.Info.StandardOutput
                         StandardError  = $installProcess.Info.StandardError
-                        WindowText     = $installProcess.Info.WindowText
+                        OpenWindows    = $installProcess.Info.OpenWindows
                         LogOutput      = if ($installProcess.Info -is [BiosUpdateInfo]) { $installProcess.Info.LogMessage } else { '' }
                         Runtime        = if ($installProcess.Err) { [TimeSpan]::Zero } else { $installProcess.Info.Runtime }
                     }
@@ -155,7 +155,7 @@
                         ExitCode       = $installProcess.Info.ExitCode
                         StandardOutput = $installProcess.Info.StandardOutput
                         StandardError  = $installProcess.Info.StandardError
-                        WindowText     = $installProcess.Info.WindowText
+                        OpenWindows    = $installProcess.Info.OpenWindows
                         LogOutput      = ''
                         Runtime        = if ($installProcess.Err) { [TimeSpan]::Zero } else { $installProcess.Info.Runtime }
                     }

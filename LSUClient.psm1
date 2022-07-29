@@ -213,7 +213,7 @@ class ProcessReturnInformation {
     [string] $WorkingDirectory
     [string[]] $StandardOutput
     [string[]] $StandardError
-    [string[]] $WindowText
+    [Object[]] $OpenWindows
     [Int64] $ExitCode
     [TimeSpan] $Runtime
 }
@@ -277,7 +277,7 @@ class PackageInstallResult {
     [Nullable[Int64]] $ExitCode
     [string[]] $StandardOutput
     [string[]] $StandardError
-    [string[]] $WindowText
+    [Object[]] $OpenWindows
     [string[]] $LogOutput
     [TimeSpan] $Runtime
 }
