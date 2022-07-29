@@ -114,6 +114,13 @@
             $_.StandardError -join [Environment]::NewLine
           }
         </ScriptBlock></ListItem>
+        <ListItem><Label>WindowText</Label><ScriptBlock>
+          if ($_.WindowText.Count -gt 30) {
+            @('...') + $_.WindowText[-30..-1] -join [Environment]::NewLine
+          } else {
+            $_.WindowText -join [Environment]::NewLine
+          }
+        </ScriptBlock></ListItem>
         <ListItem><Label>LogOutput</Label><ScriptBlock>
           if ($_.LogOutput.Count -gt 30) {
             @('...') + $_.LogOutput[-30..-1] -join [Environment]::NewLine

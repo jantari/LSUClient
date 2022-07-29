@@ -173,6 +173,7 @@
     $RunspaceTimer.Start()
     $PSAsyncRunspace = $Powershell.BeginInvoke($RunspaceStandardInput, $RunspaceStandardOut)
 
+    $ProcessKilledTimeout = $false
     [Int32]$LastPrinted = 0
     while ($PSAsyncRunspace.IsCompleted -eq $false) {
         # Only start looking into processes if they have been running for x time,
@@ -197,7 +198,7 @@
                     Write-Debug ""
 
                     # Stop processes after 10 minutes
-                    if ($RunspaceTimer.Elapsed.TotalMinutes -gt 10) {
+                    if ($RunspaceTimer.Elapsed.TotalMinutes -gt 5) {
                         foreach ($ProcessID2 in $ProcessDiagnostics.AllProcesses) {
                             $Process2 = Get-Process -Id $ProcessID2
                             Write-Debug "Going to close Process $ProcessID2 ('$($Process2.ProcessName)') ..."
@@ -224,6 +225,8 @@
                             Write-Debug "Recursively killing process $ProcessID ('$($Process.ProcessName)') due to timeout"
                             $Process.Kill($true)
                         }
+
+                        $ProcessKilledTimeout = $true
                     }
                 }
 
@@ -270,18 +273,29 @@
                     $StdErrTrimmed = @()
                 }
 
-                return [ExternalProcessResult]::new(
-                    [ExternalProcessError]::NONE,
-                    [ProcessReturnInformation]@{
-                        'FilePath'         = $Executable
-                        'Arguments'        = $Arguments
-                        'WorkingDirectory' = $Path
-                        'StandardOutput'   = $StdOutTrimmed
-                        'StandardError'    = $StdErrTrimmed
-                        'ExitCode'         = $RunspaceStandardOut[-1].ExitCode
-                        'Runtime'          = $RunspaceStandardOut[-1].Runtime
-                    }
-                )
+                $ProcessReturnInformation = [ProcessReturnInformation]@{
+                    'FilePath'         = $Executable
+                    'Arguments'        = $Arguments
+                    'WorkingDirectory' = $Path
+                    'StandardOutput'   = $StdOutTrimmed
+                    'StandardError'    = $StdErrTrimmed
+                    'WindowText'       = @()
+                    'ExitCode'         = $RunspaceStandardOut[-1].ExitCode
+                    'Runtime'          = $RunspaceStandardOut[-1].Runtime
+                }
+
+                if ($ProcessKilledTimeout) {
+                    $ProcessReturnInformation.WindowText = $ProcessDiagnostics.InteractableWindows.WindowText
+                    return [ExternalProcessResult]::new(
+                        [ExternalProcessError]::PROCESS_KILLED_TIMEOUT,
+                        $ProcessReturnInformation
+                    )
+                } else {
+                    return [ExternalProcessResult]::new(
+                        [ExternalProcessError]::NONE,
+                        $ProcessReturnInformation
+                    )
+                }
             }
             # Error cases that are handled explicitly inside the runspace
             1 {

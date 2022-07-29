@@ -213,6 +213,7 @@ class ProcessReturnInformation {
     [string] $WorkingDirectory
     [string[]] $StandardOutput
     [string[]] $StandardError
+    [string[]] $WindowText
     [Int64] $ExitCode
     [TimeSpan] $Runtime
 }
@@ -239,6 +240,7 @@ enum ExternalProcessError {
     FILE_NOT_EXECUTABLE
     PROCESS_NONE_CREATED
     PROCESS_REQUIRES_ELEVATION
+    PROCESS_KILLED_TIMEOUT
 }
 
 # Public
@@ -275,6 +277,7 @@ class PackageInstallResult {
     [Nullable[Int64]] $ExitCode
     [string[]] $StandardOutput
     [string[]] $StandardError
+    [string[]] $WindowText
     [string[]] $LogOutput
     [TimeSpan] $Runtime
 }
