@@ -171,16 +171,12 @@
     $RunspaceTimer.Start()
     $PSAsyncRunspace = $Powershell.BeginInvoke($RunspaceStandardInput, $RunspaceStandardOut)
 
-    $WasPrinted = $true
+    [TimeSpan]$LastPrinted = [TimeSpan]::FromMinutes(4)
     while ($PSAsyncRunspace.IsCompleted -eq $false) {
-        # Print message once every 5 minutes
-        if ($RunspaceTimer.Elapsed.Minutes % 5 -eq 0) {
-            if (-not $WasPrinted) {
-                Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
-                $WasPrinted = $true
-            }
-        } else {
-            $WasPrinted = $false
+        # Print message once every minute after an initial 5 minutes of silence
+        if ($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
+            Write-Verbose "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
+            $LastPrinted = $RunspaceTimer.Elapsed
         }
         Start-Sleep -Milliseconds 200
     }
