@@ -181,7 +181,7 @@
     while ($PSAsyncRunspace.IsCompleted -eq $false) {
         # Print message once every minute after an initial 5 minutes of silence
         if ($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
-            Write-Verbose "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
+            Write-Warning "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
             $LastPrinted = $RunspaceTimer.Elapsed
         }
         Start-Sleep -Milliseconds 200
