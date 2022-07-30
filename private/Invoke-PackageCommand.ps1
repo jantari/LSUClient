@@ -82,8 +82,14 @@
         [string[]]$StdOutLines = @()
         [string[]]$StdErrLines = @()
 
-        $process                                  = [System.Diagnostics.Process]::new()
-        $process.StartInfo.WindowStyle            = [System.Diagnostics.ProcessWindowStyle]::Hidden
+        $process = [System.Diagnostics.Process]::new()
+        # WindowStyle used to be set to 'Hidden', but it turns out that does nothing unless used with ShellExecute.
+        # It had just appeared to work because most processes run properly hidden and silent on their own, but the
+        # 'Hidden' setting did prevent navigating the Installers of non-unattended packages if they were invoked with
+        # UseShellExecute due to one of the fallback cases below.
+        # To keep behavior consistent whether using ShellExeute or not, WindowStyle is now always set to 'Normal'.
+        # https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processwindowstyle?view=netframework-4.6.1
+        $process.StartInfo.WindowStyle            = [System.Diagnostics.ProcessWindowStyle]::Normal
         $process.StartInfo.UseShellExecute        = $false
         $process.StartInfo.WorkingDirectory       = $WorkingDirectory
         $process.StartInfo.FileName               = $Executable
