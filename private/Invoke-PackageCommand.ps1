@@ -58,8 +58,91 @@
 
     Write-Debug "Starting external process:`r`n  File: ${Executable}`r`n  Arguments: ${Arguments}`r`n  WorkingDirectory: ${Path}"
 
+Add-Type -Debug:$false -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public class JobAPI {
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr CreateJobObject(IntPtr a, string lpName);
+
+    [DllImport("Kernel32.dll", EntryPoint = "QueryInformationJobObject", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern bool QueryInformationJobObject(
+        IntPtr hJob,
+        int JobObjectInfoClass,
+        ref JOBOBJECT_BASIC_PROCESS_ID_LIST lpJobObjectInfo,
+        int cbJobObjectLength,
+        IntPtr lpReturnLength
+    );
+
+    [DllImport("Kernel32.dll", EntryPoint = "QueryInformationJobObject", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern bool QueryInformationJobObject(
+        IntPtr hJob,
+        int JobObjectInfoClass,
+        IntPtr lpJobObjectInfo,
+        int cbJobObjectLength,
+        IntPtr lpReturnLength
+    );
+
+    [DllImport("kernel32.dll")]
+    static extern bool SetInformationJobObject(IntPtr hJob, JobObjectInfoType infoType, IntPtr lpJobObjectInfo, UInt32 cbJobObjectInfoLength);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool CloseHandle(IntPtr hObject);
+
+    public enum JobObjectInfoType
+    {
+        AssociateCompletionPortInformation = 7,
+        BasicLimitInformation = 2,
+        BasicUIRestrictions = 4,
+        EndOfJobTimeInformation = 6,
+        ExtendedLimitInformation = 9,
+        SecurityLimitInformation = 5,
+        GroupInformation = 11
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct JOBOBJECT_BASIC_PROCESS_ID_LIST
+    {
+        public int NumberOfAssignedProcesses;
+        public int NumberOfProcessIdsInList;
+        public IntPtr[] ProcessIdList;
+        public JOBOBJECT_BASIC_PROCESS_ID_LIST(IntPtr pList)
+        {
+            int nIntSize = Marshal.SizeOf<int>(); // 4
+            NumberOfAssignedProcesses = Marshal.ReadInt32(pList, 0);
+            NumberOfProcessIdsInList = Marshal.ReadInt32(pList, nIntSize);
+            ProcessIdList = new IntPtr[NumberOfProcessIdsInList];
+            for (int i = 0; i < NumberOfProcessIdsInList; i++)
+            {
+                IntPtr pItemList = IntPtr.Zero;
+                if (Marshal.SizeOf<IntPtr>() == 4)
+                    pItemList = new IntPtr(pList.ToInt32() + (i * Marshal.SizeOf<IntPtr>()) + (nIntSize * 2));
+                else
+                    pItemList = new IntPtr(pList.ToInt64() + (i * Marshal.SizeOf<IntPtr>()) + (nIntSize * 2));
+                IntPtr nPID = new IntPtr();
+                nPID = Marshal.ReadIntPtr(pItemList, 0);
+                ProcessIdList[i] = nPID;
+            }
+        }
+    }
+}
+'@
+
     $Runspace = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateOutOfProcessRunspace($null)
     $Runspace.Open()
+    $Powershell = [PowerShell]::Create().AddScript{ $PID }
+    $Powershell.Runspace = $Runspace
+    $RunspacePID = $Powershell.Invoke()
+    $hRunspaceProcess = (Get-Process -Id $RunspacePID).Handle
+
+    $hJob = [JobAPI]::CreateJobObject([System.IntPtr]::Zero, $null)
+    $aptjo = [JobAPI]::AssignProcessToJobObject($hJob, $hRunspaceProcess)
+    Write-Host "Added runspace process $RunspacePID to job: $aptjo"
 
     $Powershell = [PowerShell]::Create().AddScript{
         [CmdletBinding()]
@@ -165,6 +248,7 @@
         'FallbackToShellExecute' = $FallbackToShellExecute
     })
 
+
     $Powershell.Runspace = $Runspace
     $RunspaceStandardInput = [System.Management.Automation.PSDataCollection[PSObject]]::new()
     $RunspaceStandardInput.Complete()
@@ -174,15 +258,45 @@
     $PSAsyncRunspace = $Powershell.BeginInvoke($RunspaceStandardInput, $RunspaceStandardOut)
 
     $ProcessKilledTimeout = $false
-    [Int32]$LastPrinted = 0
+    [TimeSpan]$LastPrinted = [TimeSpan]::FromMinutes(0)
     while ($PSAsyncRunspace.IsCompleted -eq $false) {
         # Only start looking into processes if they have been running for x time,
         # many are really short lived and don't need to be tested for 'hanging'
         if ($RunspaceTimer.Elapsed.TotalMinutes -gt 2) { # Set to low time of 2 minutes intentionally during testing
             # Print message once every minute
-            if ($RunspaceTimer.Elapsed.Minutes - $LastPrinted -gt 0) {
+            if ($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
+                [int]$dwSize = 0;
+                $JobList = New-object -TypeName 'JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST'
+                $dwSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList)
+
+                [bool]$QIJO = [JobAPI]::QueryInformationJobObject($hJob, 3, [ref] $JobList, $dwSize, [System.IntPtr]::Zero)
+                if (-not $QIJO) {
+                    $Win32Error = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+                    Write-Host "QueryInformationJobObject failed :("
+                    Write-Host "Error: $Win32Error"
+                    if ($Win32Error -eq 234) {
+                        $JobList2 = New-Object -TypeName 'JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST'
+                        $JobList2.NumberOfAssignedProcesses = $JobList.NumberOfAssignedProcesses
+
+                        $dwSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList2) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
+                        [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($dwSize)
+                        [System.Runtime.InteropServices.Marshal]::StructureToPtr($JobList2, $JobListPtr, $false)
+
+                        [bool]$QIJO = [JobAPI]::QueryInformationJobObject($hJob, 3, $JobListPtr, $dwSize, [System.IntPtr]::Zero)
+                        $Win32Error = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+                        Write-Host "QIJO called the second time with bigger buffer: $QIJO (Win32: $Win32Error)"
+                        $JobList3 = [JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new($JobList2)
+                    }
+                }
+
+                $JobList | Format-List | Out-Host
+                if ($JobList3) {
+                    Write-Host "printing JobList3:"
+                    $JobList3 | Format-List | Out-Host
+                }
+
                 Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
-                $LastPrinted = $RunspaceTimer.Elapsed.Minutes
+                $LastPrinted = $RunspaceTimer.Elapsed
                 if ($RunspaceStandardOut.Count -ge 1) {
                     $ProcessID = $RunspaceStandardOut[0]
                     $Process   = Get-Process -Id $ProcessID
