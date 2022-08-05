@@ -70,15 +70,6 @@ public class JobAPI {
     public static extern bool QueryInformationJobObject(
         IntPtr hJob,
         int JobObjectInfoClass,
-        ref JOBOBJECT_BASIC_PROCESS_ID_LIST lpJobObjectInfo,
-        int cbJobObjectLength,
-        IntPtr lpReturnLength
-    );
-
-    [DllImport("Kernel32.dll", EntryPoint = "QueryInformationJobObject", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern bool QueryInformationJobObject(
-        IntPtr hJob,
-        int JobObjectInfoClass,
         IntPtr lpJobObjectInfo,
         int cbJobObjectLength,
         IntPtr lpReturnLength
@@ -110,25 +101,7 @@ public class JobAPI {
     {
         public int NumberOfAssignedProcesses;
         public int NumberOfProcessIdsInList;
-        public IntPtr[] ProcessIdList;
-        public JOBOBJECT_BASIC_PROCESS_ID_LIST(IntPtr pList)
-        {
-            int nIntSize = Marshal.SizeOf<int>(); // 4
-            NumberOfAssignedProcesses = Marshal.ReadInt32(pList, 0);
-            NumberOfProcessIdsInList = Marshal.ReadInt32(pList, nIntSize);
-            ProcessIdList = new IntPtr[NumberOfProcessIdsInList];
-            for (int i = 0; i < NumberOfProcessIdsInList; i++)
-            {
-                IntPtr pItemList = IntPtr.Zero;
-                if (Marshal.SizeOf<IntPtr>() == 4)
-                    pItemList = new IntPtr(pList.ToInt32() + (i * Marshal.SizeOf<IntPtr>()) + (nIntSize * 2));
-                else
-                    pItemList = new IntPtr(pList.ToInt64() + (i * Marshal.SizeOf<IntPtr>()) + (nIntSize * 2));
-                IntPtr nPID = new IntPtr();
-                nPID = Marshal.ReadIntPtr(pItemList, 0);
-                ProcessIdList[i] = nPID;
-            }
-        }
+        public IntPtr ProcessIdList;
     }
 }
 '@
@@ -265,35 +238,63 @@ public class JobAPI {
         if ($RunspaceTimer.Elapsed.TotalMinutes -gt 2) { # Set to low time of 2 minutes intentionally during testing
             # Print message once every minute
             if ($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
-                [int]$dwSize = 0;
-                $JobList = New-object -TypeName 'JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST'
-                $dwSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList)
+                #[int]$dwSize = 0;
+                [JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]$JobList = New-Object -TypeName 'JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST'
+                [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList)
+                [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
+                [System.Runtime.InteropServices.Marshal]::StructureToPtr($JobList, $JobListPtr, $false)
 
-                [bool]$QIJO = [JobAPI]::QueryInformationJobObject($hJob, 3, [ref] $JobList, $dwSize, [System.IntPtr]::Zero)
+                Write-Host "First call to QueryInformationJobObject: allocated struct size is $ListPtrSize"
+                [bool]$QIJO = [JobAPI]::QueryInformationJobObject($hJob, 3, $JobListPtr, $ListPtrSize, [System.IntPtr]::Zero)
+
                 if (-not $QIJO) {
                     $Win32Error = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
                     Write-Host "QueryInformationJobObject failed :("
                     Write-Host "Error: $Win32Error"
+
                     if ($Win32Error -eq 234) {
-                        $JobList2 = New-Object -TypeName 'JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST'
-                        $JobList2.NumberOfAssignedProcesses = $JobList.NumberOfAssignedProcesses
+                        $JobList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobListPtr, [Type]$JobList.GetType())
+                        Write-Host "First QIJO call NumberOfAssignedProcesses: $($JobList.NumberOfAssignedProcesses)"
+                        #[JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]$JobList2 = New-Object -TypeName 'JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST'
+                        <#
+                        [JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]$JobList2 = New-Object -TypeName 'JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST' -Property @{
+                            'NumberOfAssignedProcesses' = 0
+                            'NumberOfProcessIdsInList' = 0
+                            'ProcessIdList' = [System.Runtime.InteropServices.Marshal]::AllocHGlobal(($JobList.NumberOfAssignedProcesses) * [System.IntPtr]::Size)
+                        }
 
-                        $dwSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList2) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
-                        [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($dwSize)
-                        [System.Runtime.InteropServices.Marshal]::StructureToPtr($JobList2, $JobListPtr, $false)
+                        Write-Host "JobList2 size directly after initializing it: $([System.Runtime.InteropServices.Marshal]::SizeOf($JobList2))"
+                        #>
 
-                        [bool]$QIJO = [JobAPI]::QueryInformationJobObject($hJob, 3, $JobListPtr, $dwSize, [System.IntPtr]::Zero)
+                        [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
+                        [System.IntPtr]$JobList2Ptr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
+                        #[System.Runtime.InteropServices.Marshal]::StructureToPtr($JobList2, $JobList2Ptr, $false)
+
+                        #$dwSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList2) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
+                        #[System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($dwSize)
+                        #[System.Runtime.InteropServices.Marshal]::StructureToPtr($JobList2, $JobListPtr, $false)
+                        #$dwSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList2)
+
+                        Write-Host "Second call to QueryInformationJobObject: allocated struct size is $ListPtrSize"
+                        [bool]$QIJO = [JobAPI]::QueryInformationJobObject($hJob, 3, $JobList2Ptr, $ListPtrSize, [System.IntPtr]::Zero)
                         $Win32Error = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
-                        Write-Host "QIJO called the second time with bigger buffer: $QIJO (Win32: $Win32Error)"
-                        $JobList3 = [JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new($JobList2)
+                        Write-Host "QIJO called the second time with bigger buffer: $QIJO (Win32Error: $Win32Error)"
+
+                        if ($QIJO) {
+                            $JobList2 = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobList2Ptr, [Type]$JobList.GetType())
+                            $JobList2 | Format-List | Out-Host
+
+                            $PIDListPointer = [System.IntPtr]::Add($JobList2Ptr, [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new()))
+                            [System.IntPtr[]]$ProcessIdList = [System.IntPtr[]]::new($JobList2.NumberOfProcessIdsInList)
+                            [System.Runtime.InteropServices.Marshal]::Copy($PIDListPointer, $ProcessIdList, 1, $JobList2.NumberOfProcessIdsInList - 1)
+                            Write-Host "Process IDs from QIJO: $ProcessIdList"
+                        }
                     }
+                } else {
+                    $JobList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobListPtr, [Type]$JobList.GetType())
+                    $JobList | Format-List | Out-Host
                 }
 
-                $JobList | Format-List | Out-Host
-                if ($JobList3) {
-                    Write-Host "printing JobList3:"
-                    $JobList3 | Format-List | Out-Host
-                }
 
                 Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
                 $LastPrinted = $RunspaceTimer.Elapsed
