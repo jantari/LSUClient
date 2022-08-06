@@ -83,7 +83,7 @@ public class JobAPI {
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    static extern bool CloseHandle(IntPtr hObject);
+    public static extern bool CloseHandle(IntPtr hObject);
 
     public enum JobObjectInfoType
     {
@@ -177,8 +177,6 @@ public class JobAPI {
         }
 
         if ($ProcessStarted) {
-            $process.ID
-
             if (-not $FallbackToShellExecute) {
                 # When redirecting StandardOutput or StandardError you have to start reading the streams asynchronously, or else it can cause
                 # programs that output a lot (like package u3aud03w_w10 - Conexant USB Audio) to fill a stream and deadlock/hang indefinitely.
@@ -241,6 +239,7 @@ public class JobAPI {
                 #[int]$dwSize = 0;
                 [JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]$JobList = New-Object -TypeName 'JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST'
                 [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList)
+                # TODO: Free or implement SafeHandle wrapper
                 [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
                 [System.Runtime.InteropServices.Marshal]::StructureToPtr($JobList, $JobListPtr, $false)
 
@@ -267,6 +266,7 @@ public class JobAPI {
                         #>
 
                         [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
+                        # TODO: Free or implement SafeHandle wrapper
                         [System.IntPtr]$JobList2Ptr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
                         #[System.Runtime.InteropServices.Marshal]::StructureToPtr($JobList2, $JobList2Ptr, $false)
 
@@ -286,6 +286,9 @@ public class JobAPI {
 
                             $PIDListPointer = [System.IntPtr]::Add($JobList2Ptr, [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new()))
                             [System.IntPtr[]]$ProcessIdList = [System.IntPtr[]]::new($JobList2.NumberOfProcessIdsInList)
+			    # Get the first process ID directly from the marshaled struct
+			    $ProcessIdList[0] = $JobList2.ProcessIdList
+			    # Copy the others (variable length) from unmanaged memory manually
                             [System.Runtime.InteropServices.Marshal]::Copy($PIDListPointer, $ProcessIdList, 1, $JobList2.NumberOfProcessIdsInList - 1)
                             Write-Host "Process IDs from QIJO: $ProcessIdList"
                         }
@@ -298,9 +301,8 @@ public class JobAPI {
 
                 Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
                 $LastPrinted = $RunspaceTimer.Elapsed
-                if ($RunspaceStandardOut.Count -ge 1) {
-                    $ProcessID = $RunspaceStandardOut[0]
-                    $Process   = Get-Process -Id $ProcessID
+                foreach ($ProcessId in $ProcessIdList) {
+                    $Process = Get-Process -Id $ProcessID
 
                     $ProcessDiagnostics = Debug-LongRunningProcess -Process $Process
                     $ProcessDiagnostics | ConvertTo-Json -Depth 10 | Out-Host
@@ -311,42 +313,42 @@ public class JobAPI {
                         Write-Debug "CONCLUSION: The process looks normal."
                     }
                     Write-Debug ""
+                }
 
-                    # Stop processes after 10 minutes
-                    if ($RunspaceTimer.Elapsed.TotalMinutes -gt 10) {
-                        # Try graceful stop with WM_CLOSE
-                        foreach ($ProcessID2 in $ProcessDiagnostics.AllProcesses) {
-                            $Process2 = Get-Process -Id $ProcessID2
-                            Write-Debug "Going to close Process $ProcessID2 ('$($Process2.ProcessName)') ..."
+                # Stop processes after 10 minutes
+                if ($RunspaceTimer.Elapsed.TotalMinutes -gt 10) {
+                    # Try graceful stop with WM_CLOSE
+                    foreach ($ProcessID2 in $ProcessIdList) {
+                        $Process2 = Get-Process -Id $ProcessID2
+                        Write-Debug "Going to close Process $ProcessID2 ('$($Process2.ProcessName)') ..."
 
-                            [Bool]$cmwSent = $false
-                            try {
-                                $cmwSent = $Process2.CloseMainWindow()
-                            }
-                            catch [InvalidOperationException] {
-                                Write-Debug "CloseMainWindow() threw InvalidOperationException: The process has already closed"
-                            }
-
-                            if ($cmwSent) {
-                                Write-Debug "CloseMainWindow() returned True: WM_CLOSE message successfully sent"
-                            } else {
-                                Write-Debug "CloseMainWindow() returned False: No MainWindow or its message loop is blocked, would have to kill this process"
-                            }
+                        [Bool]$cmwSent = $false
+                        try {
+                            $cmwSent = $Process2.CloseMainWindow()
+                        }
+                        catch [InvalidOperationException] {
+                            Write-Debug "CloseMainWindow() threw InvalidOperationException: The process has already closed"
                         }
 
-                        # Allow up to 10 seconds for the process to gracefully close, then kill process tree
-                        if (-not $Process.WaitForExit(10000)) {
-                            Write-Debug "Killing processes due to timeout ..."
-                            Get-Process -Id $ProcessDiagnostics.AllProcesses -ErrorAction Ignore | ForEach-Object {
-                                try {
-                                    $_.Kill()
-                                }
-                                catch [InvalidOperationException] { <# Process has exited in the meantime, which is fine #> }
-                            }
+                        if ($cmwSent) {
+                            Write-Debug "CloseMainWindow() returned True: WM_CLOSE message successfully sent"
+                        } else {
+                            Write-Debug "CloseMainWindow() returned False: No MainWindow or its message loop is blocked, would have to kill this process"
                         }
-
-                        $ProcessKilledTimeout = $true
                     }
+
+                    # Allow up to 10 seconds for the process to gracefully close, then kill process tree
+                    if (-not $Process.WaitForExit(10000)) {
+                        Write-Debug "Killing processes due to timeout ..."
+                        Get-Process -Id $ProcessIdList -ErrorAction Ignore | ForEach-Object {
+                            try {
+                                $_.Kill()
+                            }
+                            catch [InvalidOperationException] { <# Process has exited in the meantime, which is fine #> }
+                        }
+                    }
+
+                    $ProcessKilledTimeout = $true
                 }
 
                 Write-Debug ""
@@ -367,6 +369,8 @@ public class JobAPI {
 
     $PowerShell.Runspace.Dispose()
     $PowerShell.Dispose()
+    $bCloseHandle = [JobAPI]::CloseHandle($hJob)
+    Write-Host "Closed hJob handle: $bCloseHandle"
 
     # Test for NULL before indexing into array. RunspaceStandardOut can be null
     # when the runspace aborted abormally, for example due to an exception.

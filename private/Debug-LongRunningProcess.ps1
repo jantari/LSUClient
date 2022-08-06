@@ -43,20 +43,6 @@
     }
 '@
 
-    function Get-ChildProcesses {
-        [CmdletBinding()]
-        Param (
-            [Parameter(Mandatory = $true)]
-            $ParentProcessId
-        )
-        Get-CimInstance -ClassName Win32_Process -Filter "ParentProcessId = '$ParentProcessId'" | Foreach-Object {
-            $_.ProcessId
-            if ($_.ParentProcessId -ne $_.ProcessId) {
-                Get-ChildProcesses -ParentProcessId $_.ProcessId
-            }
-        }
-    }
-
     function Get-WindowInfo {
         [CmdletBinding()]
         Param (
@@ -156,64 +142,53 @@
 
     # Look into the process
     [bool]$AllThreadsWaiting = $true
-    [UInt32]$ProcessCount    = 0
     [UInt32]$ThreadCount     = 0
     [UInt32]$WindowCount     = 0
-    $InteractableWindows = [System.Collections.Generic.List[PSObject]]::new()
+    $InteractableWindows     = [System.Collections.Generic.List[PSObject]]::new()
 
-    # Get all child processes too
-    [array]$ChildProcesses = $Process.ID
-    [array]$ChildProcesses += Get-ChildProcesses -ParentProcessId $Process.ID -Verbose:$false
+    Write-Debug "Process $($Process.ID) ('$($Process.ProcessName)')"
 
-    foreach ($SpawnedProcessID in $ChildProcesses) {
-        $ProcessCount++
-        $SpawnedProcess = Get-Process -Id $SpawnedProcessID
-        Write-Debug "Process $($SpawnedProcess.ID) ('$($SpawnedProcess.ProcessName)')"
+    if ($Process.Threads.ThreadState -ne 'Wait') {
+        $AllThreadsWaiting = $false
+    }
 
-        if ($SpawnedProcess.Threads.ThreadState -ne 'Wait') {
-            $AllThreadsWaiting = $false
+    foreach ($Thread in $Process.Threads) {
+        $ThreadCount++
+
+        $ThreadWindows = [System.Collections.Generic.List[IntPtr]]::new()
+        $null = [User32]::EnumThreadWindows($thread.id, { Param($hwnd, $lParam) $ThreadWindows.Add($hwnd); return $true }, [System.IntPtr]::Zero)
+
+        if ($ThreadWindows) {
+            Write-Debug "  Thread $($thread.id) in state $($thread.ThreadState) ($($thread.WaitReason)) has $($ThreadWindows.Count) windows:"
+        } else {
+            Write-Debug "  Thread $($thread.id) in state $($thread.ThreadState) ($($thread.WaitReason)) has no windows"
         }
+        foreach ($window in $ThreadWindows) {
+            $WindowCount++
 
-        foreach ($Thread in $SpawnedProcess.Threads) {
-            $ThreadCount++
-
-            $ThreadWindows = [System.Collections.Generic.List[IntPtr]]::new()
-            $null = [User32]::EnumThreadWindows($thread.id, { Param($hwnd, $lParam) $ThreadWindows.Add($hwnd); return $true }, [System.IntPtr]::Zero)
-
-            if ($ThreadWindows) {
-                Write-Debug "  Thread $($thread.id) in state $($thread.ThreadState) ($($thread.WaitReason)) has $($ThreadWindows.Count) windows:"
-            } else {
-                Write-Debug "  Thread $($thread.id) in state $($thread.ThreadState) ($($thread.WaitReason)) has no windows"
+            $WindowInfo = Get-WindowInfo -WindowHandle $window -IncludeUIAInfo
+            if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
+                $InteractableWindows.Add([PSCustomObject]@{
+                    'WindowTitle'    = $WindowInfo.UIAWindowTitle
+                    'WindowElements' = $WindowInfo.UIAElements
+                    'WindowText'     = if ($WindowInfo.UIAElements) { $WindowInfo.UIAElements.Text }
+                })
             }
-            foreach ($window in $ThreadWindows) {
-                $WindowCount++
 
-                $WindowInfo = Get-WindowInfo -WindowHandle $window -IncludeUIAInfo
-                if ($WindowInfo.IsVisible -and -not $WindowInfo.IsDisabled -and $WindowInfo.Width -gt 0 -and $WindowInfo.Height -gt 0) {
-                    $InteractableWindows.Add([PSCustomObject]@{
-                        'WindowTitle'    = $WindowInfo.UIAWindowTitle
-                        'WindowElements' = $WindowInfo.UIAElements
-                        'WindowText'     = if ($WindowInfo.UIAElements) { $WindowInfo.UIAElements.Text }
-                    })
-                }
-
-                # Print the debug output of the interactable window in capital letters to identify it easily
-                Write-Debug "    ThreadWindow ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height):"
-                Write-Debug "      UIA Info: Got $($WindowInfo.UIAElements.Count) UIAElements from this window handle:"
-                foreach ($UIAElement in $WindowInfo.UIAElements) {
-                    if ($UIAElement.Text) {
-                        Write-Debug "        Type: $($UIAElement.ControlType), Text: $($UIAElement.Text -replace '(?s)^(.{60})(.*)', '$1...')"
-                    } else {
-                        Write-Debug "        Type: $($UIAElement.ControlType), no Text"
-                    }
+            # Print the debug output of the interactable window in capital letters to identify it easily
+            Write-Debug "    ThreadWindow ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height):"
+            Write-Debug "      UIA Info: Got $($WindowInfo.UIAElements.Count) UIAElements from this window handle:"
+            foreach ($UIAElement in $WindowInfo.UIAElements) {
+                if ($UIAElement.Text) {
+                    Write-Debug "        Type: $($UIAElement.ControlType), Text: $($UIAElement.Text -replace '(?s)^(.{60})(.*)', '$1...')"
+                } else {
+                    Write-Debug "        Type: $($UIAElement.ControlType), no Text"
                 }
             }
         }
     }
 
     return [PSCustomObject]@{
-        'ProcessCount'        = $ProcessCount
-        'AllProcesses'        = $ChildProcesses
         'ThreadCount'         = $ThreadCount
         'AllThreadsWaiting'   = $AllThreadsWaiting
         'WindowCount'         = $WindowCount
