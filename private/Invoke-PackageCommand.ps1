@@ -63,7 +63,7 @@ using System;
 using System.Runtime.InteropServices;
 
 public class JobAPI {
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern IntPtr CreateJobObject(IntPtr a, string lpName);
 
     [DllImport("Kernel32.dll", EntryPoint = "QueryInformationJobObject", SetLastError = true, CharSet = CharSet.Unicode)]
@@ -75,13 +75,13 @@ public class JobAPI {
         IntPtr lpReturnLength
     );
 
-    [DllImport("kernel32.dll")]
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     static extern bool SetInformationJobObject(IntPtr hJob, JobObjectInfoType infoType, IntPtr lpJobObjectInfo, UInt32 cbJobObjectInfoLength);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool CloseHandle(IntPtr hObject);
 
@@ -110,7 +110,7 @@ public class JobAPI {
     $Runspace.Open()
     $Powershell = [PowerShell]::Create().AddScript{ $PID }
     $Powershell.Runspace = $Runspace
-    $RunspacePID = $Powershell.Invoke()
+    $RunspacePID = $Powershell.Invoke() | Select-Object -First 1
     $hRunspaceProcess = (Get-Process -Id $RunspacePID).Handle
 
     $hJob = [JobAPI]::CreateJobObject([System.IntPtr]::Zero, $null)
@@ -262,13 +262,19 @@ public class JobAPI {
                 Write-Host "Got all process IDs:"
                 $JobList | Format-List | Out-Host
 
-                $PIDListPointer = [System.IntPtr]::Add($JobListPtr, [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new()))
                 [System.IntPtr[]]$ProcessIdList = [System.IntPtr[]]::new($JobList.NumberOfProcessIdsInList)
-                # Get the first process ID directly from the marshaled struct
-                $ProcessIdList[0] = $JobList.ProcessIdList
-                # Copy the others (variable length) from unmanaged memory manually
-                [System.Runtime.InteropServices.Marshal]::Copy($PIDListPointer, $ProcessIdList, 1, $JobList.NumberOfProcessIdsInList - 1)
-                [System.Runtime.InteropServices.Marshal]::FreeHGlobal($JobListPtr)
+                # It's possible the processes and runspace have exited by this point
+                if ($JobList.NumberOfProcessIdsInList -gt 0) {
+                    # Get the first process ID directly from the marshaled struct
+                    $ProcessIdList[0] = $JobList.ProcessIdList
+                    $PIDListPointer = [System.IntPtr]::Add($JobListPtr, [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new()))
+                    # Copy the others (variable length) from unmanaged memory manually
+                    [System.Runtime.InteropServices.Marshal]::Copy($PIDListPointer, $ProcessIdList, 1, $JobList.NumberOfProcessIdsInList - 1)
+                    [System.Runtime.InteropServices.Marshal]::FreeHGlobal($JobListPtr)
+                }
+
+                # Filter out our PowerShell runspace process
+                $ProcessIdList = $ProcessIdList -ne $RunspacePID
                 Write-Host "Process IDs from QIJO: $ProcessIdList"
 
                 Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
@@ -290,13 +296,13 @@ public class JobAPI {
                 # Stop processes after 10 minutes
                 if ($RunspaceTimer.Elapsed.TotalMinutes -gt 10) {
                     # Try graceful stop with WM_CLOSE
-                    foreach ($ProcessID2 in $ProcessIdList) {
-                        $Process2 = Get-Process -Id $ProcessID2
-                        Write-Debug "Going to close Process $ProcessID2 ('$($Process2.ProcessName)') ..."
+                    foreach ($ProcessId in $ProcessIdList) {
+                        $Process = Get-Process -Id $ProcessId
+                        Write-Debug "Going to close Process $ProcessId ('$($Process.ProcessName)') ..."
 
                         [Bool]$cmwSent = $false
                         try {
-                            $cmwSent = $Process2.CloseMainWindow()
+                            $cmwSent = $Process.CloseMainWindow()
                         }
                         catch [InvalidOperationException] {
                             Write-Debug "CloseMainWindow() threw InvalidOperationException: The process has already closed"
@@ -310,14 +316,13 @@ public class JobAPI {
                     }
 
                     # Allow up to 10 seconds for the process to gracefully close, then kill process tree
-                    if (-not $Process.WaitForExit(10000)) {
-                        Write-Debug "Killing processes due to timeout ..."
-                        Get-Process -Id $ProcessIdList -ErrorAction Ignore | ForEach-Object {
-                            try {
-                                $_.Kill()
-                            }
-                            catch [InvalidOperationException] { <# Process has exited in the meantime, which is fine #> }
+                    Start-Sleep -Seconds 10
+                    Write-Debug "Killing processes due to timeout ..."
+                    Get-Process -Id $ProcessIdList -ErrorAction Ignore | ForEach-Object {
+                        try {
+                            $_.Kill()
                         }
+                        catch [InvalidOperationException] { <# Process has exited in the meantime, which is fine #> }
                     }
 
                     $ProcessKilledTimeout = $true
