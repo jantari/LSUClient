@@ -236,68 +236,40 @@ public class JobAPI {
         if ($RunspaceTimer.Elapsed.TotalMinutes -gt 2) { # Set to low time of 2 minutes intentionally during testing
             # Print message once every minute
             if ($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
-                #[int]$dwSize = 0;
-                [JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]$JobList = New-Object -TypeName 'JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST'
-                [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList)
-                # TODO: Free or implement SafeHandle wrapper
+                [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new());
                 [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
-                [System.Runtime.InteropServices.Marshal]::StructureToPtr($JobList, $JobListPtr, $false)
 
-                Write-Host "First call to QueryInformationJobObject: allocated struct size is $ListPtrSize"
-                [bool]$QIJO = [JobAPI]::QueryInformationJobObject($hJob, 3, $JobListPtr, $ListPtrSize, [System.IntPtr]::Zero)
-
-                if (-not $QIJO) {
+                # Retry ERROR_MORE_DATA in a loop because it *could* run into a race condition where a new process is spawned
+                # exactly in between allocating the memory we think we need and the next call to QueryInformationJobObject
+                do {
+                    [bool]$QIJO = [JobAPI]::QueryInformationJobObject($hJob, 3, $JobListPtr, $ListPtrSize, [System.IntPtr]::Zero)
                     $Win32Error = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
-                    Write-Host "QueryInformationJobObject failed :("
-                    Write-Host "Error: $Win32Error"
 
-                    if ($Win32Error -eq 234) {
-                        $JobList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobListPtr, [Type]$JobList.GetType())
-                        Write-Host "First QIJO call NumberOfAssignedProcesses: $($JobList.NumberOfAssignedProcesses)"
-                        #[JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]$JobList2 = New-Object -TypeName 'JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST'
-                        <#
-                        [JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]$JobList2 = New-Object -TypeName 'JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST' -Property @{
-                            'NumberOfAssignedProcesses' = 0
-                            'NumberOfProcessIdsInList' = 0
-                            'ProcessIdList' = [System.Runtime.InteropServices.Marshal]::AllocHGlobal(($JobList.NumberOfAssignedProcesses) * [System.IntPtr]::Size)
-                        }
+                    $JobList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobListPtr, [Type][JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST])
 
-                        Write-Host "JobList2 size directly after initializing it: $([System.Runtime.InteropServices.Marshal]::SizeOf($JobList2))"
-                        #>
-
+                    Write-Host "  NumberOfAssignedProcesses: $($JobList.NumberOfAssignedProcesses)"
+                    Write-Host "  NumberOfProcessIdsInList: $($JobList.NumberOfProcessIdsInList)"
+                    if (-not $QIJO -and $Win32Error -eq 234) {
+                        Write-Host "Got ERROR_MORE_DATA: will retry with more buffer"
                         [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
-                        # TODO: Free or implement SafeHandle wrapper
-                        [System.IntPtr]$JobList2Ptr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
-                        #[System.Runtime.InteropServices.Marshal]::StructureToPtr($JobList2, $JobList2Ptr, $false)
-
-                        #$dwSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList2) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
-                        #[System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($dwSize)
-                        #[System.Runtime.InteropServices.Marshal]::StructureToPtr($JobList2, $JobListPtr, $false)
-                        #$dwSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList2)
-
-                        Write-Host "Second call to QueryInformationJobObject: allocated struct size is $ListPtrSize"
-                        [bool]$QIJO = [JobAPI]::QueryInformationJobObject($hJob, 3, $JobList2Ptr, $ListPtrSize, [System.IntPtr]::Zero)
-                        $Win32Error = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
-                        Write-Host "QIJO called the second time with bigger buffer: $QIJO (Win32Error: $Win32Error)"
-
-                        if ($QIJO) {
-                            $JobList2 = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobList2Ptr, [Type]$JobList.GetType())
-                            $JobList2 | Format-List | Out-Host
-
-                            $PIDListPointer = [System.IntPtr]::Add($JobList2Ptr, [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new()))
-                            [System.IntPtr[]]$ProcessIdList = [System.IntPtr[]]::new($JobList2.NumberOfProcessIdsInList)
-			    # Get the first process ID directly from the marshaled struct
-			    $ProcessIdList[0] = $JobList2.ProcessIdList
-			    # Copy the others (variable length) from unmanaged memory manually
-                            [System.Runtime.InteropServices.Marshal]::Copy($PIDListPointer, $ProcessIdList, 1, $JobList2.NumberOfProcessIdsInList - 1)
-                            Write-Host "Process IDs from QIJO: $ProcessIdList"
-                        }
+                        [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::ReAllocHGlobal($JobListPtr, $ListPtrSize)
+                        $RetryMoreData = $true
+                    } else {
+                        $RetryMoreData = $false
                     }
-                } else {
-                    $JobList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobListPtr, [Type]$JobList.GetType())
-                    $JobList | Format-List | Out-Host
-                }
+                } while ($RetryMoreData)
 
+                Write-Host "Got all process IDs:"
+                $JobList | Format-List | Out-Host
+
+                $PIDListPointer = [System.IntPtr]::Add($JobListPtr, [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new()))
+                [System.IntPtr[]]$ProcessIdList = [System.IntPtr[]]::new($JobList.NumberOfProcessIdsInList)
+                # Get the first process ID directly from the marshaled struct
+                $ProcessIdList[0] = $JobList.ProcessIdList
+                # Copy the others (variable length) from unmanaged memory manually
+                [System.Runtime.InteropServices.Marshal]::Copy($PIDListPointer, $ProcessIdList, 1, $JobList.NumberOfProcessIdsInList - 1)
+                [System.Runtime.InteropServices.Marshal]::FreeHGlobal($JobListPtr)
+                Write-Host "Process IDs from QIJO: $ProcessIdList"
 
                 Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
                 $LastPrinted = $RunspaceTimer.Elapsed
