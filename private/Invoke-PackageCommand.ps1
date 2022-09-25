@@ -270,8 +270,9 @@ public class JobAPI {
                     $PIDListPointer = [System.IntPtr]::Add($JobListPtr, [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new()))
                     # Copy the others (variable length) from unmanaged memory manually
                     [System.Runtime.InteropServices.Marshal]::Copy($PIDListPointer, $ProcessIdList, 1, $JobList.NumberOfProcessIdsInList - 1)
-                    [System.Runtime.InteropServices.Marshal]::FreeHGlobal($JobListPtr)
                 }
+
+                [System.Runtime.InteropServices.Marshal]::FreeHGlobal($JobListPtr)
 
                 # Filter out our PowerShell runspace process
                 $ProcessIdList = $ProcessIdList -ne $RunspacePID
