@@ -17,26 +17,32 @@
 
     $pathParts = $Command -split ' '
 
-    for ($i = $pathParts.Count - 1; $i -ge 0; $i--) {
-        $testPath = [String]::Join(' ', $pathParts[0..$i])
+    # If necessary, also try removing parts from the start of the string
+    # This loop will rarely run more than 1 iteration, but commands can
+    # start with "START /WAIT ..." for example, see issue #57
+    for ($start = 0; $start -lt $pathParts.Count; $start++) {
+        # Repeatedly remove parts of the string from the end and test
+        for ($end = $pathParts.Count - 1; $end -ge $start; $end--) {
+            $testPath = [String]::Join(' ', $pathParts[$start..$end])
 
-        # We have to trim quotes because they mess up GetFullPath() and Join-Path
-        $testPath = $testPath.Trim('"')
+            # We have to trim quotes because they mess up GetFullPath() and Join-Path
+            $testPath = $testPath.Trim('"')
 
-        if ( [System.IO.File]::Exists($testPath) ) {
-            return @(
-                [System.IO.Path]::GetFullPath($testPath),
-                "$($pathParts | Select-Object -Skip ($i + 1))"
-            )
-        }
+            if ( [System.IO.File]::Exists($testPath) ) {
+                return @(
+                    [System.IO.Path]::GetFullPath($testPath),
+                    "$($pathParts | Select-Object -Skip ($end + 1))"
+                )
+            }
 
-        $testPathRelative = Join-Path -Path $WorkingDirectory -ChildPath $testPath
+            $testPathRelative = Join-Path -Path $WorkingDirectory -ChildPath $testPath
 
-        if ( [System.IO.File]::Exists($testPathRelative) ) {
-            return @(
-                [System.IO.Path]::GetFullPath($testPathRelative),
-                "$($pathParts | Select-Object -Skip ($i + 1))"
-            )
+            if ( [System.IO.File]::Exists($testPathRelative) ) {
+                return @(
+                    [System.IO.Path]::GetFullPath($testPathRelative),
+                    "$($pathParts | Select-Object -Skip ($end + 1))"
+                )
+            }
         }
     }
 }
