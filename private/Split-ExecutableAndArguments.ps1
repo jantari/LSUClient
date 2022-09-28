@@ -17,8 +17,8 @@
 
     # Only search the Machine-Scope PATH
     # Package commands would not rely on a user-specific PATH setup so skip it to avoid false matches
-    [string[]]$MachinePathDirectories = [System.Environment]::GetEnvironmentVariable("Path", "Machine").Split(';')
-    [string[]]$MachinePathExtensions  = [System.Environment]::GetEnvironmentVariable("PATHEXT", "Machine").Split(';')
+    [string[]]$MachinePathDirectories = [System.Environment]::GetEnvironmentVariable("Path", "Machine").Split(';') | Where-Object { $_ }
+    [string[]]$MachinePathExtensions  = [System.Environment]::GetEnvironmentVariable("PATHEXT", "Machine").Split(';') | Where-Object { $_ }
 
     $pathParts = $Command -split ' '
 
