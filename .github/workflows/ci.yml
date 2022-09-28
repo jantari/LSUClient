@@ -58,6 +58,21 @@ jobs:
           Install-Module Pester -Scope CurrentUser -Repository PSGallery -Force
         shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
 
+      - name: Print PATH env variables in runner
+        run: |
+          Write-Output "PATH (MACHINE):"
+          [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+          Write-Output ""
+          Write-Output "PATH (USER):"
+          [System.Environment]::GetEnvironmentVariable("Path", "User")
+          Write-Output ""
+          Write-Output "PATHEXT (MACHINE):"
+          [System.Environment]::GetEnvironmentVariable("PATHEXT", "Machine")
+          Write-Output ""
+          Write-Output "PATHEXT (USER):"
+          [System.Environment]::GetEnvironmentVariable("PATHEXT", "User")
+        shell: pwsh -Command "$ProgressPreference = 'SilentlyContinue'; & '{0}'"
+
       - name: Run Pester Tests
         run: |
           Import-Module Pester
