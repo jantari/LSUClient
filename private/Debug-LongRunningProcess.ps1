@@ -188,6 +188,7 @@
     }
 
     return [PSCustomObject]@{
+        'ProcessName'         = $Process.ProcessName
         'ThreadCount'         = $ThreadCount
         'AllThreadsWaiting'   = $AllThreadsWaiting
         'WindowCount'         = $WindowCount

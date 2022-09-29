@@ -229,6 +229,7 @@ public class JobAPI {
     $PSAsyncRunspace = $Powershell.BeginInvoke($RunspaceStandardInput, $RunspaceStandardOut)
 
     $ProcessKilledTimeout = $false
+    [Hashtable]$AllProcessDiagnostics = @{}
     [TimeSpan]$LastPrinted = [TimeSpan]::FromMinutes(0)
     while ($PSAsyncRunspace.IsCompleted -eq $false) {
         # Only start looking into processes if they have been running for x time,
@@ -281,10 +282,11 @@ public class JobAPI {
                 Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
                 $LastPrinted = $RunspaceTimer.Elapsed
                 foreach ($ProcessId in $ProcessIdList) {
-                    $Process = Get-Process -Id $ProcessID
+                    $Process = Get-Process -Id $ProcessId
 
                     $ProcessDiagnostics = Debug-LongRunningProcess -Process $Process
                     $ProcessDiagnostics | ConvertTo-Json -Depth 10 | Out-Host
+                    $AllProcessDiagnostics[$ProcessId] = $ProcessDiagnostics
 
                     if ($ProcessDiagnostics.AllThreadsWaiting -and $ProcessDiagnostics.InteractableWindows.Count -gt 0) {
                         Write-Debug "CONCLUSION: The process looks blocked."
@@ -318,8 +320,8 @@ public class JobAPI {
 
                     # Allow up to 10 seconds for the process to gracefully close, then kill process tree
                     Start-Sleep -Seconds 10
-                    Write-Debug "Killing processes due to timeout ..."
                     Get-Process -Id $ProcessIdList -ErrorAction Ignore | ForEach-Object {
+                        Write-Debug "Killing process due to timeout ..."
                         try {
                             $_.Kill()
                         }
@@ -386,7 +388,14 @@ public class JobAPI {
                 }
 
                 if ($ProcessKilledTimeout) {
-                    $ProcessReturnInformation.OpenWindows = @($ProcessDiagnostics.InteractableWindows | Select-Object -Property WindowTitle, WindowText)
+                    $ProcessReturnInformation.OpenWindows = @(
+                        foreach ($DebuggedProcess in $AllProcessDiagnostics.Values) {
+                            [PSCustomObject]@{
+                                'ProcessName' = $DebuggedProcess.ProcessName
+                                'OpenWindows' = $DebuggedProcess.InteractableWindows | Select-Object -Property WindowTitle, WindowText
+                            }
+                        }
+                    )
                     return [ExternalProcessResult]::new(
                         [ExternalProcessError]::PROCESS_KILLED_TIMEOUT,
                         $ProcessReturnInformation
