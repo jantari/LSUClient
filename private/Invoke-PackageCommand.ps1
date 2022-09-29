@@ -72,7 +72,7 @@ public class JobAPI {
         int JobObjectInfoClass,
         IntPtr lpJobObjectInfo,
         int cbJobObjectLength,
-        IntPtr lpReturnLength
+        out uint lpReturnLength
     );
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
@@ -99,8 +99,8 @@ public class JobAPI {
     [StructLayout(LayoutKind.Sequential)]
     public struct JOBOBJECT_BASIC_PROCESS_ID_LIST
     {
-        public int NumberOfAssignedProcesses;
-        public int NumberOfProcessIdsInList;
+        public uint NumberOfAssignedProcesses;
+        public uint NumberOfProcessIdsInList;
         public IntPtr ProcessIdList;
     }
 }
@@ -240,19 +240,35 @@ public class JobAPI {
                 [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new());
                 [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
 
+                # QueryInformationJobObject does not write any data out to lpJobObjectInformation (no NumberOfAssignedProcesses) under WOW (PowerShell x86) if it fails:
+                # https://social.msdn.microsoft.com/Forums/office/en-US/41a7b8c9-6b5e-4c91-b92d-31310522d0cd/wow64-issue-with-queryinformationjobobject-and-jobobjectbasicprocessidlist-including-windows-10?forum=windowssdk
+                # This means we just have to continually increase the buffer until it's large enough for QueryInformationJobObject to succeed.
+                [int]$GuessNumberOfAssignedProcesses = 0
+
                 # Retry ERROR_MORE_DATA in a loop because it *could* run into a race condition where a new process is spawned
                 # exactly in between allocating the memory we think we need and the next call to QueryInformationJobObject
                 do {
-                    [bool]$QIJO = [JobAPI]::QueryInformationJobObject($hJob, 3, $JobListPtr, $ListPtrSize, [System.IntPtr]::Zero)
+                    [System.UInt32]$qijoReturnLength = 0
+                    [bool]$qijoSuccess = [JobAPI]::QueryInformationJobObject($hJob, 3, $JobListPtr, $ListPtrSize, [ref] $qijoReturnLength)
                     $Win32Error = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
 
                     $JobList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobListPtr, [Type][JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST])
 
-                    Write-Host "  NumberOfAssignedProcesses: $($JobList.NumberOfAssignedProcesses)"
-                    Write-Host "  NumberOfProcessIdsInList: $($JobList.NumberOfProcessIdsInList)"
-                    if (-not $QIJO -and $Win32Error -eq 234) {
+                    Write-Host "QIJO returned $qijoSuccess with last Win32 error $Win32Error and $qijoReturnLength bytes written to struct"
+                    Write-Host "NumberOfAssignedProcesses: $($JobList.NumberOfAssignedProcesses)"
+                    Write-Host "NumberOfProcessIdsInList: $($JobList.NumberOfProcessIdsInList)"
+
+                    if (-not $qijoSuccess -and $Win32Error -eq 234) {
                         Write-Host "Got ERROR_MORE_DATA: will retry with more buffer"
-                        [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
+                        if ($qijoReturnLength -eq 0) {
+                            # Because AllocHGlobal doesn't zero the memory it allocates, the struct will be filled with random data
+                            # if QueryInformationJobObject did not overwrite it so we cannot use NumberOfAssignedProcesses and have to guess
+                            $GuessNumberOfAssignedProcesses += 2
+                            Write-Host "Last QIJO didn't give us ANY info so we don't know how much space to alloc. Just increase slowly?"
+                            [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + $GuessNumberOfAssignedProcesses * [System.IntPtr]::Size
+                        } else {
+                            [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
+                        }
                         [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::ReAllocHGlobal($JobListPtr, $ListPtrSize)
                         $RetryMoreData = $true
                     } else {
