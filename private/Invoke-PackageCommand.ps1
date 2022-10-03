@@ -21,6 +21,11 @@
 
     [CmdletBinding()]
     [OutputType('ExternalProcessResult')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseDeclaredVarsMoreThanAssignments',
+        'ProcessKilledTimeout',
+        Justification = 'https://github.com/PowerShell/PSScriptAnalyzer/issues/1163'
+    )]
     Param (
         [ValidateNotNullOrEmpty()]
         [string]$Path,
@@ -116,7 +121,7 @@ public class JobAPI {
 
     $hJob = [JobAPI]::CreateJobObject([System.IntPtr]::Zero, $null)
     $aptjo = [JobAPI]::AssignProcessToJobObject($hJob, $hRunspaceProcess)
-    Write-Host "Added runspace process $RunspacePID to job: $aptjo"
+    Write-Debug "Added runspace process $RunspacePID to job: $aptjo"
 
     $Powershell = [PowerShell]::Create().AddScript{
         [CmdletBinding()]
@@ -229,10 +234,11 @@ public class JobAPI {
     $RunspaceTimer.Start()
     $PSAsyncRunspace = $Powershell.BeginInvoke($RunspaceStandardInput, $RunspaceStandardOut)
 
-    $ProcessKilledTimeout = $false
+    [bool]$ProcessKilledTimeout = $false
     [Hashtable]$AllProcessDiagnostics = @{}
     [TimeSpan]$LastPrinted = [TimeSpan]::FromMinutes(0)
     while ($PSAsyncRunspace.IsCompleted -eq $false) {
+        # Print message once every minute
         if ($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
             Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
             $LastPrinted = $RunspaceTimer.Elapsed
@@ -279,9 +285,6 @@ public class JobAPI {
                 }
             } while ($RetryMoreData)
 
-            Write-Host "Got all process IDs:"
-            $JobList | Format-List | Out-Host
-
             [System.IntPtr[]]$ProcessIdList = [System.IntPtr[]]::new($JobList.NumberOfProcessIdsInList)
             # It's possible the processes and runspace have exited by this point
             if ($JobList.NumberOfProcessIdsInList -gt 0) {
@@ -314,36 +317,20 @@ public class JobAPI {
                     Write-Debug ""
                 }
 
-                # Try graceful stop with WM_CLOSE
-                foreach ($ProcessId in $ProcessIdList) {
-                    $Process = Get-Process -Id $ProcessId
-                    Write-Debug "Going to close Process $ProcessId ('$($Process.ProcessName)') ..."
-
-                    [Bool]$cmwSent = $false
-                    try {
-                        $cmwSent = $Process.CloseMainWindow()
-                    }
-                    catch [InvalidOperationException] {
-                        Write-Debug "CloseMainWindow() threw InvalidOperationException: The process has already closed"
-                    }
-
-                    if ($cmwSent) {
-                        Write-Debug "CloseMainWindow() returned True: WM_CLOSE message successfully sent"
-                    } else {
-                        Write-Debug "CloseMainWindow() returned False: No MainWindow or its message loop is blocked, would have to kill this process"
-                    }
-                }
-
-                # Allow up to 10 seconds for the process to gracefully close, then kill process tree
-                Start-Sleep -Seconds 10
                 Get-Process -Id $ProcessIdList -ErrorAction Ignore | ForEach-Object {
-                    Write-Debug "Killing process due to timeout ..."
-                    try {
-                        $_.Kill()
+                    # It's possible for a process (object) to linger and be "get-able"
+                    # for a short while after it has already exited. Kill() won't throw
+                    # on these processes, but they didn't technically get "killed" by us
+                    if (-not $_.HasExited) {
+                        Write-Debug "Killing process $($_.Id) '$($_.ProcessName)' due to timeout ..."
+                        try {
+                            $_.Kill()
+                            # Only set ProcessKilledTimeout if Kill() ran and succeeded
+                            $ProcessKilledTimeout = $true
+                        }
+                        catch [InvalidOperationException] { <# Process has exited in the meantime, which is fine #> }
                     }
-                    catch [InvalidOperationException] { <# Process has exited in the meantime, which is fine #> }
                 }
-                $ProcessKilledTimeout = $true
             }
         }
 
@@ -362,7 +349,7 @@ public class JobAPI {
     $PowerShell.Runspace.Dispose()
     $PowerShell.Dispose()
     $bCloseHandle = [JobAPI]::CloseHandle($hJob)
-    Write-Host "Closed hJob handle: $bCloseHandle"
+    Write-Debug "Closed hJob handle: $bCloseHandle"
 
     # Test for NULL before indexing into array. RunspaceStandardOut can be null
     # when the runspace aborted abormally, for example due to an exception.

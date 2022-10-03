@@ -70,7 +70,12 @@
         }
 
         if ($IncludeUIAInfo) {
-            $WindowUIA = [System.Windows.Automation.AutomationElement]::FromHandle($WindowHandle)
+            $WindowUIA = $null
+            try {
+                # If a window(handle) doesn't exist anymore this throws an ElementNotAvailable exception
+                $WindowUIA = [System.Windows.Automation.AutomationElement]::FromHandle($WindowHandle)
+            }
+            catch {}
             if ($WindowUIA) {
                 # Get element text by implementing https://stackoverflow.com/a/23851560
                 $patternObj = $null
