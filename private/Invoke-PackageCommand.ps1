@@ -233,71 +233,72 @@ public class JobAPI {
     [Hashtable]$AllProcessDiagnostics = @{}
     [TimeSpan]$LastPrinted = [TimeSpan]::FromMinutes(0)
     while ($PSAsyncRunspace.IsCompleted -eq $false) {
-        # Only start looking into processes if they have been running for x time,
-        # many are really short lived and don't need to be tested for 'hanging'
-        if ($RunspaceTimer.Elapsed.TotalMinutes -gt 2) { # Set to low time of 2 minutes intentionally during testing
-            # Print message once every minute
-            if ($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
-                [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new());
-                [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
+        if ($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
+            Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
+            $LastPrinted = $RunspaceTimer.Elapsed
+        }
 
-                # QueryInformationJobObject does not write any data out to lpJobObjectInformation (no NumberOfAssignedProcesses) under WOW (PowerShell x86) if it fails:
-                # https://social.msdn.microsoft.com/Forums/office/en-US/41a7b8c9-6b5e-4c91-b92d-31310522d0cd/wow64-issue-with-queryinformationjobobject-and-jobobjectbasicprocessidlist-including-windows-10?forum=windowssdk
-                # This means we just have to continually increase the buffer until it's large enough for QueryInformationJobObject to succeed.
-                [int]$GuessNumberOfAssignedProcesses = 0
+        # Stop processes after exceeding runtime limit
+        if ($RuntimeLimit -ne [TimeSpan]::Zero -and $RunspaceTimer.Elapsed -gt $RuntimeLimit) {
+            [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new());
+            [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
 
-                # Retry ERROR_MORE_DATA in a loop because it *could* run into a race condition where a new process is spawned
-                # exactly in between allocating the memory we think we need and the next call to QueryInformationJobObject
-                do {
-                    [System.UInt32]$qijoReturnLength = 0
-                    [bool]$qijoSuccess = [JobAPI]::QueryInformationJobObject($hJob, 3, $JobListPtr, $ListPtrSize, [ref] $qijoReturnLength)
-                    $Win32Error = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            # QueryInformationJobObject does not write any data out to lpJobObjectInformation (no NumberOfAssignedProcesses) under WOW (PowerShell x86) if it fails:
+            # https://social.msdn.microsoft.com/Forums/office/en-US/41a7b8c9-6b5e-4c91-b92d-31310522d0cd/wow64-issue-with-queryinformationjobobject-and-jobobjectbasicprocessidlist-including-windows-10?forum=windowssdk
+            # This means we just have to continually increase the buffer until it's large enough for QueryInformationJobObject to succeed.
+            [int]$GuessNumberOfAssignedProcesses = 0
 
-                    $JobList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobListPtr, [Type][JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST])
+            # Retry ERROR_MORE_DATA in a loop because it *could* run into a race condition where a new process is spawned
+            # exactly in between allocating the memory we think we need and the next call to QueryInformationJobObject
+            do {
+                [System.UInt32]$qijoReturnLength = 0
+                [bool]$qijoSuccess = [JobAPI]::QueryInformationJobObject($hJob, 3, $JobListPtr, $ListPtrSize, [ref] $qijoReturnLength)
+                $Win32Error = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
 
-                    Write-Host "QIJO returned $qijoSuccess with last Win32 error $Win32Error and $qijoReturnLength bytes written to struct"
-                    Write-Host "NumberOfAssignedProcesses: $($JobList.NumberOfAssignedProcesses)"
-                    Write-Host "NumberOfProcessIdsInList: $($JobList.NumberOfProcessIdsInList)"
+                $JobList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobListPtr, [Type][JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST])
 
-                    if (-not $qijoSuccess -and $Win32Error -eq 234) {
-                        Write-Host "Got ERROR_MORE_DATA: will retry with more buffer"
-                        if ($qijoReturnLength -eq 0) {
-                            # Because AllocHGlobal doesn't zero the memory it allocates, the struct will be filled with random data
-                            # if QueryInformationJobObject did not overwrite it so we cannot use NumberOfAssignedProcesses and have to guess
-                            $GuessNumberOfAssignedProcesses += 2
-                            Write-Host "Last QIJO didn't give us ANY info so we don't know how much space to alloc. Just increase slowly?"
-                            [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + $GuessNumberOfAssignedProcesses * [System.IntPtr]::Size
-                        } else {
-                            [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
-                        }
-                        [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::ReAllocHGlobal($JobListPtr, $ListPtrSize)
-                        $RetryMoreData = $true
+                Write-Host "QIJO returned $qijoSuccess with last Win32 error $Win32Error and $qijoReturnLength bytes written to struct"
+                Write-Host "NumberOfAssignedProcesses: $($JobList.NumberOfAssignedProcesses)"
+                Write-Host "NumberOfProcessIdsInList: $($JobList.NumberOfProcessIdsInList)"
+
+                if (-not $qijoSuccess -and $Win32Error -eq 234) {
+                    Write-Host "Got ERROR_MORE_DATA: will retry with more buffer"
+                    if ($qijoReturnLength -eq 0) {
+                        # Because AllocHGlobal doesn't zero the memory it allocates, the struct will be filled with random data
+                        # if QueryInformationJobObject did not overwrite it so we cannot use NumberOfAssignedProcesses and have to guess
+                        $GuessNumberOfAssignedProcesses += 2
+                        Write-Host "Last QIJO didn't give us ANY info so we don't know how much space to alloc. Just increase slowly?"
+                        [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + $GuessNumberOfAssignedProcesses * [System.IntPtr]::Size
                     } else {
-                        $RetryMoreData = $false
+                        [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
                     }
-                } while ($RetryMoreData)
-
-                Write-Host "Got all process IDs:"
-                $JobList | Format-List | Out-Host
-
-                [System.IntPtr[]]$ProcessIdList = [System.IntPtr[]]::new($JobList.NumberOfProcessIdsInList)
-                # It's possible the processes and runspace have exited by this point
-                if ($JobList.NumberOfProcessIdsInList -gt 0) {
-                    # Get the first process ID directly from the marshaled struct
-                    $ProcessIdList[0] = $JobList.ProcessIdList
-                    $PIDListPointer = [System.IntPtr]::Add($JobListPtr, [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new()))
-                    # Copy the others (variable length) from unmanaged memory manually
-                    [System.Runtime.InteropServices.Marshal]::Copy($PIDListPointer, $ProcessIdList, 1, $JobList.NumberOfProcessIdsInList - 1)
+                    [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::ReAllocHGlobal($JobListPtr, $ListPtrSize)
+                    $RetryMoreData = $true
+                } else {
+                    $RetryMoreData = $false
                 }
+            } while ($RetryMoreData)
 
-                [System.Runtime.InteropServices.Marshal]::FreeHGlobal($JobListPtr)
+            Write-Host "Got all process IDs:"
+            $JobList | Format-List | Out-Host
 
-                # Filter out our PowerShell runspace process
-                $ProcessIdList = $ProcessIdList -ne $RunspacePID
-                Write-Host "Process IDs from QIJO: $ProcessIdList"
+            [System.IntPtr[]]$ProcessIdList = [System.IntPtr[]]::new($JobList.NumberOfProcessIdsInList)
+            # It's possible the processes and runspace have exited by this point
+            if ($JobList.NumberOfProcessIdsInList -gt 0) {
+                # Get the first process ID directly from the marshaled struct
+                $ProcessIdList[0] = $JobList.ProcessIdList
+                $PIDListPointer = [System.IntPtr]::Add($JobListPtr, [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new()))
+                # Copy the others (variable length) from unmanaged memory manually
+                [System.Runtime.InteropServices.Marshal]::Copy($PIDListPointer, $ProcessIdList, 1, $JobList.NumberOfProcessIdsInList - 1)
+            }
 
-                Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
-                $LastPrinted = $RunspaceTimer.Elapsed
+            [System.Runtime.InteropServices.Marshal]::FreeHGlobal($JobListPtr)
+
+            # Filter out our PowerShell runspace process
+            $ProcessIdList = $ProcessIdList -ne $RunspacePID
+            Write-Host "Process IDs from QIJO: $ProcessIdList"
+
+            if ($ProcessIdList) {
                 foreach ($ProcessId in $ProcessIdList) {
                     $Process = Get-Process -Id $ProcessId
 
@@ -313,42 +314,36 @@ public class JobAPI {
                     Write-Debug ""
                 }
 
-                # Stop processes after 10 minutes
-                if ($RuntimeLimit -ne [TimeSpan]::Zero -and $RunspaceTimer.Elapsed -gt $RuntimeLimit) {
-                    # Try graceful stop with WM_CLOSE
-                    foreach ($ProcessId in $ProcessIdList) {
-                        $Process = Get-Process -Id $ProcessId
-                        Write-Debug "Going to close Process $ProcessId ('$($Process.ProcessName)') ..."
+                # Try graceful stop with WM_CLOSE
+                foreach ($ProcessId in $ProcessIdList) {
+                    $Process = Get-Process -Id $ProcessId
+                    Write-Debug "Going to close Process $ProcessId ('$($Process.ProcessName)') ..."
 
-                        [Bool]$cmwSent = $false
-                        try {
-                            $cmwSent = $Process.CloseMainWindow()
-                        }
-                        catch [InvalidOperationException] {
-                            Write-Debug "CloseMainWindow() threw InvalidOperationException: The process has already closed"
-                        }
-
-                        if ($cmwSent) {
-                            Write-Debug "CloseMainWindow() returned True: WM_CLOSE message successfully sent"
-                        } else {
-                            Write-Debug "CloseMainWindow() returned False: No MainWindow or its message loop is blocked, would have to kill this process"
-                        }
+                    [Bool]$cmwSent = $false
+                    try {
+                        $cmwSent = $Process.CloseMainWindow()
+                    }
+                    catch [InvalidOperationException] {
+                        Write-Debug "CloseMainWindow() threw InvalidOperationException: The process has already closed"
                     }
 
-                    # Allow up to 10 seconds for the process to gracefully close, then kill process tree
-                    Start-Sleep -Seconds 10
-                    Get-Process -Id $ProcessIdList -ErrorAction Ignore | ForEach-Object {
-                        Write-Debug "Killing process due to timeout ..."
-                        try {
-                            $_.Kill()
-                        }
-                        catch [InvalidOperationException] { <# Process has exited in the meantime, which is fine #> }
+                    if ($cmwSent) {
+                        Write-Debug "CloseMainWindow() returned True: WM_CLOSE message successfully sent"
+                    } else {
+                        Write-Debug "CloseMainWindow() returned False: No MainWindow or its message loop is blocked, would have to kill this process"
                     }
-
-                    $ProcessKilledTimeout = $true
                 }
 
-                Write-Debug ""
+                # Allow up to 10 seconds for the process to gracefully close, then kill process tree
+                Start-Sleep -Seconds 10
+                Get-Process -Id $ProcessIdList -ErrorAction Ignore | ForEach-Object {
+                    Write-Debug "Killing process due to timeout ..."
+                    try {
+                        $_.Kill()
+                    }
+                    catch [InvalidOperationException] { <# Process has exited in the meantime, which is fine #> }
+                }
+                $ProcessKilledTimeout = $true
             }
         }
 
