@@ -29,8 +29,30 @@ if ($WindowsVersion -notlike "10.*") {
 }
 
 $script:CachedHardwareTable = @{}
+$script:LSUClientConfiguration = [LSUClientConfiguration]::new()
 
 [int]$script:XMLTreeDepth = 0
+
+# Public
+class LSUClientConfiguration {
+    [TimeSpan] $MaxExternalDetectionRuntime
+    [TimeSpan] $MaxExtractRuntime
+    [TimeSpan] $MaxInstallerRuntime
+
+    # Default constructor setting default values
+    LSUClientConfiguration () {
+        $this.MaxExternalDetectionRuntime = [TimeSpan]::FromMinutes(10)
+        $this.MaxExtractRuntime = [TimeSpan]::FromMinutes(20)
+        $this.MaxInstallerRuntime = [TimeSpan]::Zero # No timeout
+    }
+
+    # Clone-constructor from another instance of the class
+    LSUClientConfiguration ([LSUClientConfiguration]$from) {
+        $this.MaxExternalDetectionRuntime = $from.MaxExternalDetectionRuntime
+        $this.MaxExtractRuntime = $from.MaxExtractRuntime
+        $this.MaxInstallerRuntime = $from.MaxInstallerRuntime
+    }
+}
 
 # Internal
 class PackageFilePointer {

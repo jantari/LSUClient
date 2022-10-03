@@ -31,7 +31,8 @@
         [string]$Executable,
         [Parameter( ParameterSetName = 'ExeAndArgs' )]
         [string]$Arguments = '',
-        [switch]$FallbackToShellExecute
+        [switch]$FallbackToShellExecute,
+        [TimeSpan]$RuntimeLimit = [TimeSpan]::Zero
     )
 
     # Remove any trailing backslashes from the Path.
@@ -313,7 +314,7 @@ public class JobAPI {
                 }
 
                 # Stop processes after 10 minutes
-                if ($RunspaceTimer.Elapsed.TotalMinutes -gt 10) {
+                if ($RuntimeLimit -ne [TimeSpan]::Zero -and $RunspaceTimer.Elapsed -gt $RuntimeLimit) {
                     # Try graceful stop with WM_CLOSE
                     foreach ($ProcessId in $ProcessIdList) {
                         $Process = Get-Process -Id $ProcessId
@@ -448,7 +449,7 @@ public class JobAPI {
                 if (-not $FallbackToShellExecute) {
                     Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
                     Write-Warning "Process output cannot be captured when running with ShellExecute!"
-                    return (Invoke-PackageCommand -Path:$Path -Executable:$Executable -Arguments:$Arguments -FallbackToShellExecute)
+                    return (Invoke-PackageCommand -Path:$Path -Executable:$Executable -Arguments:$Arguments -FallbackToShellExecute -RuntimeLimit $RuntimeLimit)
                 } else {
                     return [ExternalProcessResult]::new(
                         [ExternalProcessError]::PROCESS_REQUIRES_ELEVATION,
@@ -459,7 +460,7 @@ public class JobAPI {
             193 {
                 if (-not $FallbackToShellExecute) {
                     Write-Warning "The file to be run is not an executable - falling back to ShellExecute"
-                    return (Invoke-PackageCommand -Path:$Path -Executable:$Executable -Arguments:$Arguments -FallbackToShellExecute)
+                    return (Invoke-PackageCommand -Path:$Path -Executable:$Executable -Arguments:$Arguments -FallbackToShellExecute -RuntimeLimit $RuntimeLimit)
                 } else {
                     return [ExternalProcessResult]::new(
                         [ExternalProcessError]::FILE_NOT_EXECUTABLE,
