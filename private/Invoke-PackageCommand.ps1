@@ -64,54 +64,6 @@
 
     Write-Debug "Starting external process:`r`n  File: ${Executable}`r`n  Arguments: ${Arguments}`r`n  WorkingDirectory: ${Path}"
 
-Add-Type -Debug:$false -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-
-public class JobAPI {
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern IntPtr CreateJobObject(IntPtr a, string lpName);
-
-    [DllImport("Kernel32.dll", EntryPoint = "QueryInformationJobObject", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern bool QueryInformationJobObject(
-        IntPtr hJob,
-        int JobObjectInfoClass,
-        IntPtr lpJobObjectInfo,
-        int cbJobObjectLength,
-        out uint lpReturnLength
-    );
-
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    static extern bool SetInformationJobObject(IntPtr hJob, JobObjectInfoType infoType, IntPtr lpJobObjectInfo, UInt32 cbJobObjectInfoLength);
-
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
-
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool CloseHandle(IntPtr hObject);
-
-    public enum JobObjectInfoType
-    {
-        AssociateCompletionPortInformation = 7,
-        BasicLimitInformation = 2,
-        BasicUIRestrictions = 4,
-        EndOfJobTimeInformation = 6,
-        ExtendedLimitInformation = 9,
-        SecurityLimitInformation = 5,
-        GroupInformation = 11
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct JOBOBJECT_BASIC_PROCESS_ID_LIST
-    {
-        public uint NumberOfAssignedProcesses;
-        public uint NumberOfProcessIdsInList;
-        public IntPtr ProcessIdList;
-    }
-}
-'@
-
     $Runspace = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateOutOfProcessRunspace($null)
     $Runspace.Open()
     $Powershell = [PowerShell]::Create().AddScript{ $PID }
@@ -119,8 +71,8 @@ public class JobAPI {
     $RunspacePID = $Powershell.Invoke() | Select-Object -First 1
     $hRunspaceProcess = (Get-Process -Id $RunspacePID).Handle
 
-    $hJob = [JobAPI]::CreateJobObject([System.IntPtr]::Zero, $null)
-    $aptjo = [JobAPI]::AssignProcessToJobObject($hJob, $hRunspaceProcess)
+    $hJob = [LSUClient.JobAPI]::CreateJobObject([System.IntPtr]::Zero, $null)
+    $aptjo = [LSUClient.JobAPI]::AssignProcessToJobObject($hJob, $hRunspaceProcess)
     Write-Debug "Added runspace process $RunspacePID to job: $aptjo"
 
     $Powershell = [PowerShell]::Create().AddScript{
@@ -246,7 +198,7 @@ public class JobAPI {
 
         # Stop processes after exceeding runtime limit
         if ($RuntimeLimit -ne [TimeSpan]::Zero -and $RunspaceTimer.Elapsed -gt $RuntimeLimit) {
-            [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new());
+            [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf([LSUClient.JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new());
             [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
 
             # QueryInformationJobObject does not write any data out to lpJobObjectInformation (no NumberOfAssignedProcesses) under WOW (PowerShell x86) if it fails:
@@ -258,10 +210,10 @@ public class JobAPI {
             # exactly in between allocating the memory we think we need and the next call to QueryInformationJobObject
             do {
                 [System.UInt32]$qijoReturnLength = 0
-                [bool]$qijoSuccess = [JobAPI]::QueryInformationJobObject($hJob, 3, $JobListPtr, $ListPtrSize, [ref] $qijoReturnLength)
+                [bool]$qijoSuccess = [LSUClient.JobAPI]::QueryInformationJobObject($hJob, 3, $JobListPtr, $ListPtrSize, [ref] $qijoReturnLength)
                 $Win32Error = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
 
-                $JobList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobListPtr, [Type][JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST])
+                $JobList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobListPtr, [Type][LSUClient.JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST])
 
                 Write-Host "QIJO returned $qijoSuccess with last Win32 error $Win32Error and $qijoReturnLength bytes written to struct"
                 Write-Host "NumberOfAssignedProcesses: $($JobList.NumberOfAssignedProcesses)"
@@ -290,7 +242,7 @@ public class JobAPI {
             if ($JobList.NumberOfProcessIdsInList -gt 0) {
                 # Get the first process ID directly from the marshaled struct
                 $ProcessIdList[0] = $JobList.ProcessIdList
-                $PIDListPointer = [System.IntPtr]::Add($JobListPtr, [System.Runtime.InteropServices.Marshal]::SizeOf([JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new()))
+                $PIDListPointer = [System.IntPtr]::Add($JobListPtr, [System.Runtime.InteropServices.Marshal]::SizeOf([LSUClient.JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new()))
                 # Copy the others (variable length) from unmanaged memory manually
                 [System.Runtime.InteropServices.Marshal]::Copy($PIDListPointer, $ProcessIdList, 1, $JobList.NumberOfProcessIdsInList - 1)
             }
@@ -348,7 +300,7 @@ public class JobAPI {
 
     $PowerShell.Runspace.Dispose()
     $PowerShell.Dispose()
-    $bCloseHandle = [JobAPI]::CloseHandle($hJob)
+    $bCloseHandle = [LSUClient.JobAPI]::CloseHandle($hJob)
     Write-Debug "Closed hJob handle: $bCloseHandle"
 
     # Test for NULL before indexing into array. RunspaceStandardOut can be null

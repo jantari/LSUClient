@@ -304,6 +304,10 @@ class PackageInstallResult {
     [TimeSpan] $Runtime
 }
 
+if (-not ('LSUClient.ImportTest' -as [Type])) {
+    Add-Type -LiteralPath "$PSScriptRoot\LSUClient.Types.cs" -Debug:$false
+}
+
 # Import all private functions
 foreach ($function in (Get-ChildItem "$PSScriptRoot\private" -File -ErrorAction Ignore)) {
     . $function.FullName

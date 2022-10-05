@@ -22,97 +22,6 @@
         [string]$PathToWFLASH2EXE
     )
 
-    Add-Type -Debug:$false -TypeDefinition @'
-    using System;
-    using System.Runtime.InteropServices;
-
-    public class WinAPI {
-        private const uint FILE_SHARE_WRITE = 0x00000002;
-        private const uint GENERIC_WRITE    = 0x40000000;
-        private const uint OPEN_EXISTING    = 0x00000003;
-        private const ushort KEY_EVENT      = 0x0001;
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Auto,
-        CallingConvention = CallingConvention.StdCall,
-        SetLastError = true)]
-        private static extern IntPtr CreateFile(
-            string lpFileName,
-            uint dwDesiredAccess,
-            uint dwShareMode,
-            IntPtr SecurityAttributes,
-            uint dwCreationDisposition,
-            uint dwFlagsAndAttributes,
-            IntPtr hTemplateFile
-        );
-
-        [StructLayout(LayoutKind.Explicit, CharSet = CharSet.Unicode)]
-        private struct INPUT_RECORD
-        {
-            public const ushort KEY_EVENT = 0x0001;
-            [FieldOffset(0)]
-            public ushort EventType;
-
-            [FieldOffset(2)]
-            public KEY_EVENT_RECORD KeyEvent;
-        }
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        private struct KEY_EVENT_RECORD
-        {
-            public bool bKeyDown;
-            public ushort wRepeatCount;
-            public ushort wVirtualKeyCode;
-            public ushort wVirtualScanCode;
-            public char UnicodeChar;
-            public uint dwControlKeyState;
-        }
-
-        [DllImport("kernel32.dll", EntryPoint = "WriteConsoleInputW", CharSet = CharSet.Unicode, SetLastError = true)]
-        private static extern bool WriteConsoleInput(
-            IntPtr hConsoleInput,
-            INPUT_RECORD[] lpBuffer,
-            uint nLength,
-            out uint lpNumberOfEventsWritten
-        );
-
-        public struct ReturnValues {
-            public bool WCIReturnValue;
-            public uint WCIEventsWritten;
-            public int LastWin32Error;
-        }
-
-        public static ReturnValues WriteCharToConin() {
-            IntPtr hConIn = CreateFile(
-                "CONIN$",
-                GENERIC_WRITE,
-                FILE_SHARE_WRITE,
-                IntPtr.Zero,
-                OPEN_EXISTING,
-                0,
-                IntPtr.Zero
-            );
-
-            INPUT_RECORD[] record                = new INPUT_RECORD[1];
-            record[0]                            = new INPUT_RECORD();
-            record[0].EventType                  = INPUT_RECORD.KEY_EVENT;
-            record[0].KeyEvent                   = new KEY_EVENT_RECORD();
-            record[0].KeyEvent.bKeyDown          = false;
-            record[0].KeyEvent.wRepeatCount      = 1;
-            record[0].KeyEvent.wVirtualKeyCode   = 0x4C; // "L"-key
-            record[0].KeyEvent.wVirtualScanCode  = 0;
-            record[0].KeyEvent.dwControlKeyState = 0;
-            record[0].KeyEvent.UnicodeChar       = 'L';
-
-            ReturnValues output     = new ReturnValues();
-            output.WCIEventsWritten = 0;
-            output.WCIReturnValue   = WriteConsoleInput(hConIn, record, 1, out output.WCIEventsWritten);
-            output.LastWin32Error   = Marshal.GetLastWin32Error();
-
-            return output;
-        }
-    }
-'@
-
     [bool]$SupportsSCCMSwitch = $false
 
     $process                                  = [System.Diagnostics.Process]::new()
@@ -133,7 +42,7 @@
 
     do {
         Start-Sleep -Seconds 1
-        [WinAPI+ReturnValues]$APICALL = [WinAPI]::WriteCharToConin()
+        [LSUClient.WinAPI+ReturnValues]$APICALL = [LSUClient.WinAPI]::WriteCharToConin()
         if ($APICALL.WCIReturnValue   -ne $true -or
             $APICALL.WCIEventsWritten -ne 1 -or
             $APICALL.LastWin32Error   -ne 0) {

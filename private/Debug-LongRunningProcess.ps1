@@ -9,40 +9,6 @@
     Add-Type -AssemblyName UIAutomationClient
     Add-Type -AssemblyName UIAutomationTypes
 
-    Add-Type -Debug:$false -TypeDefinition @'
-    using System;
-    using System.Text;
-    using System.Runtime.InteropServices;
-
-    public class User32 {
-        // callback
-        public delegate bool EnumThreadDelegate(IntPtr hWnd, IntPtr lParam);
-
-        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
-        public static extern bool EnumThreadWindows(int dwThreadId, EnumThreadDelegate lpfn, IntPtr lParam);
-
-        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool IsWindowVisible(IntPtr hWnd);
-
-        [DllImport("user32.dll", SetLastError=true, CharSet = CharSet.Auto)]
-        public static extern UInt32 GetWindowLong(IntPtr hWnd, int nIndex);
-
-        [DllImport("user32.dll", SetLastError=true, CharSet = CharSet.Auto)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct RECT
-        {
-            public int Left;        // x position of upper-left corner
-            public int Top;         // y position of upper-left corner
-            public int Right;       // x position of lower-right corner
-            public int Bottom;      // y position of lower-right corner
-        }
-    }
-'@
-
     function Get-WindowInfo {
         [CmdletBinding()]
         Param (
@@ -53,11 +19,11 @@
         [int]$GWL_STYLE = -16
         [Uint32]$WS_DISABLED = 0x08000000
 
-        $IsVisible = [User32]::IsWindowVisible($WindowHandle)
+        $IsVisible = [LSUClient.User32]::IsWindowVisible($WindowHandle)
 
-        $style = [User32]::GetWindowLong($WindowHandle, $GWL_STYLE)
-        [User32+RECT]$RECT = New-Object 'User32+RECT'
-        $null = [User32]::GetWindowRect($WindowHandle, [ref]$RECT)
+        $style = [LSUClient.User32]::GetWindowLong($WindowHandle, $GWL_STYLE)
+        [LSUClient.User32+RECT]$RECT = New-Object 'LSUClient.User32+RECT'
+        $null = [LSUClient.User32]::GetWindowRect($WindowHandle, [ref]$RECT)
 
         $InfoHashtable = @{
             'Width'      = $RECT.Right - $RECT.Left
@@ -160,7 +126,7 @@
         $ThreadCount++
 
         $ThreadWindows = [System.Collections.Generic.List[IntPtr]]::new()
-        $null = [User32]::EnumThreadWindows($thread.id, { Param($hwnd, $lParam) $ThreadWindows.Add($hwnd); return $true }, [System.IntPtr]::Zero)
+        $null = [LSUClient.User32]::EnumThreadWindows($thread.id, { Param($hwnd, $lParam) $ThreadWindows.Add($hwnd); return $true }, [System.IntPtr]::Zero)
 
         if ($ThreadWindows) {
             Write-Debug "  Thread $($thread.id) in state $($thread.ThreadState) ($($thread.WaitReason)) has $($ThreadWindows.Count) windows:"
