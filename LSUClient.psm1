@@ -35,6 +35,9 @@ $script:LSUClientConfiguration = [LSUClientConfiguration]::new()
 
 # Public
 class LSUClientConfiguration {
+    [Uri] $Proxy
+    [PSCredential] $ProxyCredential
+    [bool] $ProxyUseDefaultCredential
     [TimeSpan] $MaxExternalDetectionRuntime
     [TimeSpan] $MaxExtractRuntime
     [TimeSpan] $MaxInstallerRuntime
@@ -48,6 +51,9 @@ class LSUClientConfiguration {
 
     # Clone-constructor from another instance of the class
     LSUClientConfiguration ([LSUClientConfiguration]$from) {
+        $this.Proxy = $from.Proxy
+        $this.ProxyCredential = $from.ProxyCredential
+        $this.ProxyUseDefaultCredential = $from.ProxyUseDefaultCredential
         $this.MaxExternalDetectionRuntime = $from.MaxExternalDetectionRuntime
         $this.MaxExtractRuntime = $from.MaxExtractRuntime
         $this.MaxInstallerRuntime = $from.MaxInstallerRuntime

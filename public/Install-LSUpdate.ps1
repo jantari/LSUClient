@@ -38,9 +38,9 @@
         [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
         [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages",
         [switch]$SaveBIOSUpdateInfoToRegistry,
-        [Uri]$Proxy,
-        [pscredential]$ProxyCredential,
-        [switch]$ProxyUseDefaultCredentials
+        [Uri]$Proxy = $script:LSUClientConfiguration.Proxy,
+        [pscredential]$ProxyCredential = $script:LSUClientConfiguration.ProxyCredential,
+        [switch]$ProxyUseDefaultCredentials = $script:LSUClientConfiguration.ProxyUseDefaultCredentials
     )
 
     begin {
