@@ -72,8 +72,8 @@
     $hRunspaceProcess = (Get-Process -Id $RunspacePID).Handle
 
     $hJob = [LSUClient.JobAPI]::CreateJobObject([System.IntPtr]::Zero, $null)
-    $aptjo = [LSUClient.JobAPI]::AssignProcessToJobObject($hJob, $hRunspaceProcess)
-    Write-Debug "Added runspace process $RunspacePID to job: $aptjo"
+    [bool]$aptjoSuccess = [LSUClient.JobAPI]::AssignProcessToJobObject($hJob, $hRunspaceProcess)
+    Write-Debug "Added runspace process $RunspacePID to job: $aptjoSuccess"
 
     $Powershell = [PowerShell]::Create().AddScript{
         [CmdletBinding()]
@@ -187,17 +187,18 @@
     $PSAsyncRunspace = $Powershell.BeginInvoke($RunspaceStandardInput, $RunspaceStandardOut)
 
     [bool]$ProcessKilledTimeout = $false
-    [Hashtable]$AllProcessDiagnostics = @{}
     [TimeSpan]$LastPrinted = [TimeSpan]::FromMinutes(0)
     while ($PSAsyncRunspace.IsCompleted -eq $false) {
         # Print message once every minute
         if ($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
-            Write-Debug "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
+            Write-Warning "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
             $LastPrinted = $RunspaceTimer.Elapsed
         }
 
         # Stop processes after exceeding runtime limit
         if ($RuntimeLimit -ne [TimeSpan]::Zero -and $RunspaceTimer.Elapsed -gt $RuntimeLimit) {
+            Write-Warning "Process has exceeded the configured runtime limit of $RunTimeLimit"
+
             [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf([LSUClient.JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new());
             [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
 
@@ -215,17 +216,13 @@
 
                 $JobList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobListPtr, [Type][LSUClient.JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST])
 
-                Write-Host "QIJO returned $qijoSuccess with last Win32 error $Win32Error and $qijoReturnLength bytes written to struct"
-                Write-Host "NumberOfAssignedProcesses: $($JobList.NumberOfAssignedProcesses)"
-                Write-Host "NumberOfProcessIdsInList: $($JobList.NumberOfProcessIdsInList)"
+                Write-Debug "QueryInformationJobObject: returned $qijoSuccess, last error: $Win32Error, bytes written: $qijoReturnLength"
 
                 if (-not $qijoSuccess -and $Win32Error -eq 234) {
-                    Write-Host "Got ERROR_MORE_DATA: will retry with more buffer"
                     if ($qijoReturnLength -eq 0) {
                         # Because AllocHGlobal doesn't zero the memory it allocates, the struct will be filled with random data
                         # if QueryInformationJobObject did not overwrite it so we cannot use NumberOfAssignedProcesses and have to guess
                         $GuessNumberOfAssignedProcesses += 2
-                        Write-Host "Last QIJO didn't give us ANY info so we don't know how much space to alloc. Just increase slowly?"
                         [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + $GuessNumberOfAssignedProcesses * [System.IntPtr]::Size
                     } else {
                         [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
@@ -251,22 +248,23 @@
 
             # Filter out our PowerShell runspace process
             $ProcessIdList = $ProcessIdList -ne $RunspacePID
-            Write-Host "Process IDs from QIJO: $ProcessIdList"
+            Write-Debug "Process IDs in job (without runspace): $ProcessIdList"
 
             if ($ProcessIdList) {
                 foreach ($ProcessId in $ProcessIdList) {
                     $Process = Get-Process -Id $ProcessId
 
                     $ProcessDiagnostics = Debug-LongRunningProcess -Process $Process
-                    $ProcessDiagnostics | ConvertTo-Json -Depth 10 | Out-Host
-                    $AllProcessDiagnostics[$ProcessId] = $ProcessDiagnostics
-
-                    if ($ProcessDiagnostics.AllThreadsWaiting -and $ProcessDiagnostics.InteractableWindows.Count -gt 0) {
-                        Write-Debug "CONCLUSION: The process looks blocked."
-                    } else {
-                        Write-Debug "CONCLUSION: The process looks normal."
+                    if ($ProcessDiagnostics.WindowCount -gt 0) {
+                        Write-Warning "Process has windows open, this can help troubleshoot why it timed out:"
+                        foreach ($OpenWindow in $ProcessDiagnostics.InteractableWindows) {
+                            Write-Warning "- Title: -------------------------------------------"
+                            Write-Warning $OpenWindow.WindowTitle
+                            Write-Warning "- Content: -----------------------------------------"
+                            $OpenWindow.WindowText | Write-Warning
+                            Write-Warning "----------------------------------------------------"
+                        }
                     }
-                    Write-Debug ""
                 }
 
                 Get-Process -Id $ProcessIdList -ErrorAction Ignore | ForEach-Object {
@@ -274,7 +272,7 @@
                     # for a short while after it has already exited. Kill() won't throw
                     # on these processes, but they didn't technically get "killed" by us
                     if (-not $_.HasExited) {
-                        Write-Debug "Killing process $($_.Id) '$($_.ProcessName)' due to timeout ..."
+                        Write-Warning "Killing process $($_.Id) '$($_.ProcessName)' due to exceeding time limit ..."
                         try {
                             $_.Kill()
                             # Only set ProcessKilledTimeout if Kill() ran and succeeded
@@ -300,8 +298,9 @@
 
     $PowerShell.Runspace.Dispose()
     $PowerShell.Dispose()
-    $bCloseHandle = [LSUClient.JobAPI]::CloseHandle($hJob)
-    Write-Debug "Closed hJob handle: $bCloseHandle"
+    if (-not [LSUClient.JobAPI]::CloseHandle($hJob)) {
+        Write-Debug "CloseHandle failed for hJob handle"
+    }
 
     # Test for NULL before indexing into array. RunspaceStandardOut can be null
     # when the runspace aborted abormally, for example due to an exception.
@@ -333,20 +332,11 @@
                     'WorkingDirectory' = $Path
                     'StandardOutput'   = $StdOutTrimmed
                     'StandardError'    = $StdErrTrimmed
-                    'OpenWindows'      = @()
                     'ExitCode'         = $RunspaceStandardOut[-1].ExitCode
                     'Runtime'          = $RunspaceStandardOut[-1].Runtime
                 }
 
                 if ($ProcessKilledTimeout) {
-                    $ProcessReturnInformation.OpenWindows = @(
-                        foreach ($DebuggedProcess in $AllProcessDiagnostics.Values) {
-                            [PSCustomObject]@{
-                                'ProcessName' = $DebuggedProcess.ProcessName
-                                'OpenWindows' = $DebuggedProcess.InteractableWindows | Select-Object -Property WindowTitle, WindowText
-                            }
-                        }
-                    )
                     return [ExternalProcessResult]::new(
                         [ExternalProcessError]::PROCESS_KILLED_TIMEOUT,
                         $ProcessReturnInformation
