@@ -338,7 +338,7 @@
 
                 if ($ProcessKilledTimeout) {
                     return [ExternalProcessResult]::new(
-                        [ExternalProcessError]::PROCESS_KILLED_TIMEOUT,
+                        [ExternalProcessError]::PROCESS_KILLED_TIMELIMIT,
                         $ProcessReturnInformation
                     )
                 } else {
