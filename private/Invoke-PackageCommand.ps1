@@ -177,7 +177,6 @@
         'FallbackToShellExecute' = $FallbackToShellExecute
     })
 
-
     $Powershell.Runspace = $Runspace
     $RunspaceStandardInput = [System.Management.Automation.PSDataCollection[PSObject]]::new()
     $RunspaceStandardInput.Complete()
@@ -187,16 +186,16 @@
     $PSAsyncRunspace = $Powershell.BeginInvoke($RunspaceStandardInput, $RunspaceStandardOut)
 
     [bool]$ProcessKilledTimeout = $false
-    [TimeSpan]$LastPrinted = [TimeSpan]::FromMinutes(0)
+    [TimeSpan]$LastPrinted = [TimeSpan]::FromMinutes(4)
     while ($PSAsyncRunspace.IsCompleted -eq $false) {
-        # Print message once every minute
+        # Print message once every minute after an initial 5 minutes of silence
         if ($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
             Write-Warning "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
             $LastPrinted = $RunspaceTimer.Elapsed
         }
 
         # Stop processes after exceeding runtime limit
-        if ($RuntimeLimit -ne [TimeSpan]::Zero -and $RunspaceTimer.Elapsed -gt $RuntimeLimit) {
+        if ($RuntimeLimit -gt [TimeSpan]::Zero -and $RunspaceTimer.Elapsed -gt $RuntimeLimit) {
             Write-Warning "Process has exceeded the configured runtime limit of $RunTimeLimit"
 
             [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf([LSUClient.JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new());
@@ -326,27 +325,24 @@
                     $StdErrTrimmed = @()
                 }
 
-                $ProcessReturnInformation = [ProcessReturnInformation]@{
-                    'FilePath'         = $Executable
-                    'Arguments'        = $Arguments
-                    'WorkingDirectory' = $Path
-                    'StandardOutput'   = $StdOutTrimmed
-                    'StandardError'    = $StdErrTrimmed
-                    'ExitCode'         = $RunspaceStandardOut[-1].ExitCode
-                    'Runtime'          = $RunspaceStandardOut[-1].Runtime
+                $ReturnErr = if ($ProcessKilledTimeout) {
+                    [ExternalProcessError]::PROCESS_KILLED_TIMELIMIT
+                } else {
+                    [ExternalProcessError]::NONE
                 }
 
-                if ($ProcessKilledTimeout) {
-                    return [ExternalProcessResult]::new(
-                        [ExternalProcessError]::PROCESS_KILLED_TIMELIMIT,
-                        $ProcessReturnInformation
-                    )
-                } else {
-                    return [ExternalProcessResult]::new(
-                        [ExternalProcessError]::NONE,
-                        $ProcessReturnInformation
-                    )
-                }
+                return [ExternalProcessResult]::new(
+                    $ReturnErr,
+                    [ProcessReturnInformation]@{
+                        'FilePath'         = $Executable
+                        'Arguments'        = $Arguments
+                        'WorkingDirectory' = $Path
+                        'StandardOutput'   = $StdOutTrimmed
+                        'StandardError'    = $StdErrTrimmed
+                        'ExitCode'         = $RunspaceStandardOut[-1].ExitCode
+                        'Runtime'          = $RunspaceStandardOut[-1].Runtime
+                    }
+                )
             }
             # Error cases that are handled explicitly inside the runspace
             1 {
