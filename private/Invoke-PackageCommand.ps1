@@ -66,11 +66,18 @@
 
     $Runspace = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateOutOfProcessRunspace($null)
     $Runspace.Open()
+
+    # Get the PID and handle of our out-of-process runspace ...
     $Powershell = [PowerShell]::Create().AddScript{ $PID }
     $Powershell.Runspace = $Runspace
     $RunspacePID = $Powershell.Invoke() | Select-Object -First 1
     $hRunspaceProcess = (Get-Process -Id $RunspacePID).Handle
 
+    # ... so we can add the runspace process to a job object.
+    # Job objects are the only reliable way in Windows to track
+    # a process tree (process and ALL descendant processes)
+    # which we want to know in case we have to debug and kill
+    # the process(es) due to hitting the configured RuntimeLimit
     $hJob = [LSUClient.JobAPI]::CreateJobObject([System.IntPtr]::Zero, $null)
     [bool]$aptjoSuccess = [LSUClient.JobAPI]::AssignProcessToJobObject($hJob, $hRunspaceProcess)
     Write-Debug "Added runspace process $RunspacePID to job: $aptjoSuccess"
