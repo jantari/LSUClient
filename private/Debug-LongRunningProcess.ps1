@@ -112,7 +112,6 @@
 
     # Look into the process
     [bool]$AllThreadsWaiting = $true
-    [UInt32]$ThreadCount     = 0
     [UInt32]$WindowCount     = 0
     $InteractableWindows     = [System.Collections.Generic.List[PSObject]]::new()
 
@@ -123,8 +122,6 @@
     }
 
     foreach ($Thread in $Process.Threads) {
-        $ThreadCount++
-
         $ThreadWindows = [System.Collections.Generic.List[IntPtr]]::new()
         $null = [LSUClient.User32]::EnumThreadWindows($thread.id, { Param($hwnd, $lParam) $ThreadWindows.Add($hwnd); return $true }, [System.IntPtr]::Zero)
 
@@ -160,7 +157,6 @@
 
     return [PSCustomObject]@{
         'ProcessName'         = $Process.ProcessName
-        'ThreadCount'         = $ThreadCount
         'AllThreadsWaiting'   = $AllThreadsWaiting
         'WindowCount'         = $WindowCount
         'InteractableWindows' = $InteractableWindows
