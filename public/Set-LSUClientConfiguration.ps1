@@ -6,33 +6,20 @@
     [CmdletBinding(DefaultParameterSetName = 'Whole')]
     Param (
         [Parameter(Mandatory = $true, ParameterSetName = 'Whole', ValueFromPipeline = $true, Position = 0)]
-        [LSUClientConfiguration]$InputObject
-        <#
-            Further parameters are added dynamically!
-        #>
+        [LSUClientConfiguration]$InputObject,
+        [Parameter(ParameterSetName = 'Individual')]
+        [Uri]$Proxy,
+        [Parameter(ParameterSetName = 'Individual')]
+        [PSCredential]$ProxyCredential,
+        [Parameter(ParameterSetName = 'Individual')]
+        [bool]$ProxyUseDefaultCredential,
+        [Parameter(ParameterSetName = 'Individual')]
+        [TimeSpan]$MaxExternalDetectionRuntime,
+        [Parameter(ParameterSetName = 'Individual')]
+        [TimeSpan]$MaxExtractRuntime,
+        [Parameter(ParameterSetName = 'Individual')]
+        [TimeSpan]$MaxInstallerRuntime
     )
-
-    DynamicParam {
-        $ParamDictionary = [System.Management.Automation.RuntimeDefinedParameterDictionary]::new()
-
-        # Add a dynamic parameter to the cmdlet for every property of the LSUClientConfiguration class
-        # This ensures the cmdlet will always be up-to-date in providing a parameter to set each property
-        $Position = 0
-        foreach ($Property in [LSUClientConfiguration].GetProperties()) {
-            $AttributeCollection = [System.Collections.ObjectModel.Collection[System.Attribute]]::new()
-            $ParamAttribute = [System.Management.Automation.ParameterAttribute]::new()
-            $ParamAttribute.Position = $Position
-            $ParamAttribute.ParameterSetName = 'Individual'
-            $AttributeCollection.Add($ParamAttribute)
-
-            $DynamicParam = [System.Management.Automation.RuntimeDefinedParameter]::new($Property.Name, $Property.PropertyType, $AttributeCollection)
-
-            $paramDictionary.Add($Property.Name, $DynamicParam)
-            $Position++
-        }
-
-        return $ParamDictionary
-    }
 
     begin {
         if ($PSBoundParameters['Debug'] -and $DebugPreference -eq 'Inquire') {
