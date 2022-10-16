@@ -21,6 +21,11 @@
 
     [CmdletBinding()]
     [OutputType('ExternalProcessResult')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseDeclaredVarsMoreThanAssignments',
+        'ProcessKilledTimeout',
+        Justification = 'https://github.com/PowerShell/PSScriptAnalyzer/issues/1163'
+    )]
     Param (
         [ValidateNotNullOrEmpty()]
         [string]$Path,
@@ -31,7 +36,8 @@
         [string]$Executable,
         [Parameter( ParameterSetName = 'ExeAndArgs' )]
         [string]$Arguments = '',
-        [switch]$FallbackToShellExecute
+        [switch]$FallbackToShellExecute,
+        [TimeSpan]$RuntimeLimit = [TimeSpan]::Zero
     )
 
     # Remove any trailing backslashes from the Path.
@@ -60,6 +66,14 @@
 
     $Runspace = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateOutOfProcessRunspace($null)
     $Runspace.Open()
+    $Powershell = [PowerShell]::Create().AddScript{ $PID }
+    $Powershell.Runspace = $Runspace
+    $RunspacePID = $Powershell.Invoke() | Select-Object -First 1
+    $hRunspaceProcess = (Get-Process -Id $RunspacePID).Handle
+
+    $hJob = [LSUClient.JobAPI]::CreateJobObject([System.IntPtr]::Zero, $null)
+    [bool]$aptjoSuccess = [LSUClient.JobAPI]::AssignProcessToJobObject($hJob, $hRunspaceProcess)
+    Write-Debug "Added runspace process $RunspacePID to job: $aptjoSuccess"
 
     $Powershell = [PowerShell]::Create().AddScript{
         [CmdletBinding()]
@@ -177,6 +191,7 @@
     $RunspaceTimer.Start()
     $PSAsyncRunspace = $Powershell.BeginInvoke($RunspaceStandardInput, $RunspaceStandardOut)
 
+    [bool]$ProcessKilledTimeout = $false
     [TimeSpan]$LastPrinted = [TimeSpan]::FromMinutes(4)
     while ($PSAsyncRunspace.IsCompleted -eq $false) {
         # Print message once every minute after an initial 5 minutes of silence
@@ -184,6 +199,96 @@
             Write-Warning "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
             $LastPrinted = $RunspaceTimer.Elapsed
         }
+
+        # Stop processes after exceeding runtime limit
+        if ($RuntimeLimit -gt [TimeSpan]::Zero -and $RunspaceTimer.Elapsed -gt $RuntimeLimit) {
+            Write-Warning "Process has exceeded the configured runtime limit of $RunTimeLimit"
+
+            [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf([LSUClient.JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new());
+            [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
+
+            # QueryInformationJobObject does not write any data out to lpJobObjectInformation (no NumberOfAssignedProcesses) under WOW (PowerShell x86) if it fails:
+            # https://social.msdn.microsoft.com/Forums/office/en-US/41a7b8c9-6b5e-4c91-b92d-31310522d0cd/wow64-issue-with-queryinformationjobobject-and-jobobjectbasicprocessidlist-including-windows-10?forum=windowssdk
+            # This means we just have to continually increase the buffer until it's large enough for QueryInformationJobObject to succeed.
+            [int]$GuessNumberOfAssignedProcesses = 0
+
+            # Retry ERROR_MORE_DATA in a loop because it *could* run into a race condition where a new process is spawned
+            # exactly in between allocating the memory we think we need and the next call to QueryInformationJobObject
+            do {
+                [System.UInt32]$qijoReturnLength = 0
+                [bool]$qijoSuccess = [LSUClient.JobAPI]::QueryInformationJobObject($hJob, 3, $JobListPtr, $ListPtrSize, [ref] $qijoReturnLength)
+                $Win32Error = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+
+                $JobList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($JobListPtr, [Type][LSUClient.JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST])
+
+                Write-Debug "QueryInformationJobObject: returned $qijoSuccess, last error: $Win32Error, bytes written: $qijoReturnLength"
+
+                if (-not $qijoSuccess -and $Win32Error -eq 234) {
+                    if ($qijoReturnLength -eq 0) {
+                        # Because AllocHGlobal doesn't zero the memory it allocates, the struct will be filled with random data
+                        # if QueryInformationJobObject did not overwrite it so we cannot use NumberOfAssignedProcesses and have to guess
+                        $GuessNumberOfAssignedProcesses += 2
+                        [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + $GuessNumberOfAssignedProcesses * [System.IntPtr]::Size
+                    } else {
+                        [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf($JobList) + ($JobList.NumberOfAssignedProcesses - 1) * [System.IntPtr]::Size
+                    }
+                    [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::ReAllocHGlobal($JobListPtr, $ListPtrSize)
+                    $RetryMoreData = $true
+                } else {
+                    $RetryMoreData = $false
+                }
+            } while ($RetryMoreData)
+
+            [System.IntPtr[]]$ProcessIdList = [System.IntPtr[]]::new($JobList.NumberOfProcessIdsInList)
+            # It's possible the processes and runspace have exited by this point
+            if ($JobList.NumberOfProcessIdsInList -gt 0) {
+                # Get the first process ID directly from the marshaled struct
+                $ProcessIdList[0] = $JobList.ProcessIdList
+                $PIDListPointer = [System.IntPtr]::Add($JobListPtr, [System.Runtime.InteropServices.Marshal]::SizeOf([LSUClient.JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new()))
+                # Copy the others (variable length) from unmanaged memory manually
+                [System.Runtime.InteropServices.Marshal]::Copy($PIDListPointer, $ProcessIdList, 1, $JobList.NumberOfProcessIdsInList - 1)
+            }
+
+            [System.Runtime.InteropServices.Marshal]::FreeHGlobal($JobListPtr)
+
+            # Filter out our PowerShell runspace process
+            $ProcessIdList = $ProcessIdList -ne $RunspacePID
+            Write-Debug "Process IDs in job (without runspace): $ProcessIdList"
+
+            if ($ProcessIdList) {
+                foreach ($ProcessId in $ProcessIdList) {
+                    $Process = Get-Process -Id $ProcessId
+
+                    $ProcessDiagnostics = Debug-LongRunningProcess -Process $Process
+                    if ($ProcessDiagnostics.WindowCount -gt 0) {
+                        Write-Warning "Process has windows open, this can help troubleshoot why it timed out:"
+                        foreach ($OpenWindow in $ProcessDiagnostics.InteractableWindows) {
+                            Write-Warning "- Title: -------------------------------------------"
+                            Write-Warning $OpenWindow.WindowTitle
+                            Write-Warning "- Content: -----------------------------------------"
+                            $OpenWindow.WindowText | Write-Warning
+                            Write-Warning "----------------------------------------------------"
+                        }
+                    }
+                }
+
+                Get-Process -Id $ProcessIdList -ErrorAction Ignore | ForEach-Object {
+                    # It's possible for a process (object) to linger and be "get-able"
+                    # for a short while after it has already exited. Kill() won't throw
+                    # on these processes, but they didn't technically get "killed" by us
+                    if (-not $_.HasExited) {
+                        Write-Warning "Killing process $($_.Id) '$($_.ProcessName)' due to exceeding time limit ..."
+                        try {
+                            $_.Kill()
+                            # Only set ProcessKilledTimeout if Kill() ran and succeeded
+                            $ProcessKilledTimeout = $true
+                        }
+                        catch [InvalidOperationException] { <# Process has exited in the meantime, which is fine #> }
+                    }
+                }
+            }
+        }
+
         Start-Sleep -Milliseconds 200
     }
 
@@ -198,6 +303,9 @@
 
     $PowerShell.Runspace.Dispose()
     $PowerShell.Dispose()
+    if (-not [LSUClient.JobAPI]::CloseHandle($hJob)) {
+        Write-Debug "CloseHandle failed for hJob handle"
+    }
 
     # Test for NULL before indexing into array. RunspaceStandardOut can be null
     # when the runspace aborted abormally, for example due to an exception.
@@ -223,8 +331,14 @@
                     $StdErrTrimmed = @()
                 }
 
+                $ReturnErr = if ($ProcessKilledTimeout) {
+                    [ExternalProcessError]::PROCESS_KILLED_TIMELIMIT
+                } else {
+                    [ExternalProcessError]::NONE
+                }
+
                 return [ExternalProcessResult]::new(
-                    [ExternalProcessError]::NONE,
+                    $ReturnErr,
                     [ProcessReturnInformation]@{
                         'FilePath'         = $Executable
                         'Arguments'        = $Arguments
@@ -261,7 +375,7 @@
                 if (-not $FallbackToShellExecute) {
                     Write-Warning "This process requires elevated privileges - falling back to ShellExecute, consider running PowerShell as Administrator"
                     Write-Warning "Process output cannot be captured when running with ShellExecute!"
-                    return (Invoke-PackageCommand -Path:$Path -Executable:$Executable -Arguments:$Arguments -FallbackToShellExecute)
+                    return (Invoke-PackageCommand -Path:$Path -Executable:$Executable -Arguments:$Arguments -FallbackToShellExecute -RuntimeLimit $RuntimeLimit)
                 } else {
                     return [ExternalProcessResult]::new(
                         [ExternalProcessError]::PROCESS_REQUIRES_ELEVATION,
@@ -272,7 +386,7 @@
             193 {
                 if (-not $FallbackToShellExecute) {
                     Write-Warning "The file to be run is not an executable - falling back to ShellExecute"
-                    return (Invoke-PackageCommand -Path:$Path -Executable:$Executable -Arguments:$Arguments -FallbackToShellExecute)
+                    return (Invoke-PackageCommand -Path:$Path -Executable:$Executable -Arguments:$Arguments -FallbackToShellExecute -RuntimeLimit $RuntimeLimit)
                 } else {
                     return [ExternalProcessResult]::new(
                         [ExternalProcessError]::FILE_NOT_EXECUTABLE,

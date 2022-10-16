@@ -78,9 +78,9 @@
     [OutputType('LenovoPackage')]
     Param (
         [string]$Model,
-        [Uri]$Proxy,
-        [pscredential]$ProxyCredential,
-        [switch]$ProxyUseDefaultCredentials,
+        [Uri]$Proxy = $script:LSUClientConfiguration.Proxy,
+        [pscredential]$ProxyCredential = $script:LSUClientConfiguration.ProxyCredential,
+        [switch]$ProxyUseDefaultCredentials = $script:LSUClientConfiguration.ProxyUseDefaultCredentials,
         [switch]$All,
         [switch]$IncludePhantomDevices,
         [System.IO.DirectoryInfo]$ScratchDirectory = $env:TEMP,

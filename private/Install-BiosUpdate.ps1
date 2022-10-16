@@ -18,7 +18,7 @@
             Remove-Item -LiteralPath "$PackageDirectory\winuptp.log" -Force
         }
 
-        $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Executable "$PackageDirectory\winuptp.exe" -Arguments '-s'
+        $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Executable "$PackageDirectory\winuptp.exe" -Arguments '-s' -RuntimeLimit $script:LSUClientConfiguration.MaxInstallerRuntime
         if ($installProcess.Err) {
             return $installProcess
         } else {
@@ -61,7 +61,7 @@
         [bool]$SCCMParameterIsSupported = Test-Wflash2ForSCCMParameter -PathToWFLASH2EXE "$wflashTestPath\wflash2.exe"
         Remove-Item -LiteralPath "$wflashTestPath" -Recurse -Force
         if ($SCCMParameterIsSupported) {
-            $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Executable "$PackageDirectory\Flash.cmd" -Arguments '/ign /sccm /quiet'
+            $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Executable "$PackageDirectory\Flash.cmd" -Arguments '/ign /sccm /quiet' -RuntimeLimit $script:LSUClientConfiguration.MaxInstallerRuntime
             # Handle the case where $installProcess indicates an error because the process never started
             if ($installProcess.Err) {
                 return $installProcess

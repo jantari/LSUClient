@@ -216,9 +216,9 @@
             return -1
         }
         '_ExternalDetection' {
-            $externalDetection = Invoke-PackageCommand -Command $Dependency.'#text' -Path $PackagePath
+            $externalDetection = Invoke-PackageCommand -Command $Dependency.'#text' -Path $PackagePath -RuntimeLimit $script:LSUClientConfiguration.MaxExternalDetectionRuntime
             if ($externalDetection.Err) {
-                Write-Debug "$('- ' * $DebugIndent)[ Process failed to start: $($externalDetection.Err) ]"
+                Write-Debug "$('- ' * $DebugIndent)[ External process did not run properly: $($externalDetection.Err) ]"
                 return -1
             } else {
                 Write-Debug "$('- ' * $DebugIndent)[ Got ExitCode: $($externalDetection.Info.ExitCode), Expected: $($Dependency.rc) ]"

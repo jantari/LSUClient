@@ -38,9 +38,9 @@
         [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
         [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages",
         [switch]$SaveBIOSUpdateInfoToRegistry,
-        [Uri]$Proxy,
-        [pscredential]$ProxyCredential,
-        [switch]$ProxyUseDefaultCredentials
+        [Uri]$Proxy = $script:LSUClientConfiguration.Proxy,
+        [pscredential]$ProxyCredential = $script:LSUClientConfiguration.ProxyCredential,
+        [switch]$ProxyUseDefaultCredentials = $script:LSUClientConfiguration.ProxyUseDefaultCredentials
     )
 
     begin {
@@ -86,7 +86,7 @@
                     } else {
                         # Correct typo from Lenovo ... yes really...
                         $InstallCMD = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
-                        $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD
+                        $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD -RuntimeLimit $script:LSUClientConfiguration.MaxInstallerRuntime
                     }
 
                     $Success = $installProcess.Err -eq [ExternalProcessError]::NONE -and $(
@@ -140,7 +140,13 @@
                 }
                 'INF' {
                     $InfSuccessCodes = @(0, 3010) + $PackageToProcess.Installer.SuccessCodes
-                    $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Executable "${env:SystemRoot}\system32\pnputil.exe" -Arguments "/add-driver $($PackageToProcess.Installer.InfFile) /install"
+                    $InfInstallParams = @{
+                        'Path'         = $PackageDirectory
+                        'Executable'   = "${env:SystemRoot}\system32\pnputil.exe"
+                        'Arguments'    = "/add-driver $($PackageToProcess.Installer.InfFile) /install"
+                        'RuntimeLimit' = $script:LSUClientConfiguration.MaxInstallerRuntime
+                    }
+                    $installProcess = Invoke-PackageCommand @InfInstallParams
 
                     $Success = $installProcess.Err -eq [ExternalProcessError]::NONE -and $installProcess.Info.ExitCode -in $InfSuccessCodes
 

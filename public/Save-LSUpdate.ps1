@@ -36,9 +36,9 @@
     Param (
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
         [pscustomobject]$Package,
-        [Uri]$Proxy,
-        [pscredential]$ProxyCredential,
-        [switch]$ProxyUseDefaultCredentials,
+        [Uri]$Proxy = $script:LSUClientConfiguration.Proxy,
+        [pscredential]$ProxyCredential = $script:LSUClientConfiguration.ProxyCredential,
+        [switch]$ProxyUseDefaultCredentials = $script:LSUClientConfiguration.ProxyUseDefaultCredentials,
         [switch]$ShowProgress,
         [switch]$Force,
         [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages"

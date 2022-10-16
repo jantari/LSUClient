@@ -29,8 +29,36 @@ if ($WindowsVersion -notlike "10.*") {
 }
 
 $script:CachedHardwareTable = @{}
+$script:LSUClientConfiguration = [LSUClientConfiguration]::new()
 
 [int]$script:XMLTreeDepth = 0
+
+# Public
+class LSUClientConfiguration {
+    [Uri] $Proxy
+    [PSCredential] $ProxyCredential
+    [bool] $ProxyUseDefaultCredential
+    [TimeSpan] $MaxExternalDetectionRuntime
+    [TimeSpan] $MaxExtractRuntime
+    [TimeSpan] $MaxInstallerRuntime
+
+    # Default constructor setting default values
+    LSUClientConfiguration () {
+        $this.MaxExternalDetectionRuntime = [TimeSpan]::FromMinutes(10)
+        $this.MaxExtractRuntime = [TimeSpan]::FromMinutes(20)
+        $this.MaxInstallerRuntime = [TimeSpan]::Zero # No timeout
+    }
+
+    # Clone-constructor from another instance of the class
+    LSUClientConfiguration ([LSUClientConfiguration]$from) {
+        $this.Proxy = $from.Proxy
+        $this.ProxyCredential = $from.ProxyCredential
+        $this.ProxyUseDefaultCredential = $from.ProxyUseDefaultCredential
+        $this.MaxExternalDetectionRuntime = $from.MaxExternalDetectionRuntime
+        $this.MaxExtractRuntime = $from.MaxExtractRuntime
+        $this.MaxInstallerRuntime = $from.MaxInstallerRuntime
+    }
+}
 
 # Internal
 class PackageFilePointer {
@@ -239,6 +267,7 @@ enum ExternalProcessError {
     FILE_NOT_EXECUTABLE
     PROCESS_NONE_CREATED
     PROCESS_REQUIRES_ELEVATION
+    PROCESS_KILLED_TIMELIMIT
 }
 
 # Public
@@ -277,6 +306,10 @@ class PackageInstallResult {
     [string[]] $StandardError
     [string[]] $LogOutput
     [TimeSpan] $Runtime
+}
+
+if (-not ('LSUClient.ImportTest' -as [Type])) {
+    Add-Type -LiteralPath "$PSScriptRoot\LSUClient.Types.cs" -Debug:$false
 }
 
 # Import all private functions
