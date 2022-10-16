@@ -1,7 +1,28 @@
 ﻿function Set-LSUClientConfiguration {
     <#
         .DESCRIPTION
-        Sets the currently active configuration
+        Sets global configuration options for LSUClient that may affect multiple cmdlets.
+
+        .PARAMETER InputObject
+        Import and set all configuration options from an LSUClientConfiguration object.
+
+        .PARAMETER Proxy
+        Set the default Proxy URL for all cmdlets to use.
+
+        .PARAMETER ProxyCredential
+        Specifies the default Proxy user account for all cmdlets to use.
+
+        .PARAMETER ProxyUseDefaultCredentials
+        Set all cmdlets to use the credentials of the current user to access the proxy server by default.
+
+        .PARAMETER MaxExternalDetectionRuntime
+        Sets a time limit for how long external detection processes can run before they're forcefully stopped.
+
+        .PARAMETER MaxExtractRuntime
+        Sets a time limit for how long package extractions can run before they're forcefully stopped.
+
+        .PARAMETER MaxInstallerRuntime
+        Sets a time limit for how long package installers can run before they're forcefully stopped.
     #>
     [CmdletBinding(DefaultParameterSetName = 'Whole')]
     Param (
