@@ -124,7 +124,7 @@
                         StandardOutput = $installProcess.Info.StandardOutput
                         StandardError  = $installProcess.Info.StandardError
                         LogOutput      = if ($installProcess.Info -is [BiosUpdateInfo]) { $installProcess.Info.LogMessage } else { '' }
-                        Runtime        = if ($installProcess.Err) { [TimeSpan]::Zero } else { $installProcess.Info.Runtime }
+                        Runtime        = if ($installProcess.Info) { $installProcess.Info.Runtime } else { [TimeSpan]::Zero }
                     }
 
                     # Extra handling for BIOS updates
@@ -161,7 +161,7 @@
                         StandardOutput = $installProcess.Info.StandardOutput
                         StandardError  = $installProcess.Info.StandardError
                         LogOutput      = ''
-                        Runtime        = if ($installProcess.Err) { [TimeSpan]::Zero } else { $installProcess.Info.Runtime }
+                        Runtime        = if ($installProcess.Info) { $installProcess.Info.Runtime } else { [TimeSpan]::Zero }
                     }
                 }
                 default {
