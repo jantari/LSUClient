@@ -75,6 +75,25 @@
 
             Write-Verbose "Installing package $($PackageToProcess.ID) ..."
 
+            # As a precaution, do not apply runtime limits and kill in-progress installers for packages that are likely firmware updaters
+            if ($script:LSUClientConfiguration.MaxInstallerRuntime -gt [TimeSpan]::Zero -and (
+                $PackageToProcess.Installer.Command -like '*winuptp.exe*' -or
+                $PackageToProcess.Installer.Command -like '*Flash.cmd*' -or
+                $PackageToProcess.Type -in 'BIOS', 'Firmware' -or
+                $PackageToProcess.Category -like "*BIOS*" -or
+                $PackageToProcess.Category -like "*UEFI*" -or
+                $PackageToProcess.Category -like "*Firmware*" -or
+                $PackageToProcess.Title -like "*BIOS*" -or
+                $PackageToProcess.Title -like "*UEFI*" -or
+                $PackageToProcess.Title -like "*Firmware*" -or
+                $PackageToProcess.RebootType -eq 5)
+            ) {
+                Write-Verbose "MaxInstallerRuntime of $($script:LSUClientConfiguration.MaxInstallerRuntime) will not be enforced for this package because it appears to be a BIOS or firmware update"
+                $MaxInstallerRuntime = [TimeSpan]::Zero
+            } else {
+                $MaxInstallerRuntime = $script:LSUClientConfiguration.MaxInstallerRuntime
+            }
+
             switch ($PackageToProcess.Installer.InstallType) {
                 'CMD' {
                     # Special-case ThinkPad and ThinkCentre (winuptp.exe and Flash.cmd/wflash2.exe)
@@ -86,7 +105,7 @@
                     } else {
                         # Correct typo from Lenovo ... yes really...
                         $InstallCMD = $PackageToProcess.Installer.Command -replace '-overwirte', '-overwrite'
-                        $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD -RuntimeLimit $script:LSUClientConfiguration.MaxInstallerRuntime
+                        $installProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $InstallCMD -RuntimeLimit $MaxInstallerRuntime
                     }
 
                     $Success = $installProcess.Err -eq [ExternalProcessError]::NONE -and $(
@@ -144,7 +163,7 @@
                         'Path'         = $PackageDirectory
                         'Executable'   = "${env:SystemRoot}\system32\pnputil.exe"
                         'Arguments'    = "/add-driver $($PackageToProcess.Installer.InfFile) /install"
-                        'RuntimeLimit' = $script:LSUClientConfiguration.MaxInstallerRuntime
+                        'RuntimeLimit' = $MaxInstallerRuntime
                     }
                     $installProcess = Invoke-PackageCommand @InfInstallParams
 
