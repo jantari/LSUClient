@@ -23,6 +23,24 @@
 
         .PARAMETER MaxInstallerRuntime
         Sets a time limit for how long package installers can run before they're forcefully stopped.
+
+        .EXAMPLE
+        # Disable the default MaxExternalDetectionRuntime
+        PS> Set-LSUClientConfiguration -MaxExternalDetectionRuntime ([TimeSpan]::Zero)
+
+        .EXAMPLE
+        # Set a maximum allowed installer runtime of 20 minutes
+        PS> Set-LSUClientConfiguration -MaxInstallerRuntime (New-TimeSpan -Minutes 20)
+
+        .EXAMPLE
+        # Disable a previously configured Proxy
+        PS> Set-LSUClientConfiguration -Proxy $null
+
+        .EXAMPLE
+        # Apply a previously saved or edited configuration
+        PS> $config = Get-LSUClientConfiguration
+        PS> # ...
+        PS> $config | Set-LSUClientConfiguration
     #>
     [CmdletBinding(DefaultParameterSetName = 'Whole')]
     Param (
