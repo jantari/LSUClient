@@ -23,6 +23,7 @@
 
         .PARAMETER MaxInstallerRuntime
         Sets a time limit for how long package installers can run before they're forcefully stopped.
+        As a safety measure this limit is not applied for installers of firmware or BIOS/UEFI updates.
 
         .EXAMPLE
         # Disable the default MaxExternalDetectionRuntime
