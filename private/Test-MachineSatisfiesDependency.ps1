@@ -44,15 +44,30 @@
                 $DevicesMatched = [System.Collections.Generic.List[object]]::new()
 
                 :NextDevice foreach ($DeviceInMachine in $CachedHardwareTable['_PnPID']) {
+                    [bool]$DeviceHwIdWildcardMatched = $false
+
                     foreach ($HardwareInMachine in $DeviceInMachine.HardwareID) {
+                        # A _Driver node can have multiple 'HardwareID' child nodes, e.g. https://download.lenovo.com/pccbbs/mobiles/r1kwq15w_2_.xml
                         foreach ($HardwareID in $Dependency.HardwareID.'#cdata-section') {
-                            # Lenovo HardwareIDs can contain wildcards (*) so we have to compare with "-like"
-                            if ($HardwareInMachine -like "*$HardwareID*") {
-                                Write-Debug "$('- ' * $DebugIndent)Matched device '$HardwareInMachine' with required '$HardwareID'"
+                            # Matching with wildcards may have been a mistake, some HardwareIDs just contain a * (star).
+                            # Try exact equal matches first and fall back to wildcard only when needed. I want to see how often that happens.
+                            if ($HardwareInMachine -eq "$HardwareID") {
+                                Write-Debug "$('- ' * $DebugIndent)Matched device '$HardwareInMachine' with required '$HardwareID' (EXACT)"
                                 $DevicesMatched.Add($DeviceInMachine)
                                 continue NextDevice
                             }
+                            # Lenovo HardwareIDs can contain wildcards (*) so we have to compare with "-like"
+                            if ($HardwareInMachine -like "*$HardwareID*") {
+                                Write-Debug "$('- ' * $DebugIndent)Matched device '$HardwareInMachine' with required '$HardwareID' (WILDCARD)"
+                                $DeviceHwIdWildcardMatched = $true
+                            }
                         }
+                    }
+
+                    # To preserve the old behavior whilst fully testing the new, do add devices that were only matched via wildcards
+                    if ($DeviceHwIdWildcardMatched) {
+                        Write-Debug "$('- ' * $DebugIndent)Adding device - HardwareIDs matched only when using wildcards"
+                        $DevicesMatched.Add($DeviceInMachine)
                     }
                 }
 
@@ -63,6 +78,7 @@
 
                     $TestResults = [System.Collections.Generic.List[bool]]::new()
                     foreach ($Device in $DevicesMatched) {
+                        Write-Debug "$('- ' * $DebugIndent)Testing $($Device.DeviceId)"
                         # First, check if there is a driver installed for the device at all before proceeding (issue#24)
                         if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
                             [string]$HexDeviceProblemStatus = '0x{0:X8}' -f (Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_ProblemStatus').Data
@@ -118,7 +134,9 @@
                         # AFAIK it is not possible to detect with 100% certainty that a driver is generic/inbox and even if - it's not always a problem.
                         # So this information should only be used for informaing the user or as an aid in making non-critical decisions,
                         # do not rely on this detection/boolean to be accurate!
-                        [byte]$DriverMatchTypeScore = (Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverRank').Data -shr 12 -band 0xF
+                        [UInt32]$DriverRank = (Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverRank').Data
+                        [byte]$DriverMatchTypeScore = $DriverRank -shr 12 -band 0xF
+                        Write-Debug "Device '$($Device.Name)' DriverRank is 0x$('{0:X8}' -f $DriverRank)"
                         if ($DriverMatchTypeScore -ge 2) {
                             Write-Verbose "Device '$($Device.Name)' may currently be using a generic or inbox driver"
                         }
@@ -163,8 +181,10 @@
                             if ($DriverVersion) {
                                 Write-Debug "$('- ' * $DebugIndent)[Got: $DriverVersion, Expected: $($Dependency.Version)]"
                                 if ((Test-VersionPattern -LenovoString $Dependency.Version -SystemString $DriverVersion) -eq 0) {
+                                    Write-Debug "$('- ' * $DebugIndent)Passed DriverVersion test"
                                     $TestResults.Add($true)
                                 } else {
+                                    Write-Debug "$('- ' * $DebugIndent)Failed DriverVersion test"
                                     $TestResults.Add($false)
                                 }
                             } else {
