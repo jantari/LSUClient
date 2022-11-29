@@ -276,6 +276,34 @@
                 return -1
             }
         }
+        '_Firmware' {
+            # https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/query-version-and-status-ps1-script?view=windows-11
+            foreach ($PnpDevice in $CachedHardwareTable['_PnPID']) {
+                foreach ($entry in $Dependency.HardwareIDs) {
+                    # Only exact HardwareID matches will be found (no wildcards)
+                    if ($entry.'#cdata-section' -in $PnpDevice.HardwareID) {
+                        [string]$PnpDeviceFirmwareRev = $PnpDevice.HardwareID[0].Substring($PnpDevice.HardwareID[0].IndexOf('&REV_') + 5)
+                        Write-Debug "$('- ' * $DebugIndent)[ Got: ${PnpDeviceFirmwareRev}, Expected: $($Dependency.Version.'#text') ]"
+                        # Dependency.Version can also have a hex2dec attribute (True/False) that is currently not checked
+                        if ($PnpDeviceFirmwareRev.Contains('^')) {
+                            if ($PnpDeviceFirmwareRev.Trim('^') -eq $Dependency.Version.'#text') {
+                                return 0 # Exact match - success
+                            } else {
+                                # I am not sure how to best support comparisons for hexadecimal numbers
+                                return -2 # Caret in Version and no exact match - we don't know
+                            }
+                        } else {
+                            if ($PnpDeviceFirmwareRev -eq $Dependency.Version.'#text') {
+                                return 0 # Exact match - success
+                            } else {
+                                return -1 # No caret and no match - fail
+                            }
+                        }
+                    }
+                }
+            }
+            return -1 # HardwareID not in system - fail
+        }
         '_OS' {
             foreach ($entry in $Dependency.OS) {
                 if ("$entry" -like "WIN$($CachedHardwareTable['_OS'])*") {
