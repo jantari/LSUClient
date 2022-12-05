@@ -41,7 +41,9 @@
             }
 
             if ($DriverChildNodes -contains 'HardwareID') {
-                $DevicesMatched = [System.Collections.Generic.List[object]]::new()
+                [System.Collections.Generic.List[object]]$DevicesMatchedExact = [System.Collections.Generic.List[object]]::new()
+                [System.Collections.Generic.List[object]]$DevicesMatchedWildcard = [System.Collections.Generic.List[object]]::new()
+                [System.Collections.Generic.List[object]]$DevicesToTest = [System.Collections.Generic.List[object]]::new()
 
                 :NextDevice foreach ($DeviceInMachine in $CachedHardwareTable['_PnPID']) {
                     [bool]$DeviceHwIdWildcardMatched = $false
@@ -53,7 +55,7 @@
                             # Try exact equal matches first and fall back to wildcard only when needed. I want to see how often that happens.
                             if ($HardwareInMachine -eq "$HardwareID") {
                                 Write-Debug "$('- ' * $DebugIndent)Matched device '$HardwareInMachine' with required '$HardwareID' (EXACT)"
-                                $DevicesMatched.Add($DeviceInMachine)
+                                $DevicesMatchedExact.Add($DeviceInMachine)
                                 continue NextDevice
                             }
                             # Lenovo HardwareIDs can contain wildcards (*) so we have to compare with "-like"
@@ -67,17 +69,20 @@
                     # To preserve the old behavior whilst fully testing the new, do add devices that were only matched via wildcards
                     if ($DeviceHwIdWildcardMatched) {
                         Write-Debug "$('- ' * $DebugIndent)Adding device - HardwareIDs matched only when using wildcards"
-                        $DevicesMatched.Add($DeviceInMachine)
+                        $DevicesMatchedWildcard.Add($DeviceInMachine)
                     }
                 }
 
-                if ($DevicesMatched.Count -ge 1) {
-                    if ($DevicesMatched.Count -gt 1) {
-                        Write-Debug "$('- ' * $DebugIndent)$($DevicesMatched.Count) devices with matching HardwareId"
-                    }
+                Write-Debug "$('- ' * $DebugIndent)Matched devices: $($DevicesMatchedExact.Count) exact, $($DevicesMatchedWildcard.Count) wildcard"
+                $DevicesToTest = if ($DevicesMatchedExact) {
+                    $DevicesMatchedExact
+                } else {
+                    $DevicesMatchedWildcard
+                }
 
+                if ($DevicesToTest.Count -ge 1) {
                     $TestResults = [System.Collections.Generic.List[bool]]::new()
-                    foreach ($Device in $DevicesMatched) {
+                    foreach ($Device in $DevicesToTest) {
                         Write-Debug "$('- ' * $DebugIndent)Testing $($Device.DeviceId)"
                         # First, check if there is a driver installed for the device at all before proceeding (issue#24)
                         if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
@@ -136,7 +141,7 @@
                         # do not rely on this detection/boolean to be accurate!
                         [UInt32]$DriverRank = (Get-PnpDeviceProperty -InputObject $Device -KeyName 'DEVPKEY_Device_DriverRank').Data
                         [byte]$DriverMatchTypeScore = $DriverRank -shr 12 -band 0xF
-                        Write-Debug "Device '$($Device.Name)' DriverRank is 0x$('{0:X8}' -f $DriverRank)"
+                        Write-Debug "$('- ' * $DebugIndent)Device '$($Device.Name)' DriverRank is 0x$('{0:X8}' -f $DriverRank)"
                         if ($DriverMatchTypeScore -ge 2) {
                             Write-Verbose "Device '$($Device.Name)' may currently be using a generic or inbox driver"
                         }
@@ -199,8 +204,6 @@
                     }
 
                     # If one or more HardwareID-tests were completed but failed (e.g. Date) continue in case there are further tests like FileVersion
-                } else {
-                    Write-Debug "$('- ' * $DebugIndent)No installed device matched the driver check"
                 }
             }
 
