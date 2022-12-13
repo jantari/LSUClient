@@ -281,8 +281,8 @@
         }
         '_Firmware' {
             # https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/query-version-and-status-ps1-script?view=windows-11
-            # Dependency.Version can also have a hex2dec attribute (True/False) that is currently not checked, but depending on whether
-            # it exists PowerShell deserializes the XML differently (.Version can be string or XmlElement). Using SelectNode is consistent.
+            # Dependency.Version can also have a hex2dec attribute (True/False) and depending on whether it exists PowerShell deserializes
+            # the XML differently (.Version can be string or XmlElement). Using SelectNode is consistent.
             $LenovoVersion = $Dependency.SelectSingleNode('Version').'#text'
             foreach ($PnpDevice in $CachedHardwareTable['_PnPID']) {
                 foreach ($entry in $Dependency.HardwareIDs) {
@@ -290,20 +290,7 @@
                     if ($entry.'#cdata-section' -in $PnpDevice.HardwareID) {
                         [string]$PnpDeviceFirmwareRev = $PnpDevice.HardwareID[0].Substring($PnpDevice.HardwareID[0].IndexOf('&REV_') + 5)
                         Write-Debug "$('- ' * $DebugIndent)[ Got: ${PnpDeviceFirmwareRev}, Expected: ${LenovoVersion} ]"
-                        if ($LenovoVersion.Contains('^')) {
-                            if ($PnpDeviceFirmwareRev -eq $LenovoVersion.Trim('^')) {
-                                return 0 # Exact match - success
-                            } else {
-                                # I am not sure how to best support comparisons for hexadecimal numbers
-                                return -2 # Caret in Version and no exact match - we don't know
-                            }
-                        } else {
-                            if ($PnpDeviceFirmwareRev -eq $LenovoVersion) {
-                                return 0 # Exact match - success
-                            } else {
-                                return -1 # No caret and no match - fail
-                            }
-                        }
+                        return (Test-VersionPattern -LenovoString $LenovoVersion -SystemString $PnpDeviceFirmwareRev)
                     }
                 }
             }
