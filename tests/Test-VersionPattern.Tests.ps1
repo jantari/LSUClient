@@ -43,8 +43,8 @@ Describe 'Test-VersionPattern' {
     }
 
     It 'Hexadecimal comparison - Equal' {
-        Test-VersionPattern -LenovoString '221b' -SystemString '8731' | Should -Be -1
-        Test-VersionPattern -LenovoString '00001337' -SystemString '4919' | Should -Be -1
+        Test-VersionPattern -LenovoString '221b' -SystemString '8731' | Should -Be 0
+        Test-VersionPattern -LenovoString '1337' -SystemString '4919' | Should -Be -1
         Test-VersionPattern -LenovoString '1337' -SystemString '4919' -LenovoStringFormat Hex | Should -Be 0
     }
 
