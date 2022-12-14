@@ -283,14 +283,23 @@
             # https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/query-version-and-status-ps1-script?view=windows-11
             # Dependency.Version can also have a hex2dec attribute (True/False) and depending on whether it exists PowerShell deserializes
             # the XML differently (.Version can be string or XmlElement). Using SelectNode is consistent.
-            $LenovoVersion = $Dependency.SelectSingleNode('Version').'#text'
+            [string]$LenovoVersion    = $Dependency.SelectSingleNode('Version').'#text'
+            [bool]$LenovoVersionIsHex = $Dependency.SelectSingleNode('Version').GetAttribute('hex2dec') -eq 'True'
             foreach ($PnpDevice in $CachedHardwareTable['_PnPID']) {
                 foreach ($entry in $Dependency.HardwareIDs) {
                     # Only exact HardwareID matches will be found (no wildcards)
                     if ($entry.'#cdata-section' -in $PnpDevice.HardwareID) {
                         [string]$PnpDeviceFirmwareRev = $PnpDevice.HardwareID[0].Substring($PnpDevice.HardwareID[0].IndexOf('&REV_') + 5)
-                        Write-Debug "$('- ' * $DebugIndent)[ Got: ${PnpDeviceFirmwareRev}, Expected: ${LenovoVersion} ]"
-                        return (Test-VersionPattern -LenovoString $LenovoVersion -SystemString $PnpDeviceFirmwareRev)
+                        Write-Debug "$('- ' * $DebugIndent)[ Got: ${PnpDeviceFirmwareRev}, Expected: ${LenovoVersion} (IsHex: ${LenovoVersionIsHex}) ]"
+                        if ($LenovoVersionIsHex) {
+                            # If hex2dec is explicitly set to True only interpret the LenovoVersion as hexadecimal.
+                            # This is important because any decimal-looking number can also be interpreted in hex but has a very different value there.
+                            return (Test-VersionPattern -LenovoString $LenovoVersion -SystemString $PnpDeviceFirmwareRev -SystemStringFormat Hex -LenovoStringFormat Hex)
+                        } else {
+                            # Some packages, like https://download.lenovo.com/pccbbs/mobiles/n2wrg16w_v2_2_.xml, use hexadecimal versions but set hex2dec=False.
+                            # We leave LenovoStringFormat set to the default 'Auto' to try and support that case as best as possible with fallback logic
+                            return (Test-VersionPattern -LenovoString $LenovoVersion -SystemString $PnpDeviceFirmwareRev -SystemStringFormat Hex)
+                        }
                     }
                 }
             }
