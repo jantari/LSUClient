@@ -10,6 +10,13 @@ Describe 'Test-VersionPattern' {
         Test-VersionPattern -LenovoString '10.0.0.1' -SystemString '10.0.0.1' | Should -Be 0
     }
 
+    It 'Correctly trims spaces' {
+        Test-VersionPattern -LenovoString ' 26.20.100.7812' -SystemString '30.40.50' | Should -Be -1
+        Test-VersionPattern -LenovoString '26.20.100.7812 ' -SystemString '30.40.50' | Should -Be -1
+        Test-VersionPattern -LenovoString ' ^26.20.100.7812' -SystemString '10.20.30' | Should -Be 0
+        Test-VersionPattern -LenovoString '^ 26.20.100.7812' -SystemString '10.20.30' | Should -Be 0
+    }
+
     It 'Lenovo Pattern - Less than' {
         Test-VersionPattern -LenovoString '^10.0.0.1' -SystemString '10.0.2.2' | Should -Be -1
     }
@@ -32,9 +39,7 @@ Describe 'Test-VersionPattern' {
 
     It 'Lenovo Pattern Unsupported' {
         Test-VersionPattern -LenovoString '^1^' -SystemString '8.0' | Should -Be -2
-    }
-
-    It 'Lenovo Pattern Unsupported' {
+        Test-VersionPattern -LenovoString '1.2.3+' -SystemString '8.0' | Should -Be -2
         Test-VersionPattern -LenovoString '-100' -SystemString '8.0' | Should -Be -2
     }
 
