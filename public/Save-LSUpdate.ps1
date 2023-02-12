@@ -71,7 +71,7 @@
                 if ($Force -or -not (Test-Path -Path $DownloadDest -PathType Leaf) -or (
                    (Get-FileHash -Path $DownloadDest -Algorithm SHA256).Hash -ne $File.Checksum)) {
                     # Checking if this package was already downloaded, if yes skipping redownload
-                    $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+                    $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials:$ProxyUseDefaultCredentials
                     Write-Verbose "Starting download of '$DownloadSrc'"
                     $transfers.Add( $webClient.DownloadFileTaskAsync($DownloadSrc, $DownloadDest) )
                 }

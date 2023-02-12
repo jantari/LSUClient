@@ -29,7 +29,7 @@
         Write-Verbose "Getting packages from the model xml file ${ModelXmlPath}"
         if ($RepositoryType -eq 'HTTP') {
             # Model XML method for web based repositories
-            $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+            $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials:$ProxyUseDefaultCredentials
 
             try {
                 $COMPUTERXML = $webClient.DownloadString($ModelXmlPath)
@@ -70,7 +70,7 @@
     } elseif ((Get-PackagePathInfo -Path $DatabaseXmlPath -TestURLReachable).Reachable) {
         Write-Debug "Getting packages from the database xml file ${DatabaseXmlPath}"
         if ($RepositoryType -eq 'HTTP') {
-            $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+            $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials:$ProxyUseDefaultCredentials
 
             try {
                 $XmlString = $webClient.DownloadString($DatabaseXmlPath)

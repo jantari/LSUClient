@@ -40,7 +40,7 @@
 
     if ($SourceFile.LocationType -eq 'HTTP') {
         # Valid URL - Downloading file via HTTP
-        $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials $ProxyUseDefaultCredentials
+        $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials:$ProxyUseDefaultCredentials
 
         Write-Verbose "Downloading '$($SourceFile.AbsoluteLocation)' to '${DownloadDest}'"
         $webClient.DownloadFile($SourceFile.AbsoluteLocation, $DownloadDest)
