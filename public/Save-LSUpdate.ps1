@@ -83,9 +83,22 @@
         if ($ShowProgress -and $transfers) {
             Show-DownloadProgress -Transfers $transfers
         } else {
+            $DownloadTimer = [System.Diagnostics.Stopwatch]::StartNew()
+
+            [TimeSpan]$LastPrinted = [TimeSpan]::FromMinutes(9)
             while ($transfers.IsCompleted -contains $false) {
-                Start-Sleep -Milliseconds 500
+                # Print message once every minute after an initial 10 minutes of silence
+                if ($DownloadTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
+                    [array]$PendingDownloads = @($transfers | Where-Object IsCompleted -eq $false)
+                    Write-Warning "Downloads have been running for $($DownloadTimer.Elapsed) - $($PendingDownloads.Count) remaining:"
+                    $PendingDownloads.AsyncState | ForEach-Object -MemberName ToString | ForEach-Object { Write-Warning "- $_" }
+
+                    $LastPrinted = $DownloadTimer.Elapsed
+                }
+                Start-Sleep -Milliseconds 200
             }
+
+            $DownloadTimer.Stop()
         }
 
         if ($transfers.Status -contains "Faulted" -or $transfers.Status -contains "Canceled") {
