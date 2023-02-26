@@ -162,10 +162,23 @@
             throw "No packages for computer model '${Model}' could be retrieved from repository '${Repository}'"
         }
 
+        # This will hold the packages as they are evaluated in two stages
+        $PackageList = [System.Collections.Generic.List[LenovoPackage]]::new()
+
+        # Information for package dependency evaluation.
+        # For Dependency and Coreq tests we need all packages:
+        # - Name
+        # - Version
+        # - IsInstalled
+        # - Dependencies XML
+        # - LocalPackageRoot
+        $script:AllPackagesDependencyInfo = [System.Collections.Generic.Dictionary[string, PackagePhase2Info]]::new()
+
         Write-Verbose "A total of $($PackagePointers.Count) driver packages are available for this computer model."
     }
 
     process {
+        # Process most parts of the packages XML, only dependencies will be resolved separately later to support Coreq
         foreach ($Package in $PackagePointers) {
             Write-Verbose "Processing package $($Package.AbsoluteLocation)"
 
@@ -260,14 +273,6 @@
                 }
             }
 
-            # The explicit $null is to avoid powershell/powershell#13651
-            [Nullable[bool]]$PackageIsApplicable = if ($NoTestApplicable) {
-                $null
-            } else {
-                Write-Verbose "Parsing dependencies for package: $($packageXML.Package.id) ($($packageXML.Package.Title.Desc.'#text'))"
-                Resolve-XMLDependencies -XMLIN $packageXML.Package.Dependencies -TreatUnsupportedAsPassed:(-not $FailUnsupportedDependencies) -PackagePath $LocalPackageRoot
-            }
-
             [Severity]$PackageSeverity = $packageXML.Package.Severity.type
             if (-not $NoTestSeverityOverride -and
                 $packageXML.Package.SelectSingleNode('SeverityOverride') -and # SeverityOverride element may not exist
@@ -304,12 +309,34 @@
                 'Files'        = $PackageFiles
                 'Extracter'    = $packageXML.Package
                 'Installer'    = [PackageInstallInfo]::new($packageXML.Package)
-                'IsApplicable' = $PackageIsApplicable
+                'IsApplicable' = $null # TBD
                 'IsInstalled'  = $PackageIsInstalled
             }
 
-            if ($All -or ($packageObject.IsApplicable -and $packageObject.IsInstalled -eq $false)) {
-                $packageObject
+            $PackageList.Add($packageObject)
+            $script:AllPackagesDependencyInfo.Add($packageXML.Package.name, [PackagePhase2Info]@{
+                'Version'          = $packageXML.Package.version
+                'IsInstalled'      = $PackageIsInstalled
+                'Dependencies'     = $packageXML.Package.Dependencies
+                'LocalPackageRoot' = $LocalPackageRoot
+            })
+        }
+        # Process package dependencies (IsApplicable)
+        foreach ($Package in $PackageList) {
+            $PackagePhase2Info = $script:AllPackagesDependencyInfo[$Package.Name]
+
+            # The explicit $null is to avoid powershell/powershell#13651
+            [Nullable[bool]]$PackageIsApplicable = if ($NoTestApplicable) {
+                $null
+            } else {
+                Write-Verbose "Parsing dependencies for package: $($Package.ID) ($($Package.Title))"
+                Resolve-XMLDependencies -XMLIN $PackagePhase2Info.Dependencies -TreatUnsupportedAsPassed:(-not $FailUnsupportedDependencies) -PackagePath $PackagePhase2Info.LocalPackageRoot
+            }
+
+            $Package.IsApplicable = $PackageIsApplicable
+
+            if ($All -or ($Package.IsApplicable -and $Package.IsInstalled -eq $false)) {
+                $Package
             }
         }
     }

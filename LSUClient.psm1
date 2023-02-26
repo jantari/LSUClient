@@ -154,6 +154,14 @@ class PackageXmlPointer : PackageFilePointer {
     }
 }
 
+# Private
+class PackagePhase2Info {
+    [string] $Version
+    [System.Xml.XmlElement] $Dependencies
+    [string] $LocalPackageRoot
+    [Nullable[bool]] $IsInstalled
+}
+
 # Public
 class LenovoPackage {
     [string] $ID

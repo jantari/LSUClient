@@ -24,6 +24,20 @@
             }
             return -1
         }
+        '_Coreq' {
+            $DependencyPackage = $script:AllPackagesDependencyInfo[$Dependency.name]
+            if ($DependencyPackage) {
+                if ($DependencyPackage.IsInstalled) {
+                    Write-Debug "$('- ' * $DebugIndent)[ Got: $($Dependency.name) $($DependencyPackage.Version), Expected: $($Dependency.Version) ]"
+                    return (Test-VersionPattern -LenovoString $Dependency.Version -SystemString $DependencyPackage.Version)
+                } else {
+                    Write-Debug "$('- ' * $DebugIndent)[ $($Dependency.name) is not installed yet, Expected: $($Dependency.Version) ]"
+                }
+            } else {
+                Write-Debug "$('- ' * $DebugIndent)[ $($Dependency.name) is not in the repository, Expected: $($Dependency.Version) ]"
+            }
+            return -1
+        }
         '_CPUAddressWidth' {
             Write-Debug "$('- ' * $DebugIndent)[ Got: $($CachedHardwareTable['_CPUAddressWidth']), Expected: $($dependency.AddressWidth) ]"
             if ($CachedHardwareTable['_CPUAddressWidth'] -like "$($Dependency.AddressWidth)*") {
