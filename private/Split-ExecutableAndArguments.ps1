@@ -20,6 +20,10 @@
     [string[]]$MachinePathDirectories = [System.Environment]::GetEnvironmentVariable("Path", "Machine").Split(';') | Where-Object { $_ }
     [string[]]$MachinePathExtensions  = [System.Environment]::GetEnvironmentVariable("PATHEXT", "Machine").Split(';') | Where-Object { $_ }
 
+    # Workaround for #57
+    if ($Command.StartsWith('START /WAIT')) {
+        $Command = $Command.Substring(11).TrimStart()
+    }
     $pathParts = $Command -split ' '
 
     # Repeatedly remove parts of the string from the end and test
