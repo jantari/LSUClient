@@ -162,23 +162,17 @@
             throw "No packages for computer model '${Model}' could be retrieved from repository '${Repository}'"
         }
 
-        # This will hold the packages as they are evaluated in two stages
-        $PackageList = [System.Collections.Generic.List[LenovoPackage]]::new()
-
-        # Information for package dependency evaluation.
-        # For Dependency and Coreq tests we need all packages:
-        # - Name
-        # - Version
-        # - IsInstalled
-        # - Dependencies XML
-        # - LocalPackageRoot
-        $script:AllPackagesDependencyInfo = [System.Collections.Generic.Dictionary[string, PackagePhase2Info]]::new()
-
         Write-Verbose "A total of $($PackagePointers.Count) driver packages are available for this computer model."
+
+        # This variable will hold the LenovoPackage objects as they are processed in two stages
+        New-Variable -Name PackageList -Option Private -Value ( [System.Collections.Generic.List[LenovoPackage]]::new() )
+
+        # This variable will hold additional metadata that needs to be referenced from nested scopes (functions) during dependency tests
+        New-Variable -Name AllPackagesDependenciesInfo -Option AllScope -Value ( [System.Collections.Generic.Dictionary[string, PackageDependenciesInfo]]::new() )
     }
 
     process {
-        # Process most parts of the packages XML, only dependencies will be resolved separately later to support Coreq
+        # Stage 1 of 2 : Process most parts of the packages XML, only dependencies will be resolved later to support Coreq (package inter-dependency) tests
         foreach ($Package in $PackagePointers) {
             Write-Verbose "Processing package $($Package.AbsoluteLocation)"
 
@@ -309,28 +303,28 @@
                 'Files'        = $PackageFiles
                 'Extracter'    = $packageXML.Package
                 'Installer'    = [PackageInstallInfo]::new($packageXML.Package)
-                'IsApplicable' = $null # TBD
+                'IsApplicable' = $null # Package applicability is determined later in stage 2
                 'IsInstalled'  = $PackageIsInstalled
             }
 
             $PackageList.Add($packageObject)
-            $script:AllPackagesDependencyInfo.Add($packageXML.Package.name, [PackagePhase2Info]@{
+            $AllPackagesDependenciesInfo.Add($packageXML.Package.name, [PackageDependenciesInfo]@{
                 'Version'          = $packageXML.Package.version
                 'IsInstalled'      = $PackageIsInstalled
                 'Dependencies'     = $packageXML.Package.Dependencies
                 'LocalPackageRoot' = $LocalPackageRoot
             })
         }
-        # Process package dependencies (IsApplicable)
+        # Stage 2 of 2 : Process package dependencies (determines IsApplicable)
         foreach ($Package in $PackageList) {
-            $PackagePhase2Info = $script:AllPackagesDependencyInfo[$Package.Name]
+            $CurrentPackageDependenciesInfo = $AllPackagesDependenciesInfo[$Package.Name]
 
             # The explicit $null is to avoid powershell/powershell#13651
             [Nullable[bool]]$PackageIsApplicable = if ($NoTestApplicable) {
                 $null
             } else {
                 Write-Verbose "Parsing dependencies for package: $($Package.ID) ($($Package.Title))"
-                Resolve-XMLDependencies -XMLIN $PackagePhase2Info.Dependencies -TreatUnsupportedAsPassed:(-not $FailUnsupportedDependencies) -PackagePath $PackagePhase2Info.LocalPackageRoot
+                Resolve-XMLDependencies -XMLIN $CurrentPackageDependenciesInfo.Dependencies -TreatUnsupportedAsPassed:(-not $FailUnsupportedDependencies) -PackagePath $CurrentPackageDependenciesInfo.LocalPackageRoot
             }
 
             $Package.IsApplicable = $PackageIsApplicable

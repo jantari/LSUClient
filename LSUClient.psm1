@@ -155,7 +155,7 @@ class PackageXmlPointer : PackageFilePointer {
 }
 
 # Private
-class PackagePhase2Info {
+class PackageDependenciesInfo {
     [string] $Version
     [System.Xml.XmlElement] $Dependencies
     [string] $LocalPackageRoot

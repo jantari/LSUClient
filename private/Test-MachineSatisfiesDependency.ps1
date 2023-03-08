@@ -25,7 +25,7 @@
             return -1
         }
         '_Coreq' {
-            $DependencyPackage = $script:AllPackagesDependencyInfo[$Dependency.name]
+            $DependencyPackage = $AllPackagesDependenciesInfo[$Dependency.name]
             if ($DependencyPackage) {
                 if ($DependencyPackage.IsInstalled) {
                     Write-Debug "$('- ' * $DebugIndent)[ Got: $($Dependency.name) $($DependencyPackage.Version), Expected: $($Dependency.Version) ]"
