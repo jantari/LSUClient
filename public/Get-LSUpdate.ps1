@@ -168,7 +168,7 @@
         New-Variable -Name PackageList -Option Private -Value ( [System.Collections.Generic.List[LenovoPackage]]::new() )
 
         # This variable will hold additional metadata that needs to be referenced from nested scopes (functions) during dependency tests
-        New-Variable -Name AllPackagesDependenciesInfo -Option AllScope -Value ( [System.Collections.Generic.Dictionary[string, PackageDependenciesInfo]]::new() )
+        New-Variable -Name AllPackagesDependenciesInfo -Option AllScope, ReadOnly -Value ( [System.Collections.Generic.Dictionary[string, PackageDependenciesInfo]]::new() )
     }
 
     process {
