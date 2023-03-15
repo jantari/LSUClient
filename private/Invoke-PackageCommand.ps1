@@ -263,18 +263,24 @@
             Write-Debug "Process IDs in job (without runspace): $ProcessIdList"
 
             if ($ProcessIdList) {
+                Write-Debug "Our current session ID: $( [System.Diagnostics.Process]::GetCurrentProcess().SessionId )"
+                Write-Debug "Environment.UserInteractive: $( [System.Environment]::UserInteractive )"
                 foreach ($ProcessId in $ProcessIdList) {
                     $Process = Get-Process -Id $ProcessId
 
                     $ProcessDiagnostics = Debug-LongRunningProcess -Process $Process
                     if ($ProcessDiagnostics.WindowCount -gt 0) {
-                        Write-Warning "Process has windows open, this can help troubleshoot why it timed out:"
-                        foreach ($OpenWindow in $ProcessDiagnostics.InteractableWindows) {
-                            Write-Warning "- Title: -------------------------------------------"
-                            Write-Warning $OpenWindow.WindowTitle
-                            Write-Warning "- Content: -----------------------------------------"
-                            $OpenWindow.WindowText | Write-Warning
-                            Write-Warning "----------------------------------------------------"
+                        if ($ProcessDiagnostics.InteractableWindows) {
+                            Write-Warning "Process has windows open, this can help troubleshoot why it timed out:"
+                            foreach ($OpenWindow in $ProcessDiagnostics.InteractableWindows) {
+                                Write-Warning "- Title: -------------------------------------------"
+                                Write-Warning $OpenWindow.WindowTitle
+                                Write-Warning "- Content: -----------------------------------------"
+                                $OpenWindow.WindowText | Write-Warning
+                                Write-Warning "----------------------------------------------------"
+                            }
+                        } else {
+                            Write-Warning "Process has $($ProcessDiagnostics.WindowCount) windows open but none of them are interactable"
                         }
                     }
                 }

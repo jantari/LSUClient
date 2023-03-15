@@ -114,8 +114,10 @@
     [bool]$AllThreadsWaiting = $true
     [UInt32]$WindowCount     = 0
     $InteractableWindows     = [System.Collections.Generic.List[PSObject]]::new()
+    $CimProcessInformation   = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($Process.ID)" -Property ParentProcessId, CommandLine -Verbose:$false
 
-    Write-Debug "Process $($Process.ID) ('$($Process.ProcessName)')"
+    Write-Debug "Process $($CimProcessInformation.ParentProcessId)/$($Process.ID) ('$($Process.ProcessName)') in session $($Process.SessionId):"
+    Write-Debug "CommandLine: $($CimProcessInformation.CommandLine)"
 
     if ($Process.Threads.ThreadState -ne 'Wait') {
         $AllThreadsWaiting = $false
