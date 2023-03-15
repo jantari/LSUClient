@@ -308,12 +308,16 @@
             }
 
             $PackageList.Add($packageObject)
-            $AllPackagesDependenciesInfo.Add($packageXML.Package.name, [PackageDependenciesInfo]@{
+
+            if ($AllPackagesDependenciesInfo.ContainsKey($packageXML.Package.name)) {
+                Write-Debug "Replacing previous package dependency info for $($packageXML.Package.name)"
+            }
+            $AllPackagesDependenciesInfo[$packageXML.Package.name] = [PackageDependenciesInfo]@{
                 'Version'          = $packageXML.Package.version
                 'IsInstalled'      = $PackageIsInstalled
                 'Dependencies'     = $packageXML.Package.Dependencies
                 'LocalPackageRoot' = $LocalPackageRoot
-            })
+            }
         }
         # Stage 2 of 2 : Process package dependencies (determines IsApplicable)
         foreach ($Package in $PackageList) {
