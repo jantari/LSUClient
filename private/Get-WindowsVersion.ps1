@@ -9,11 +9,13 @@
 
     $Versions = [System.Collections.Generic.Dictionary[string, Version]]::new()
 
-    $CmdOutput = & "${env:SystemRoot}\System32\cmd.exe" /D /C VER
-    $CmdOutputRegex = [regex]::match($CmdOutput, '[\d\.]+')
-    if ($CmdOutputRegex.Success) {
-        [version]$cmdVersion = $CmdOutputRegex.Value
-        $Versions.Add('cmd', $cmdVersion)
+    $CmdOutput = Invoke-PackageCommand -Path $env:SystemRoot -Executable "${env:SystemRoot}\System32\cmd.exe" -Arguments '/D /C VER'
+    if (-not $CmdOutput.Err) {
+        $CmdOutputRegex = [regex]::match($CmdOutput.Info.StandardOutput, '[\d\.]+')
+        if ($CmdOutputRegex.Success) {
+            [version]$cmdVersion = $CmdOutputRegex.Value
+            $Versions.Add('cmd', $cmdVersion)
+        }
     }
 
     $registryData = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name CurrentMajorVersionNumber, CurrentMinorVersionNumber, CurrentBuildNumber, UBR -ErrorAction SilentlyContinue
