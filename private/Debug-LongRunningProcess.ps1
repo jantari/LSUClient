@@ -116,8 +116,11 @@
     $InteractableWindows     = [System.Collections.Generic.List[PSObject]]::new()
     $CimProcessInformation   = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $($Process.ID)" -Property ParentProcessId, CommandLine -Verbose:$false
 
-    Write-Debug "Process $($CimProcessInformation.ParentProcessId)/$($Process.ID) ('$($Process.ProcessName)') in session $($Process.SessionId):"
-    Write-Debug "CommandLine: $($CimProcessInformation.CommandLine)"
+    Write-Debug "Process $($Process.ID) ('$($Process.ProcessName)'):"
+    Write-Debug "  Session: $($Process.SessionId)"
+    Write-Debug "  CommandLine: $($CimProcessInformation.CommandLine)"
+    Write-Debug "  StartTime: $($Process.StartTime.TimeOfDay)"
+    Write-Debug "  Parent Id: $($CimProcessInformation.ParentProcessId)"
 
     if ($Process.Threads.ThreadState -ne 'Wait') {
         $AllThreadsWaiting = $false
@@ -144,7 +147,6 @@
                 })
             }
 
-            # Print the debug output of the interactable window in capital letters to identify it easily
             Write-Debug "    ThreadWindow ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height):"
             Write-Debug "      UIA Info: Got $($WindowInfo.UIAElements.Count) UIAElements from this window handle:"
             foreach ($UIAElement in $WindowInfo.UIAElements) {

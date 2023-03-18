@@ -201,15 +201,10 @@
     [bool]$ProcessKilledTimeout = $false
     [TimeSpan]$LastPrinted = [TimeSpan]::FromMinutes(4)
     while ($PSAsyncRunspace.IsCompleted -eq $false) {
-        # Print message once every minute after an initial 5 minutes of silence
-        if ($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
-            Write-Warning "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
-            $LastPrinted = $RunspaceTimer.Elapsed
-        }
-
-        # Stop processes after exceeding runtime limit
-        if ($RuntimeLimit -gt [TimeSpan]::Zero -and $RunspaceTimer.Elapsed -gt $RuntimeLimit) {
-            Write-Warning "Process has exceeded the configured runtime limit of $RunTimeLimit"
+        # To either print the warning about long-running processes or to kill them
+        # we have to gather all process IDs from the job object we created first
+        if (($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) -or
+            ($RuntimeLimit -gt [TimeSpan]::Zero -and $RunspaceTimer.Elapsed -gt $RuntimeLimit)) {
 
             [int]$ListPtrSize = [System.Runtime.InteropServices.Marshal]::SizeOf([LSUClient.JobAPI+JOBOBJECT_BASIC_PROCESS_ID_LIST]::new());
             [System.IntPtr]$JobListPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($ListPtrSize)
@@ -262,16 +257,19 @@
             $ProcessIdList = $ProcessIdList -ne $RunspacePID
             Write-Debug "Process IDs in job (without runspace): $ProcessIdList"
 
-            if ($ProcessIdList) {
-                Write-Debug "Our current session ID: $( [System.Diagnostics.Process]::GetCurrentProcess().SessionId )"
-                Write-Debug "Environment.UserInteractive: $( [System.Environment]::UserInteractive )"
-                foreach ($ProcessId in $ProcessIdList) {
-                    $Process = Get-Process -Id $ProcessId
+            # Print message once every minute after an initial 5 minutes of silence
+            if ($RunspaceTimer.Elapsed - $LastPrinted -ge [TimeSpan]::FromMinutes(1)) {
+                Write-Debug "(Current session ID: $( [System.Diagnostics.Process]::GetCurrentProcess().SessionId ), Environment.UserInteractive: $( [System.Environment]::UserInteractive ))"
+                Write-Warning "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
 
-                    $ProcessDiagnostics = Debug-LongRunningProcess -Process $Process
-                    if ($ProcessDiagnostics.WindowCount -gt 0) {
+                if ($ProcessIdList) {
+                    foreach ($ProcessId in $ProcessIdList) {
+                        $Process = Get-Process -Id $ProcessId
+                        Write-Warning "${ProcessId}: '$($Process.ProcessName)' started at $($Process.StartTime.TimeOfDay)"
+
+                        $ProcessDiagnostics = Debug-LongRunningProcess -Process $Process
                         if ($ProcessDiagnostics.InteractableWindows) {
-                            Write-Warning "Process has windows open, this can help troubleshoot why it timed out:"
+                            Write-Warning "Process has windows open, this can help troubleshoot if it is stuck:"
                             foreach ($OpenWindow in $ProcessDiagnostics.InteractableWindows) {
                                 Write-Warning "- Title: -------------------------------------------"
                                 Write-Warning $OpenWindow.WindowTitle
@@ -279,24 +277,30 @@
                                 $OpenWindow.WindowText | Write-Warning
                                 Write-Warning "----------------------------------------------------"
                             }
-                        } else {
-                            Write-Warning "Process has $($ProcessDiagnostics.WindowCount) windows open but none of them are interactable"
                         }
                     }
                 }
+                $LastPrinted = $RunspaceTimer.Elapsed
+            }
 
-                Get-Process -Id $ProcessIdList -ErrorAction Ignore | ForEach-Object {
-                    # It's possible for a process (object) to linger and be "get-able"
-                    # for a short while after it has already exited. Kill() won't throw
-                    # on these processes, but they didn't technically get "killed" by us
-                    if (-not $_.HasExited) {
-                        Write-Warning "Killing process $($_.Id) '$($_.ProcessName)' due to exceeding time limit ..."
-                        try {
-                            $_.Kill()
-                            # Only set ProcessKilledTimeout if Kill() ran and succeeded
-                            $ProcessKilledTimeout = $true
+            # Stop processes after exceeding runtime limit
+            if ($RuntimeLimit -gt [TimeSpan]::Zero -and $RunspaceTimer.Elapsed -gt $RuntimeLimit) {
+                Write-Warning "Process has exceeded the configured runtime limit of $RunTimeLimit"
+
+                if ($ProcessIdList) {
+                    Get-Process -Id $ProcessIdList -ErrorAction Ignore | ForEach-Object {
+                        # It's possible for a process (object) to linger and be "get-able"
+                        # for a short while after it has already exited. Kill() won't throw
+                        # on these processes, but they didn't technically get "killed" by us
+                        if (-not $_.HasExited) {
+                            Write-Warning "Killing process $($_.Id) '$($_.ProcessName)' due to exceeding time limit ..."
+                            try {
+                                $_.Kill()
+                                # Only set ProcessKilledTimeout if Kill() ran and succeeded
+                                $ProcessKilledTimeout = $true
+                            }
+                            catch [InvalidOperationException] { <# Process has exited in the meantime, which is fine #> }
                         }
-                        catch [InvalidOperationException] { <# Process has exited in the meantime, which is fine #> }
                     }
                 }
             }
