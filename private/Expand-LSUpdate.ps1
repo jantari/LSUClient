@@ -8,6 +8,7 @@
     )
 
     if ($Package.Installer.ExtractCommand) {
+        Write-Verbose "Extracting package $($Package.ID) ..."
         $extractionProcess = Invoke-PackageCommand -Path $WorkingDirectory -Command $Package.Installer.ExtractCommand -RuntimeLimit $script:LSUClientConfiguration.MaxExtractRuntime
         if ($extractionProcess.Err) {
             Write-Warning "Extraction of package $($Package.ID) has failed!`r`n"

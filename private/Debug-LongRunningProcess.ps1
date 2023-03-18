@@ -118,9 +118,17 @@
 
     Write-Debug "Process $($Process.ID) ('$($Process.ProcessName)'):"
     Write-Debug "  Session: $($Process.SessionId)"
-    Write-Debug "  CommandLine: $($CimProcessInformation.CommandLine)"
+    if ($CimProcessInformation.CommandLine) {
+        Write-Debug "  CommandLine: $($CimProcessInformation.CommandLine)"
+    } else {
+        Write-Debug "  CommandLine: <BLANK / INACCESSIBLE>"
+    }
     Write-Debug "  StartTime: $($Process.StartTime.TimeOfDay)"
-    Write-Debug "  Parent Id: $($CimProcessInformation.ParentProcessId)"
+    if ($CimProcessInformation.ParentProcessId) {
+        Write-Debug "  Parent Id: $($CimProcessInformation.ParentProcessId)"
+    } else {
+        Write-Debug "  Parent Id: <BLANK / INACCESSIBLE>"
+    }
 
     if ($Process.Threads.ThreadState -ne 'Wait') {
         $AllThreadsWaiting = $false

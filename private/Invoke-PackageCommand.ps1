@@ -262,12 +262,13 @@
                 Write-Debug "(Current session ID: $( [System.Diagnostics.Process]::GetCurrentProcess().SessionId ), Environment.UserInteractive: $( [System.Environment]::UserInteractive ))"
                 Write-Warning "Process '$Executable' has been running for $($RunspaceTimer.Elapsed)"
 
+                # Get-Process -Id errors when passed an empty array so test it first
                 if ($ProcessIdList) {
-                    foreach ($ProcessId in $ProcessIdList) {
-                        $Process = Get-Process -Id $ProcessId
-                        Write-Warning "${ProcessId}: '$($Process.ProcessName)' started at $($Process.StartTime.TimeOfDay)"
+                    # Getting and piping all processes at once with ErrorAction Ignore silently skips over any process that has already exited
+                    Get-Process -Id $ProcessIdList -ErrorAction Ignore | ForEach-Object {
+                        Write-Warning "$($_.Id): '$($_.ProcessName)' started at $($_.StartTime.TimeOfDay)"
 
-                        $ProcessDiagnostics = Debug-LongRunningProcess -Process $Process
+                        $ProcessDiagnostics = Debug-LongRunningProcess -Process $_
                         if ($ProcessDiagnostics.InteractableWindows) {
                             Write-Warning "Process has windows open, this can help troubleshoot if it is stuck:"
                             foreach ($OpenWindow in $ProcessDiagnostics.InteractableWindows) {

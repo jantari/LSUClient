@@ -9,7 +9,7 @@
 
     $Versions = [System.Collections.Generic.Dictionary[string, Version]]::new()
 
-    $CmdOutput = Invoke-PackageCommand -Path $env:SystemRoot -Executable "${env:SystemRoot}\System32\cmd.exe" -Arguments '/D /C VER'
+    $CmdOutput = Invoke-PackageCommand -Path $env:SystemRoot -Executable "${env:SystemRoot}\System32\cmd.exe" -Arguments '/D /C VER' -RuntimeLimit ([TimeSpan]::FromMinutes(1))
     if (-not $CmdOutput.Err) {
         $CmdOutputRegex = [regex]::match($CmdOutput.Info.StandardOutput, '[\d\.]+')
         if ($CmdOutputRegex.Success) {
