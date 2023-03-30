@@ -96,9 +96,7 @@
 
                 if ($DevicesToTest.Count -ge 1) {
                     $TestResults = [System.Collections.Generic.List[bool]]::new()
-                    $PerDeviceTestResults = [System.Collections.Generic.List[bool]]::new()
                     foreach ($Device in $DevicesToTest) {
-                        $PerDeviceTestResults.Clear()
                         Write-Debug "$('- ' * $DebugIndent)Testing $($Device.DeviceId)"
                         # First, check if there is a driver installed for the device at all before proceeding (issue#24)
                         if ($Device.Problem -eq 'CM_PROB_FAILED_INSTALL') {
@@ -183,10 +181,10 @@
                                     Write-Debug "$('- ' * $DebugIndent)[Got: $DriverDate, Expected: $LenovoDate]"
                                     if ($DriverDate -ge $LenovoDate) {
                                         Write-Debug "$('- ' * $DebugIndent)Passed DriverDate test"
-                                        $PerDeviceTestResults.Add($true)
+                                        $TestResults.Add($true)
                                     } else {
                                         Write-Debug "$('- ' * $DebugIndent)Failed DriverDate test"
-                                        $PerDeviceTestResults.Add($false)
+                                        $TestResults.Add($false)
                                     }
                                 } else {
                                     Write-Verbose "Device '$($Device.InstanceId)' does not report its driver date"
@@ -203,26 +201,18 @@
                                 Write-Debug "$('- ' * $DebugIndent)[Got: $DriverVersion, Expected: $($Dependency.Version)]"
                                 if ((Test-VersionPattern -LenovoString $Dependency.Version -SystemString $DriverVersion) -eq 0) {
                                     Write-Debug "$('- ' * $DebugIndent)Passed DriverVersion test"
-                                    $PerDeviceTestResults.Add($true)
+                                    $TestResults.Add($true)
                                 } else {
                                     Write-Debug "$('- ' * $DebugIndent)Failed DriverVersion test"
-                                    $PerDeviceTestResults.Add($false)
+                                    $TestResults.Add($false)
                                 }
                             } else {
                                 Write-Verbose "Device '$($Device.InstanceId)' does not report its driver version"
                             }
                         }
-
-                        # If all HardwareID-tests were successful for even just one HardwareID, return SUCCESS
-                        if ($env:LSUCLIENT_PASS_DRIVER_ONE_HARDWAREID -and -not ($PerDeviceTestResults -contains $false)) {
-                            return 0 #SUCCESS
-                        }
-
-                        $TestResults.AddRange($PerDeviceTestResults)
-                        ## end of foreach device loop
                     }
 
-                    # If all HardwareID-tests were successful for ALL HardwareIDs, return SUCCESS
+                    # If all HardwareID-tests were successful, return SUCCESS
                     if (-not ($TestResults -contains $false)) {
                         return 0 #SUCCESS
                     }
