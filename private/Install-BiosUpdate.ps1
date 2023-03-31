@@ -31,6 +31,10 @@
                     $LogLastNonEmpty = [array]::FindLastIndex([string[]]$Log, $NonEmptyPredicate)
                     $Log[$LogFirstNonEmpty..$LogLastNonEmpty]
                 }
+            } else {
+                # Ensures LogMessage is not null or AutomationNull (#84)
+                # See: https://github.com/PowerShell/PowerShell/issues/10426 and https://github.com/PowerShell/PowerShell/issues/19402
+                ""
             }
 
             return [ExternalProcessResult]::new(
