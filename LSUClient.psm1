@@ -206,13 +206,17 @@ class PackageInstallInfo {
     [ValidateNotNullOrEmpty()]
     [string] $InstallType
     [int64[]] $SuccessCodes
+    [string[]] $FailureCodes # FailureCodes are hex values, so need to be strings
+    [int64[]] $CancelCodes
     [string] $InfFile
     [string] $ExtractCommand
     [string] $Command
 
     PackageInstallInfo ([System.Xml.XmlElement]$PackageXML) {
-        $this.InstallType    = $PackageXML.Install.type
-        $this.SuccessCodes   = $PackageXML.Install.rc -split ','
+        $this.InstallType    = $PackageXML.Install.GetAttribute('type')
+        $this.SuccessCodes   = $PackageXML.Install.GetAttribute('rc') -split ','
+        $this.FailureCodes   = $PackageXML.Install.GetAttribute('rcfailure') -split ','
+        $this.CancelCodes    = $PackageXML.Install.GetAttribute('rccancel') -split ','
         $this.InfFile        = $PackageXML.Install.INFCmd.INFfile
         $this.ExtractCommand = $PackageXML.ExtractCommand
         $this.Command        = $PackageXML.Install.Cmdline.'#text'

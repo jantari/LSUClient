@@ -116,6 +116,16 @@
                         }
                     )
 
+                    $FailureReason = if ($installProcess.Err) {
+                        "$($installProcess.Err)"
+                    } elseif ($installProcess.Info.ExitCode -in $PackageToProcess.Installer.CancelCodes) {
+                        'CANCELLED_BY_USER'
+                    } elseif (-not $Success) {
+                        'INSTALLER_EXITCODE'
+                    } else {
+                        ''
+                    }
+
                     $PendingAction = if (-not $Success) {
                         'NONE'
                     } elseif ($installProcess.Info -is [BiosUpdateInfo]) {
@@ -137,7 +147,7 @@
                         Title          = $PackageToProcess.Title
                         Type           = $PackageToProcess.Type
                         Success        = $Success
-                        FailureReason  = if ($installProcess.Err) { "$($installProcess.Err)" } elseif (-not $Success) { 'INSTALLER_EXITCODE' } else { '' }
+                        FailureReason  = $FailureReason
                         PendingAction  = $PendingAction
                         ExitCode       = $installProcess.Info.ExitCode
                         StandardOutput = $installProcess.Info.StandardOutput
