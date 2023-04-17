@@ -30,7 +30,7 @@
             'Height'     = $RECT.Bottom - $RECT.Top
             'IsVisible'  = $IsVisible
             'IsDisabled' = ($style -band $WS_DISABLED) -eq $WS_DISABLED
-            'Style'      = $style
+            'StyleHex'   = '0x{0:X8}' -f $style
             'UIAWindowTitle' = ''
             'UIAElements'    = @()
         }
@@ -155,7 +155,10 @@
                 })
             }
 
-            Write-Debug "    ThreadWindow ${window}, IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.Style), Size: $($WindowInfo.Width) x $($WindowInfo.Height):"
+            # Even if a window is not interactable (not visible and/or disabled) it is worth logging in debug mode,
+            # because for example windows in session 0 will never be visible or interactable but can still open and cause a hang
+            Write-Debug "    ThreadWindow ${window}, Title: $($WindowInfo.UIAWindowTitle)"
+            Write-Debug "      IsVisible: $($WindowInfo.IsVisible), IsDisabled: $($WindowInfo.IsDisabled), Style: $($WindowInfo.StyleHex), Size: $($WindowInfo.Width) x $($WindowInfo.Height):"
             Write-Debug "      UIA Info: Got $($WindowInfo.UIAElements.Count) UIAElements from this window handle:"
             foreach ($UIAElement in $WindowInfo.UIAElements) {
                 if ($UIAElement.Text) {
