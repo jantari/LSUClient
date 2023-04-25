@@ -214,9 +214,9 @@ class PackageInstallInfo {
 
     PackageInstallInfo ([System.Xml.XmlElement]$PackageXML) {
         $this.InstallType    = $PackageXML.Install.GetAttribute('type')
-        $this.SuccessCodes   = $PackageXML.Install.GetAttribute('rc') -split ','
-        $this.FailureCodes   = $PackageXML.Install.GetAttribute('rcfailure') -split ','
-        $this.CancelCodes    = $PackageXML.Install.GetAttribute('rccancel') -split ','
+        $this.SuccessCodes   = $PackageXML.Install.GetAttribute('rc').Split(',').Where({ $_ }) # Avoids issue #87
+        $this.FailureCodes   = $PackageXML.Install.GetAttribute('rcfailure').Split(',')
+        $this.CancelCodes    = $PackageXML.Install.GetAttribute('rccancel').Split(',').Where({ $_ }) # Avoids issue #87
         $this.InfFile        = $PackageXML.Install.INFCmd.INFfile
         $this.ExtractCommand = $PackageXML.ExtractCommand
         $this.Command        = $PackageXML.Install.Cmdline.'#text'
