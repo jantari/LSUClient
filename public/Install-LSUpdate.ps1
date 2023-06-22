@@ -34,12 +34,12 @@
     [OutputType('PackageInstallResult')]
     Param (
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
-        [pscustomobject]$Package,
+        [PSCustomObject]$Package,
         [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
         [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages",
         [switch]$SaveBIOSUpdateInfoToRegistry,
         [Uri]$Proxy = $script:LSUClientConfiguration.Proxy,
-        [pscredential]$ProxyCredential = $script:LSUClientConfiguration.ProxyCredential,
+        [PSCredential]$ProxyCredential = $script:LSUClientConfiguration.ProxyCredential,
         [switch]$ProxyUseDefaultCredentials = $script:LSUClientConfiguration.ProxyUseDefaultCredentials
     )
 

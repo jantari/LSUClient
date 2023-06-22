@@ -6,16 +6,19 @@
         downloaded, if it is a filesystem file it is copied to the destination.
 
         Saving directories recursively with this function is not supported.
+
+        .PARAMETER SourceFile
+        A PackageFilePointer object
     #>
     [CmdletBinding()]
     [OutputType('System.String')]
     Param (
         [Parameter( Mandatory = $true )]
-        [PackageFilePointer]$SourceFile,
+        [PSCustomObject]$SourceFile,
         [Parameter( Mandatory = $true )]
         [string]$Directory,
         [Uri]$Proxy,
-        [pscredential]$ProxyCredential,
+        [PSCredential]$ProxyCredential,
         [switch]$ProxyUseDefaultCredentials
     )
 

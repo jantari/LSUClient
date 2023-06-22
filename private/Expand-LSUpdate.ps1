@@ -1,7 +1,7 @@
 ﻿function Expand-LSUpdate {
     Param (
         [Parameter( Mandatory = $true )]
-        [pscustomobject]$Package,
+        [PSCustomObject]$Package,
         [Parameter( Mandatory = $true )]
         [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
         [string]$WorkingDirectory

@@ -79,7 +79,7 @@
     Param (
         [string]$Model,
         [Uri]$Proxy = $script:LSUClientConfiguration.Proxy,
-        [pscredential]$ProxyCredential = $script:LSUClientConfiguration.ProxyCredential,
+        [PSCredential]$ProxyCredential = $script:LSUClientConfiguration.ProxyCredential,
         [switch]$ProxyUseDefaultCredentials = $script:LSUClientConfiguration.ProxyUseDefaultCredentials,
         [switch]$All,
         [switch]$IncludePhantomDevices,

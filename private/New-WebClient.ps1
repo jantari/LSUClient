@@ -8,7 +8,7 @@
     [OutputType('System.Net.WebClient')]
     Param (
         [Uri]$Proxy,
-        [pscredential]$ProxyCredential,
+        [PSCredential]$ProxyCredential,
         [switch]$ProxyUseDefaultCredentials
     )
 

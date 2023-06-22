@@ -35,9 +35,9 @@
     [CmdletBinding()]
     Param (
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
-        [pscustomobject]$Package,
+        [PSCustomOobject]$Package,
         [Uri]$Proxy = $script:LSUClientConfiguration.Proxy,
-        [pscredential]$ProxyCredential = $script:LSUClientConfiguration.ProxyCredential,
+        [PSCredential]$ProxyCredential = $script:LSUClientConfiguration.ProxyCredential,
         [switch]$ProxyUseDefaultCredentials = $script:LSUClientConfiguration.ProxyUseDefaultCredentials,
         [switch]$ShowProgress,
         [switch]$Force,
