@@ -322,7 +322,7 @@ class PackageInstallResult {
 # Internal
 class MachineCharacteristics {
     [string]${_OS}
-    [PSObject]${_WindowsBuildVersion}
+    [Int32]${_WindowsBuildVersion}
     [UInt16]${_CPUAddressWidth}
     [string]${_Bios}
     [Object[]]${_PnPID}
