@@ -18,10 +18,10 @@
     Write-Verbose "Looking for packages in repository '${Repository}' (Type: ${RepositoryType})"
 
     if ($RepositoryType -eq 'HTTP') {
-        $ModelXmlPath    = $Repository.TrimEnd('/', '\') + "/${Model}_Win$($CachedHardwareTable['_OS']).xml"
+        $ModelXmlPath    = $Repository.TrimEnd('/', '\') + "/${Model}_Win$($CachedHardwareTable._OS).xml"
         $DatabaseXmlPath = $Repository.TrimEnd('/', '\') + '/database.xml'
     } elseif ($RepositoryType -eq 'FILE') {
-        $ModelXmlPath    = Join-Path -Path $Repository -ChildPath "${Model}_Win$($CachedHardwareTable['_OS']).xml"
+        $ModelXmlPath    = Join-Path -Path $Repository -ChildPath "${Model}_Win$($CachedHardwareTable._OS).xml"
         $DatabaseXmlPath = Join-Path -Path $Repository -ChildPath "database.xml"
     }
 
@@ -94,7 +94,7 @@
 
         :NextPackage foreach ($Package in $PARSEDXML.Database.package) {
             foreach ($CompatibleSystem in $Package.SystemCompatibility.System) {
-                if ($CompatibleSystem.mtm -eq $Model -and $CompatibleSystem.os -eq "Windows $($CachedHardwareTable['_OS'])") {
+                if ($CompatibleSystem.mtm -eq $Model -and $CompatibleSystem.os -eq "Windows $($CachedHardwareTable._OS)") {
                     $PathInfo = Get-PackagePathInfo -Path $Package.LocalPath -BasePath $Repository
                     if ($PathInfo.Valid) {
                         [PackageXmlPointer]::new(

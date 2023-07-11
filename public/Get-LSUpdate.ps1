@@ -85,6 +85,7 @@
         [switch]$IncludePhantomDevices,
         [System.IO.DirectoryInfo]$ScratchDirectory = $env:TEMP,
         [string]$Repository = 'https://download.lenovo.com/catalog',
+        [Hashtable]$MachineCharacteristicsOverride = @{},
         [switch]$NoTestApplicable,
         [switch]$NoTestInstalled,
         [switch]$NoTestSeverityOverride,
@@ -129,16 +130,9 @@
 
         $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
 
-        [Version]$WindowsVersion = Get-WindowsVersion
-        $SMBiosInformation = Get-CimInstance -ClassName Win32_BIOS -Verbose:$false
-        $script:CachedHardwareTable = @{
-            '_OS'                        = if ($WindowsVersion -ge [Version]::new(10, 0, 22000, 0)) { '11' } else { '10' }
-            '_WindowsBuildVersion'       = $WindowsVersion.Build
-            '_CPUAddressWidth'           = [wmisearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
-            '_Bios'                      = $SMBiosInformation.SMBIOSBIOSVersion
-            '_PnPID'                     = if ($IncludePhantomDevices) { Get-PnpDevice } else { Get-PnpDevice -PresentOnly }
-            '_EmbeddedControllerVersion' = @($SMBiosInformation.EmbeddedControllerMajorVersion, $SMBiosInformation.EmbeddedControllerMinorVersion) -join '.'
-        }
+        New-Variable -Name CachedHardwareTable -Option AllScope, ReadOnly -Value (
+            $script:CachedHardwareTable = [MachineCharacteristics]::new($IncludePhantomDevices, $MachineCharacteristicsOverride)
+        )
 
         # Create a random subdirectory inside ScratchDirectory and use that instead, so we can safely delete it later without taking user data with us
         do {

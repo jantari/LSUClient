@@ -28,7 +28,6 @@ if ($WindowsVersion -notlike "10.*") {
     throw "This module requires Windows 10 or 11."
 }
 
-$script:CachedHardwareTable = @{}
 $script:LSUClientConfiguration = [LSUClientConfiguration]::new()
 
 [int]$script:XMLTreeDepth = 0
@@ -318,6 +317,60 @@ class PackageInstallResult {
     [string[]] $StandardError
     [string[]] $LogOutput
     [TimeSpan] $Runtime
+}
+
+# Internal
+class MachineCharacteristics {
+    [string]${_OS}
+    [PSObject]${_WindowsBuildVersion}
+    [UInt16]${_CPUAddressWidth}
+    [string]${_Bios}
+    [Object[]]${_PnPID}
+    [string]${_EmbeddedControllerVersion}
+
+    MachineCharacteristics (
+        [bool]$IncludePhantomDevices,
+        [hashtable]$Overrides
+    ) {
+        [Version]$WindowsVersion = Get-WindowsVersion
+        $SMBiosInformation = Get-CimInstance -ClassName Win32_BIOS -Verbose:$false
+
+        if ($Overrides.ContainsKey('_OS')) {
+            $this._OS = $Overrides['_OS']
+        } else {
+            $this._OS = if ($WindowsVersion -ge [Version]::new(10, 0, 22000, 0)) { '11' } else { '10' }
+        }
+
+        if ($Overrides.ContainsKey('_WindowsBuildVersion')) {
+            $this._WindowsBuildVersion = $Overrides['_WindowsBuildVersion']
+        } else {
+            $this._WindowsBuildVersion = $WindowsVersion.Build
+        }
+
+        if ($Overrides.ContainsKey('_CPUAddressWidth')) {
+            $this._CPUAddressWidth = $Overrides['_CPUAddressWidth']
+        } else {
+            $this._CPUAddressWidth = [wmisearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
+        }
+
+        if ($Overrides.ContainsKey('_Bios')) {
+            $this._Bios = $Overrides['_Bios']
+        } else {
+            $this._Bios = $SMBiosInformation.SMBIOSBIOSVersion
+        }
+
+        if ($Overrides.ContainsKey('_PnPID')) {
+            $this._PnPID = $Overrides['_PnPID']
+        } else {
+            $this._PnPID = if ($IncludePhantomDevices) { Get-PnpDevice } else { Get-PnpDevice -PresentOnly }
+        }
+
+        if ($Overrides.ContainsKey('_EmbeddedControllerVersion')) {
+            $this._EmbeddedControllerVersion = $Overrides['_EmbeddedControllerVersion']
+        } else {
+            $this._EmbeddedControllerVersion = @($SMBiosInformation.EmbeddedControllerMajorVersion, $SMBiosInformation.EmbeddedControllerMinorVersion) -join '.'
+        }
+    }
 }
 
 if (-not ('LSUClient.ImportTest' -as [Type])) {

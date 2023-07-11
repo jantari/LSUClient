@@ -16,9 +16,9 @@
 
     switch ($Dependency.SchemaInfo.Name) {
         '_Bios' {
-            Write-Debug "$('- ' * $DebugIndent)[ Got: $($CachedHardwareTable['_Bios']) ]"
+            Write-Debug "$('- ' * $DebugIndent)[ Got: $($CachedHardwareTable._Bios) ]"
             foreach ($entry in $Dependency.Level) {
-                if ($CachedHardwareTable['_Bios'] -like "$entry*") {
+                if ($CachedHardwareTable._Bios -like "$entry*") {
                     return 0
                 }
             }
@@ -39,8 +39,8 @@
             return -1
         }
         '_CPUAddressWidth' {
-            Write-Debug "$('- ' * $DebugIndent)[ Got: $($CachedHardwareTable['_CPUAddressWidth']), Expected: $($dependency.AddressWidth) ]"
-            if ($CachedHardwareTable['_CPUAddressWidth'] -like "$($Dependency.AddressWidth)*") {
+            Write-Debug "$('- ' * $DebugIndent)[ Got: $($CachedHardwareTable._CPUAddressWidth), Expected: $($dependency.AddressWidth) ]"
+            if ($CachedHardwareTable._CPUAddressWidth -like "$($Dependency.AddressWidth)*") {
                 return 0
             } else {
                 return -1
@@ -59,7 +59,7 @@
                 [System.Collections.Generic.List[object]]$DevicesMatchedWildcard = [System.Collections.Generic.List[object]]::new()
                 [System.Collections.Generic.List[object]]$DevicesToTest = [System.Collections.Generic.List[object]]::new()
 
-                :NextDevice foreach ($DeviceInMachine in $CachedHardwareTable['_PnPID']) {
+                :NextDevice foreach ($DeviceInMachine in $CachedHardwareTable._PnPID) {
                     [bool]$DeviceHwIdWildcardMatched = $false
 
                     foreach ($HardwareInMachine in $DeviceInMachine.HardwareID) {
@@ -244,11 +244,11 @@
             return -1
         }
         '_EmbeddedControllerVersion' {
-            if ($CachedHardwareTable['_EmbeddedControllerVersion']) {
-                if ($CachedHardwareTable['_EmbeddedControllerVersion'] -eq '255.255') {
+            if ($CachedHardwareTable._EmbeddedControllerVersion) {
+                if ($CachedHardwareTable._EmbeddedControllerVersion -eq '255.255') {
                     Write-Warning "This computers EC firmware is not upgradable but is being used to evaluate a package"
                 }
-                return (Test-VersionPattern -LenovoString $Dependency.Version -SystemString $CachedHardwareTable['_EmbeddedControllerVersion'])
+                return (Test-VersionPattern -LenovoString $Dependency.Version -SystemString $CachedHardwareTable._EmbeddedControllerVersion)
             }
             return -1
         }
@@ -299,7 +299,7 @@
             # the XML differently (.Version can be string or XmlElement). Using SelectNode is consistent.
             [string]$LenovoVersion    = $Dependency.SelectSingleNode('Version').'#text'
             [bool]$LenovoVersionIsHex = $Dependency.SelectSingleNode('Version').GetAttribute('hex2dec') -eq 'True'
-            foreach ($PnpDevice in $CachedHardwareTable['_PnPID']) {
+            foreach ($PnpDevice in $CachedHardwareTable._PnPID) {
                 foreach ($entry in $Dependency.HardwareIDs) {
                     # Only exact HardwareID matches will be found (no wildcards)
                     if ($entry.'#cdata-section' -in $PnpDevice.HardwareID) {
@@ -321,7 +321,7 @@
         }
         '_OS' {
             foreach ($entry in $Dependency.OS) {
-                if ("$entry" -like "WIN$($CachedHardwareTable['_OS'])*") {
+                if ("$entry" -like "WIN$($CachedHardwareTable._OS)*") {
                     return 0
                 }
             }
@@ -335,7 +335,7 @@
             }
         }
         '_PnPID' {
-            foreach ($HardwareID in $CachedHardwareTable['_PnPID'].HardwareID) {
+            foreach ($HardwareID in $CachedHardwareTable._PnPID.HardwareID) {
                 if ($HardwareID -like "*$($Dependency.'#cdata-section')*") {
                     return 0
                 }
@@ -380,8 +380,8 @@
         '_WindowsBuildVersion' {
             # A _WindowsBuildVersion test can specify multiple Build Versions, see issue #42
             [array]$TestResults = foreach ($DependencyVersion in $Dependency.Version) {
-                Write-Debug "$('- ' * $DebugIndent)[ Got: $($CachedHardwareTable['_WindowsBuildVersion']), Expected: $DependencyVersion ]"
-                Test-VersionPattern -LenovoString $DependencyVersion -SystemString $CachedHardwareTable['_WindowsBuildVersion']
+                Write-Debug "$('- ' * $DebugIndent)[ Got: $($CachedHardwareTable._WindowsBuildVersion), Expected: $DependencyVersion ]"
+                Test-VersionPattern -LenovoString $DependencyVersion -SystemString $CachedHardwareTable._WindowsBuildVersion
             }
 
             # If we had a clear success match, return success overall.
