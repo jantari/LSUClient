@@ -46,7 +46,14 @@
         $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials:$ProxyUseDefaultCredentials
 
         Write-Verbose "Downloading '$($SourceFile.AbsoluteLocation)' to '${DownloadDest}'"
-        $webClient.DownloadFile($SourceFile.AbsoluteLocation, $DownloadDest)
+        # Catch all possible .NET Exceptions from this method call and reduce them to a "PowerShell-error" which will respect ErrorAction.
+        # See: https://github.com/MicrosoftDocs/PowerShell-Docs/issues/1583 and https://github.com/jantari/LSUClient/issues/90
+        try {
+            $webClient.DownloadFile($SourceFile.AbsoluteLocation, $DownloadDest)
+        }
+        catch {
+            $PSCmdlet.WriteError($_)
+        }
 
         return $DownloadDest
     } elseif ($SourceFile.LocationType -eq 'FILE') {
