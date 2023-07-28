@@ -29,7 +29,7 @@ Describe 'Save-PackageFile' {
             $return | Should -BeOfType System.String
         }
     }
-    It "Fails when a file doesn't exist (HTTP)" {
+    It "Respects ErrorAction when a file doesn't exist (HTTP)" {
         InModuleScope LSUClient {
             $MockFile = [PackageFilePointer]::new(
                 'doesntexist.mockfile', # Name
@@ -40,7 +40,13 @@ Describe 'Save-PackageFile' {
                 123 # Size
             )
 
-            { Save-PackageFile -SourceFile $MockFile -Directory $ENV:TEMP } | Should -Throw '*404*'
+            # Validate the 404 error is non-terminating with ErrorAction Continue or SilentlyContinue
+            $null = Save-PackageFile -SourceFile $MockFile -Directory $ENV:TEMP -ErrorAction SilentlyContinue -ErrorVariable spfErrors
+            $spfErrors.Count | Should -Not -Be 0
+            $spfErrors | Should -BeLike "*404*"
+
+            # Validate the error becomes terminating with ErrorAction Stop
+            { Save-PackageFile -SourceFile $MockFile -Directory $ENV:TEMP -ErrorAction Stop } | Should -Throw '*404*'
         }
     }
     It 'Fetch a file and return its path (FILE)' {
@@ -68,7 +74,7 @@ Describe 'Save-PackageFile' {
             $return | Should -BeOfType System.String
         }
     }
-    It "Fails when a file doesn't exist (FILE)" {
+    It "Respects ErrorAction when a file doesn't exist (FILE)" {
         InModuleScope LSUClient {
             $MockFile = [PackageFilePointer]::new(
                 'doesntexist.mockfile', # Name
@@ -79,6 +85,12 @@ Describe 'Save-PackageFile' {
                 123 # Size
             )
 
+            # Validate the error is non-terminating with ErrorAction Continue or SilentlyContinue
+            $null = Save-PackageFile -SourceFile $MockFile -Directory $ENV:TEMP -ErrorAction SilentlyContinue -ErrorVariable spfErrors
+            $spfErrors.Count | Should -Not -Be 0
+            $spfErrors | Should -BeLike "Cannot find*"
+
+            # Validate the error becomes terminating with ErrorAction Stop
             { Save-PackageFile -SourceFile $MockFile -Directory $ENV:TEMP -ErrorAction Stop } | Should -Throw 'Cannot find*'
         }
     }
