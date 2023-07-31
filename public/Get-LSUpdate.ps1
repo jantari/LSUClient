@@ -37,6 +37,9 @@
         .PARAMETER Repository
         The path to a package repository. This can either be an HTTP(S) URL pointing to a webserver or a filesystem path to a directory.
 
+        .PARAMETER MachineCharacteristicsOverride
+        Advanced usage: Pass a Hashtable to override information about the computer that is used to evaluate packages.
+
         .PARAMETER NoTestApplicable
         Do not check whether packages are applicable to the computer. The IsApplicable property of the package objects will be set to $null.
         This switch is only available together with -All.
