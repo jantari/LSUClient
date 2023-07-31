@@ -350,7 +350,7 @@ class MachineCharacteristics {
         if ($Overrides.ContainsKey('_CPUAddressWidth')) {
             $this._CPUAddressWidth = $Overrides['_CPUAddressWidth']
         } else {
-            $this._CPUAddressWidth = [wmisearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
+            $this._CPUAddressWidth = [System.Management.ManagementObjectSearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth
         }
 
         if ($Overrides.ContainsKey('_Bios')) {
