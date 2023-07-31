@@ -136,8 +136,15 @@
                         }
                     } elseif ($PackageToProcess.RebootType -eq 0) {
                         'NONE'
+                    } elseif ($PackageToProcess.RebootType -eq 1) {
+                        # RebootType 1 updates should force a reboot on their own, interrupting LSUClient anyway,
+                        # but this can lead to race conditions (how fast does the reboot happen, killing LSUClient before this point?)
+                        # or maybe the reboot doesn't happen for some reason so we still communicate that it's needed. See issue #94.
+                        'REBOOT_MANDATORY'
                     } elseif ($PackageToProcess.RebootType -eq 3) {
                         'REBOOT_SUGGESTED'
+                    } elseif ($PackageToProcess.RebootType -eq 4) {
+                        'SHUTDOWN'
                     } elseif ($PackageToProcess.RebootType -eq 5) {
                         'REBOOT_MANDATORY'
                     }
