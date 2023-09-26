@@ -40,7 +40,17 @@
             )
         }
 
-        $testPathRelative = Join-Path -Path $WorkingDirectory -ChildPath $testPath
+        # In PowerShell 7.3 and 7.4 Join-Path throws an exception (not a PowerShell error, a .NET exception)
+        # when it tries to combine certain invalid paths (e.g. Join-Path -Path 'C:\' -ChildPath 'C:\ /x:').
+        # These exceptions are not influenced by ErrorAction, so we need a try-catch. We still set ErrorAction
+        # to Stop because whenever Join-Path doesn't succeed for any reason, we can always skip and continue
+        # in the loop because there won't be a new path to test in testPathRelative. See issue #96.
+        try {
+            $testPathRelative = Join-Path -Path $WorkingDirectory -ChildPath $testPath -ErrorAction Stop
+        }
+        catch [System.IO.IOException] {
+            continue
+        }
 
         if ( [System.IO.File]::Exists($testPathRelative) ) {
             return @(
