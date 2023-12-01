@@ -25,7 +25,11 @@
         $DatabaseXmlPath = Join-Path -Path $Repository -ChildPath "database.xml"
     }
 
-    if ((Get-PackagePathInfo -Path $ModelXmlPath -TestURLReachable).Reachable) {
+    # Used as pipeline OutVariables
+    $ModelXmlPathInfo    = $null
+    $DatabaseXmlPathInfo = $null
+
+    if ((Get-PackagePathInfo -Path $ModelXmlPath -TestURLReachable -OutVariable ModelXmlPathInfo).Reachable) {
         Write-Verbose "Getting packages from the model xml file ${ModelXmlPath}"
         if ($RepositoryType -eq 'HTTP') {
             # Model XML method for web based repositories
@@ -67,7 +71,7 @@
                 Write-Error "The package definition at $($Package.location) could not be found or accessed"
             }
         }
-    } elseif ((Get-PackagePathInfo -Path $DatabaseXmlPath -TestURLReachable).Reachable) {
+    } elseif ((Get-PackagePathInfo -Path $DatabaseXmlPath -TestURLReachable -OutVariable DatabaseXmlPathInfo).Reachable) {
         Write-Debug "Getting packages from the database xml file ${DatabaseXmlPath}"
         if ($RepositoryType -eq 'HTTP') {
             $webClient = New-WebClient -Proxy $Proxy -ProxyCredential $ProxyCredential -ProxyUseDefaultCredentials:$ProxyUseDefaultCredentials
@@ -114,6 +118,8 @@
             Write-Debug "Discovered package $($Package.LocalPath) is not applicable to the computer model and OS"
         }
     } else {
-        Write-Warning "The repository '${Repository}' did not contain either a '${Model}_Win10.xml' or 'database.xml' file to get packages from"
+        Write-Warning "The repository '${Repository}' did not contain either a '${Model}_Win$($CachedHardwareTable._OS).xml' or 'database.xml' file to get packages from"
+        Write-Warning "Could not get ${Model}_Win$($CachedHardwareTable._OS).xml: $($ModelXmlPathInfo.ErrorMessage)"
+        Write-Warning "Could not get database.xml: $($DatabaseXmlPathInfo.ErrorMessage)"
     }
 }

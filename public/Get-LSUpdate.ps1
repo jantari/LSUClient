@@ -126,9 +126,9 @@
             Write-Warning "Unfortunately, this command produces most accurate results when run as an Administrator`r`nbecause some of the commands Lenovo uses to detect your computers hardware have to run as admin :("
         }
 
-        $RepositoryInfo = Get-PackagePathInfo -Path $Repository -ErrorVariable InvalidRepositoryReason
+        $RepositoryInfo = Get-PackagePathInfo -Path $Repository
         if (-not $RepositoryInfo.Valid) {
-            throw "Repository '${Repository}' refers to an invalid location: $InvalidRepositoryReason"
+            throw "Repository '${Repository}' refers to an invalid location: $($RepositoryInfo.ErrorMessage)"
         }
 
         $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))

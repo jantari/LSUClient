@@ -27,6 +27,7 @@
         'Reachable'        = $false
         'Type'             = 'Unknown'
         'AbsoluteLocation' = ''
+        'ErrorMessage'     = ''
     }
 
     Write-Debug "Resolving file path '$Path'"
@@ -82,8 +83,13 @@
                     }
                     $response.Dispose()
                 }
+                # Catching the (most common) WebException separately just makes the error message nicer as
+                # it won't have the extra 'Exception calling "GetResponse" with "0" argument(s)' text in it.
+                catch [System.Net.WebException] {
+                    $PathInfo.ErrorMessage = "URL ${UriToUse} is not reachable: $($_.FullyQualifiedErrorId): $_"
+                }
                 catch {
-                    Write-Debug "Could not connect to URL ${UriToUse}: $_"
+                    $PathInfo.ErrorMessage = "URL ${UriToUse} is not reachable: $($_.FullyQualifiedErrorId): $_"
                 }
             }
 
@@ -109,9 +115,7 @@
             $PathInfo.Type = 'FILE'
             $PathInfo.AbsoluteLocation = (Get-Item -LiteralPath $JoinedPath).FullName
         } else {
-            # Writing an error with ErrorAction SilentlyContinue has the purpose of adding it to
-            # ErrorVariable (and the global $ERROR) but not returning it via the pipeline
-            Write-Error "'$Path' is not a supported URL and does not exist as a filesystem path" -ErrorAction SilentlyContinue
+            $PathInfo.ErrorMessage = "'$Path' is not a supported URL and does not exist as a filesystem path"
         }
     }
 
