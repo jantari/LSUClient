@@ -6,13 +6,16 @@
         [Parameter( Mandatory = $true )]
         [string]$PackagePath,
         [switch]$TreatUnsupportedAsPassed,
-        [switch]$FailInboxDrivers
+        [switch]$FailInboxDrivers,
+        [switch]$ParentNodeIsAnd
     )
 
     $XMLTreeDepth++
     [DependencyParserState]$ParserState = 0
 
+    $i = 0
     foreach ($XMLTREE in $XMLIN) {
+        $i++
         Write-Debug "$('- ' * $XMLTreeDepth )|> Node: $($XMLTREE.SchemaInfo.Name)"
 
         if ($XMLTREE.SchemaInfo.Name -eq 'Not') {
@@ -34,7 +37,7 @@
                 }
             }
         } else {
-            $SubtreeResults = Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -PackagePath $PackagePath -TreatUnsupportedAsPassed:$TreatUnsupportedAsPassed -FailInboxDrivers:$FailInboxDrivers
+            $SubtreeResults = Resolve-XMLDependencies -XMLIN $XMLTREE.ChildNodes -PackagePath $PackagePath -TreatUnsupportedAsPassed:$TreatUnsupportedAsPassed -FailInboxDrivers:$FailInboxDrivers -ParentNodeIsAnd:($XMLTREE.SchemaInfo.Name -eq 'And')
             switch ($XMLTREE.SchemaInfo.Name) {
                 'And' {
                     Write-Debug "$('- ' * $XMLTreeDepth)Tree was AND: Results: $subtreeresults"
@@ -50,6 +53,11 @@
         Write-Debug "$('- ' * $XMLTreeDepth)< Returning $($Result -bxor $ParserState) from node $($XMLTREE.SchemaInfo.Name)"
 
         $Result -bxor $ParserState
+        if ($ParentNodeIsAnd -and $i -ne $XMLIN.Count -and -not ($Result -bxor $ParserState)) {
+            Write-Debug "$('- ' * $XMLTreeDepth)Quitting AND evaluation early because we already got one FALSE."
+            $ParserState = 0 # DO_HAVE
+            break;
+        }
         $ParserState = 0 # DO_HAVE
     }
 
