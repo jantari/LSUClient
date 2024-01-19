@@ -353,7 +353,7 @@ class MachineCharacteristics {
             # Get() always returns an indexable ManagementObjectCollection and in case we are on a multi-socket machine or
             # VM we just take the first processors AddressWidth because I don't believe it is possible to run dual-socket
             # with mixed 32-bit and 64-bit processors. See issue #99.
-            $this._CPUAddressWidth = [System.Management.ManagementObjectSearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get()[0].AddressWidth
+            $this._CPUAddressWidth = [System.Management.ManagementObjectSearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth[0]
         }
 
         if ($Overrides.ContainsKey('_Bios')) {
