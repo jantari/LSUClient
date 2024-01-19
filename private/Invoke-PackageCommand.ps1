@@ -115,11 +115,13 @@
         $process.StartInfo.WorkingDirectory       = $WorkingDirectory
         $process.StartInfo.FileName               = $Executable
         $process.StartInfo.Arguments              = $Arguments
+        $process.StartInfo.RedirectStandardInput  = $true
         $process.StartInfo.RedirectStandardOutput = $true
         $process.StartInfo.RedirectStandardError  = $true
 
         if ($FallbackToShellExecute) {
             $process.StartInfo.UseShellExecute        = $true
+            $process.StartInfo.RedirectStandardInput  = $false
             $process.StartInfo.RedirectStandardOutput = $false
             $process.StartInfo.RedirectStandardError  = $false
         }
@@ -154,6 +156,8 @@
                 # See issue #25 and https://stackoverflow.com/questions/11531068/powershell-capturing-standard-out-and-error-with-process-object
                 $StdOutAsync = $process.StandardOutput.ReadToEndAsync()
                 $StdErrAsync = $process.StandardError.ReadToEndAsync()
+                # https://github.com/jantari/LSUClient/issues/103
+                $process.StandardInput.Close()
             }
 
             $process.WaitForExit()
