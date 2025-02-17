@@ -425,7 +425,7 @@
         )
     }
 
-    Write-Warning "An unexpected error occurred when trying to run the extenral process."
+    Write-Warning "An unexpected error occurred when trying to run the external process."
     return [ExternalProcessResult]::new(
         [ExternalProcessError]::UNKNOWN,
         $null
