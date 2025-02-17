@@ -15,7 +15,7 @@ Describe 'Expand-LSUpdate' {
 
             Mock -CommandName Invoke-PackageCommand -ModuleName LSUClient -Verifiable
 
-            Expand-LSUpdate -Package $MockPackage -WorkingDirectory "$PWD" -WarningAction Ignore | Should -Invoke Invoke-PackageCommand -Times 1 -Exactly -ParameterFilter {
+            Expand-LSUpdate -Package $MockPackage -Path "$PWD" -WarningAction Ignore | Should -Invoke Invoke-PackageCommand -Times 1 -Exactly -ParameterFilter {
                 $Command -eq 'NonExistantFile Bogus Arguments'
             }
         }
@@ -29,7 +29,7 @@ Describe 'Expand-LSUpdate' {
                 }
             }
 
-            Expand-LSUpdate -Package $MockPackage -WorkingDirectory "$PWD" -WarningAction Ignore | Should -Be $null
+            Expand-LSUpdate -Package $MockPackage -Path "$PWD" -WarningAction Ignore | Should -Be $null
         }
     }
     It 'Prints a warning' {
@@ -41,7 +41,7 @@ Describe 'Expand-LSUpdate' {
                 }
             }
 
-            Expand-LSUpdate -Package $MockPackage -WorkingDirectory "$PWD" -WarningVariable WARNING -WarningAction SilentlyContinue
+            Expand-LSUpdate -Package $MockPackage -Path "$PWD" -WarningVariable WARNING -WarningAction SilentlyContinue
             $warning | Should -Not -BeNullOrEmpty
         }
     }
