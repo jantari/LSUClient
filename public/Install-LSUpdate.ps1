@@ -71,7 +71,7 @@
                 continue
             }
 
-            Expand-LSUpdate -Package $PackageToProcess -WorkingDirectory $PackageDirectory
+            Expand-LSUpdate -Package $PackageToProcess -Path $Path
 
             Write-Verbose "Installing package $($PackageToProcess.ID) ..."
 
