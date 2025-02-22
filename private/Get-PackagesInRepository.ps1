@@ -65,7 +65,8 @@
                     'XmlDefinition',
                     $Package.checksum.'#text',
                     0,
-                    $Package.category
+                    $Package.category,
+                    'Active' # Model-XML files do not store a status for packages, so I've decided to default them all to 'Active' for usability
                 )
             } else {
                 Write-Error "The package definition at $($Package.location) could not be found or accessed"
@@ -99,18 +100,25 @@
         :NextPackage foreach ($Package in $PARSEDXML.Database.package) {
             foreach ($CompatibleSystem in $Package.SystemCompatibility.System) {
                 if ($CompatibleSystem.mtm -eq $Model -and $CompatibleSystem.os -eq "Windows $($CachedHardwareTable._OS)") {
-                    $PathInfo = Get-PackagePathInfo -Path $Package.LocalPath -BasePath $Repository
-                    if ($PathInfo.Valid) {
-                        [PackageXmlPointer]::new(
-                            $PathInfo.AbsoluteLocation,
-                            $PathInfo.Type,
-                            'XmlDefinition',
-                            $Package.checksum.'#text',
-                            0,
-                            $Package.category
-                        )
+                    # Updates in a database.xml repository have a 'Status' that can be set to 'Active', 'Hidden' and a few others.
+                    # Get-LSUpdate should not show updates that have been hidden, so we skip them. See issue #113.
+                    if ($Package.Status -ne 'Hidden') {
+                        $PathInfo = Get-PackagePathInfo -Path $Package.LocalPath -BasePath $Repository
+                        if ($PathInfo.Valid) {
+                            [PackageXmlPointer]::new(
+                                $PathInfo.AbsoluteLocation,
+                                $PathInfo.Type,
+                                'XmlDefinition',
+                                $Package.checksum.'#text',
+                                0,
+                                $Package.category,
+                                $Package.Status
+                            )
+                        } else {
+                            Write-Error "The package definition at $($Package.LocalPath) could not be found or accessed"
+                        }
                     } else {
-                        Write-Error "The package definition at $($Package.LocalPath) could not be found or accessed"
+                        Write-Verbose "Discovered package $($Package.LocalPath) is hidden and will be ignored"
                     }
                     continue NextPackage
                 }

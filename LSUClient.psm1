@@ -113,6 +113,7 @@ class PackageFilePointer {
 # Internal
 class PackageXmlPointer : PackageFilePointer {
     [string] $Category
+    [string] $Status
 
     # Constructor with file name
     PackageXmlPointer (
@@ -122,7 +123,8 @@ class PackageXmlPointer : PackageFilePointer {
         [string] $Kind,
         [string] $Checksum,
         [Int64] $Size,
-        [string] $Category
+        [string] $Category,
+        [string] $Status
     ) : base (
         $Name,
         $AbsoluteLocation,
@@ -132,6 +134,7 @@ class PackageXmlPointer : PackageFilePointer {
         $Size
     ) {
         $this.Category = $Category
+        $this.Status = $Status
     }
 
     # Constructor without explicit file name
@@ -141,7 +144,8 @@ class PackageXmlPointer : PackageFilePointer {
         [string] $Kind,
         [string] $Checksum,
         [Int64] $Size,
-        [string] $Category
+        [string] $Category,
+        [string] $Status
     ) : base (
         $AbsoluteLocation,
         $LocationType,
@@ -150,6 +154,7 @@ class PackageXmlPointer : PackageFilePointer {
         $Size
     ) {
         $this.Category = $Category
+        $this.Status = $Status
     }
 }
 
@@ -172,6 +177,7 @@ class LenovoPackage {
     [Severity] $Severity
     [DateTime] $ReleaseDate
     [int] $RebootType
+    [string] $Status
     [string] $Vendor
     [Int64] $Size
     [string] $URL

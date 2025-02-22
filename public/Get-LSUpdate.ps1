@@ -294,6 +294,7 @@
                 'Severity'     = $PackageSeverity
                 'ReleaseDate'  = [DateTime]::ParseExact($packageXML.Package.ReleaseDate, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None')
                 'RebootType'   = $packageXML.Package.Reboot.type
+                'Status'       = $Package.Status
                 'Vendor'       = $packageXML.Package.Vendor
                 'Size'         = $PackageSize
                 'URL'          = $Package.AbsoluteLocation
