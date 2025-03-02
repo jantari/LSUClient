@@ -1,16 +1,17 @@
 ﻿function Expand-LSUpdate {
     <#
         .SYNOPSIS
-        Extracts a packages installer.
+        Extracts package installers.
 
         .DESCRIPTION
-        Extracts a packages installer.
+        Extracts package installers.
 
         .PARAMETER Package
-        The Lenovo package object to extract
+        The Lenovo package or packages whose installer to extract
 
         .PARAMETER Path
-        The directory containing the package files to extract.
+        The directory containing the previously downloaded packages.
+        Use `Save-LSUpdate` to download packages.
     #>
     [CmdletBinding()]
     Param (
@@ -20,16 +21,27 @@
         [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages"
     )
 
-    if ($Package.Installer.ExtractCommand) {
-        Write-Verbose "Extracting package $($Package.ID) ..."
-        $PackageDirectory = Join-Path -Path $Path -ChildPath $Package.ID
-        $extractionProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $Package.Installer.ExtractCommand -RuntimeLimit $script:LSUClientConfiguration.MaxExtractRuntime
-        if ($extractionProcess.Err) {
-            Write-Warning "Extraction of package $($Package.ID) has failed!"
-        } elseif ($extractionProcess.Info.ExitCode -ne 0) {
-            Write-Warning "Extraction of package $($Package.ID) may have failed!"
+    begin {
+        if ($PSBoundParameters['Debug'] -and $DebugPreference -eq 'Inquire') {
+            Write-Verbose "Adjusting the DebugPreference to 'Continue'."
+            $DebugPreference = 'Continue'
         }
-    } else {
-        Write-Verbose "The package '$($Package.ID)' does not require extraction."
+    }
+
+    process {
+        foreach ($PackageToExtract in $Package) {
+            if ($PackageToExtract.Installer.ExtractCommand) {
+                Write-Verbose "Extracting package $($PackageToExtract.ID) ..."
+                $PackageDirectory = Join-Path -Path $Path -ChildPath $PackageToExtract.ID
+                $extractionProcess = Invoke-PackageCommand -Path $PackageDirectory -Command $PackageToExtract.Installer.ExtractCommand -RuntimeLimit $script:LSUClientConfiguration.MaxExtractRuntime
+                if ($extractionProcess.Err) {
+                    Write-Warning "Extraction of package $($PackageToExtract.ID) has failed!"
+                } elseif ($extractionProcess.Info.ExitCode -ne 0) {
+                    Write-Warning "Extraction of package $($PackageToExtract.ID) may have failed!"
+                }
+            } else {
+                Write-Verbose "The package '$($PackageToExtract.ID)' does not require extraction."
+            }
+        }
     }
 }
