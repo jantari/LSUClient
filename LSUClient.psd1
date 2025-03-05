@@ -3,7 +3,7 @@
     RootModule = 'LSUClient.psm1'
 
     # Version number of this module.
-    ModuleVersion = '1.6.2'
+    ModuleVersion = '1.7.0'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
