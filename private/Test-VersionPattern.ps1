@@ -66,6 +66,13 @@
         return -2
     }
 
+    # If there is a space anywhere in the SystemString except the very
+    # beginning, remove everything after it and attempt to parse what's
+    # left of the string as a valid version. Fixes issue #115.
+    $SystemStringSpace = $SystemString.IndexOf(' ')
+    if ($SystemStringSpace -gt 0) {
+        $SystemString = $SystemString.Substring(0, $SystemStringSpace)
+    }
     [bool]$SystemStringIsParsableDec = $SystemString -match "^[\d\.]+$"
     [bool]$SystemStringIsParsableHex = $SystemString -match '^[\da-f]+$'
 
