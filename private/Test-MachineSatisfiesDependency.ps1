@@ -351,13 +351,14 @@
             return -1
         }
         '_RegistryKeyValue' {
-            if ($Dependency.type -ne 'REG_SZ') {
+            if ($Dependency.Version -and $Dependency.KeyValue -or
+                $Dependency.Version -and $Dependency.type -ne 'REG_SZ') {
                 return -2
             }
 
             if (Test-Path -LiteralPath ('Microsoft.PowerShell.Core\Registry::{0}' -f $Dependency.Key) -PathType Container) {
                 try {
-                    $regVersion = Get-ItemPropertyValue -LiteralPath ('Microsoft.PowerShell.Core\Registry::{0}' -f $Dependency.Key) -Name $Dependency.KeyName -ErrorAction Stop
+                    $regValue = Get-ItemPropertyValue -LiteralPath ('Microsoft.PowerShell.Core\Registry::{0}' -f $Dependency.Key) -Name $Dependency.KeyName -ErrorAction Stop
                 }
                 catch {
                     return -1
@@ -372,7 +373,7 @@
                     return -2
                 }
 
-                return (Test-VersionPattern -LenovoString $DependencyVersion -SystemString $regVersion)
+                return (Test-VersionPattern -LenovoString $DependencyVersion -SystemString $regValue)
             } else {
                 return -1
             }
