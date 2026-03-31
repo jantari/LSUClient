@@ -133,6 +133,7 @@
 
         $UTF8ByteOrderMark = [System.Text.Encoding]::UTF8.GetString(@(195, 175, 194, 187, 194, 191))
 
+        Write-Debug "Gathering machine characteristics"
         New-Variable -Name CachedHardwareTable -Option AllScope, ReadOnly -Value (
             $script:CachedHardwareTable = [MachineCharacteristics]::new($IncludePhantomDevices, $MachineCharacteristicsOverride)
         )

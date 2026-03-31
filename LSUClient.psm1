@@ -22,10 +22,11 @@ enum DependencyParserState {
     DO_NOT_HAVE = 1
 }
 
-# Check for old Windows versions in a manner that is compatible with PowerShell 2.0 all the way up to 7.1
-$WindowsVersion = (New-Object -TypeName 'System.Management.ManagementObjectSearcher' -ArgumentList "SELECT Version FROM Win32_OperatingSystem").Get() | Select-Object -ExpandProperty Version
-if ($WindowsVersion -notlike "10.*") {
-    throw "This module requires Windows 10 or 11."
+# Check for old Windows versions in a manner that does not error on non-Windows platforms
+if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+    if ([System.Environment]::OSVersion.Version.Major -ne 10) {
+        Write-Error "This module is only compatible with Windows 10 and 11."
+    }
 }
 
 $script:LSUClientConfiguration = [LSUClientConfiguration]::new()
@@ -338,8 +339,15 @@ class MachineCharacteristics {
         [bool]$IncludePhantomDevices,
         [hashtable]$Overrides
     ) {
+        # This class constructor does a bunch of info-gathering that is pretty Windows-specific and complex to try-catch,
+        # but we allow manual overrides anyway and ideally want to allow the module to run and get packages even on non-Windows
+        # platforms or very highly restricted Windows systems. Because a class constructor that fails seems to terminate the entire
+        # statement it's called in, this results in the variable an object of this class is assigned to to be undeclared/null.
+        # For MachineCharacteristics, this is undesirable. We'd rather have a partial object than nothing, so this trap statement
+        # ensures we continue through any errors and receive _something_. https://github.com/jantari/LSUClient/issues/133
+        trap {}
+
         [Version]$WindowsVersion = Get-WindowsVersion
-        $SMBiosInformation = Get-CimInstance -ClassName Win32_BIOS -Verbose:$false
 
         if ($Overrides.ContainsKey('_OS')) {
             $this._OS = $Overrides['_OS']
@@ -361,6 +369,8 @@ class MachineCharacteristics {
             # with mixed 32-bit and 64-bit processors. See issue #99.
             $this._CPUAddressWidth = [System.Management.ManagementObjectSearcher]::new('SELECT AddressWidth FROM Win32_Processor').Get().AddressWidth[0]
         }
+
+        $SMBiosInformation = Get-CimInstance -ClassName Win32_BIOS -Verbose:$false
 
         if ($Overrides.ContainsKey('_Bios')) {
             $this._Bios = $Overrides['_Bios']
