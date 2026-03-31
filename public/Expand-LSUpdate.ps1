@@ -17,8 +17,8 @@
     Param (
         [Parameter( Position = 0, ValueFromPipeline = $true, Mandatory = $true )]
         [PSCustomObject]$Package,
-        [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
-        [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages"
+        [ValidateScript({ -not $_.Contains(' ') -and [System.IO.Directory]::Exists($_) })]
+        [string]$Path = "$env:TEMP\LSUPackages"
     )
 
     begin {

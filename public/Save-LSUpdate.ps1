@@ -41,7 +41,8 @@
         [switch]$ProxyUseDefaultCredentials = $script:LSUClientConfiguration.ProxyUseDefaultCredentials,
         [switch]$ShowProgress,
         [switch]$Force,
-        [System.IO.DirectoryInfo]$Path = "$env:TEMP\LSUPackages"
+        [ValidateScript({ -not $_.Contains(' ') -and $_ -as [System.IO.DirectoryInfo] })]
+        [string]$Path = "$env:TEMP\LSUPackages"
     )
 
     begin {
