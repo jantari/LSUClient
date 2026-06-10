@@ -165,12 +165,13 @@
         # This variable will hold the LenovoPackage objects as they are processed in two stages
         New-Variable -Name PackageList -Option Private -Value ( [System.Collections.Generic.List[LenovoPackage]]::new() )
 
-        # This variable will hold additional metadata that needs to be referenced from nested scopes (functions) during dependency tests
+        # These variables will hold additional metadata that needs to be referenced from nested scopes (functions) during dependency tests
         New-Variable -Name AllPackagesDependenciesInfo -Option AllScope, ReadOnly -Value ( [System.Collections.Generic.Dictionary[string, PackageDependenciesInfo]]::new() )
+        New-Variable -Name AllPackagesInstalledVersionInfo -Option AllScope, ReadOnly -Value ( [System.Collections.Generic.Dictionary[string, System.Collections.Generic.List[PackageInstalledInfo]]]::new() )
     }
 
     process {
-        # Stage 1 of 2 : Process most parts of the packages XML, only dependencies will be resolved later to support Coreq (package inter-dependency) tests
+        # Stage 1 of 3: Process most parts of the packages XML, only dependencies will be resolved later to support Coreq (package inter-dependency) tests
         foreach ($Package in $PackagePointers) {
             Write-Verbose "Processing package $($Package.AbsoluteLocation)"
 
@@ -308,19 +309,26 @@
 
             $PackageList.Add($packageObject)
 
-            if ($AllPackagesDependenciesInfo.ContainsKey($packageXML.Package.name)) {
-                Write-Debug "Replacing previous package dependency info for $($packageXML.Package.name)"
-            }
-            $AllPackagesDependenciesInfo[$packageXML.Package.name] = [PackageDependenciesInfo]@{
-                'Version'          = $packageXML.Package.version
-                'IsInstalled'      = $PackageIsInstalled
+            # Keep information we need to resolve dependencies in the next step per-package
+            $AllPackagesDependenciesInfo[$packageXML.Package.id] = [PackageDependenciesInfo]@{
                 'Dependencies'     = $packageXML.Package.Dependencies
                 'LocalPackageRoot' = $LocalPackageRoot
             }
+
+            # Keep information we need to resolve Coreq dependencies
+            if (-not $AllPackagesInstalledVersionInfo.ContainsKey($packageXML.Package.name)) {
+                $AllPackagesInstalledVersionInfo[$packageXML.Package.name] = [System.Collections.Generic.List[PackageInstalledInfo]]::new()
+            }
+            $PkgInstallInfo = [PackageInstalledInfo]@{
+                'Version'     = $packageXML.Package.version
+                'IsInstalled' = $PackageIsInstalled
+            }
+            $AllPackagesInstalledVersionInfo[$packageXML.Package.name].Add($PkgInstallInfo)
         }
-        # Stage 2 of 2 : Process package dependencies (determines IsApplicable)
+
+        # Stage 2 of 3: Process package dependencies (determines IsApplicable)
         foreach ($Package in $PackageList) {
-            $CurrentPackageDependenciesInfo = $AllPackagesDependenciesInfo[$Package.Name]
+            $CurrentPackageDependenciesInfo = $AllPackagesDependenciesInfo[$Package.ID]
 
             # The explicit $null is to avoid powershell/powershell#13651
             [Nullable[bool]]$PackageIsApplicable = if ($NoTestApplicable) {
@@ -331,9 +339,47 @@
             }
 
             $Package.IsApplicable = $PackageIsApplicable
+        }
 
-            if ($All -or ($Package.IsApplicable -and $Package.IsInstalled -eq $false)) {
-                $Package
+        # Stage 3 of 3: Return packages
+        # The SkipList simply stores the indexes of packages that "lost" a duplicate-comparison.
+        # Because we know there is a newer duplicate in the list, we do not have to keep comparing
+        # other packages against these so we skip them in future loop iterations for performance.
+        $SkipList = [System.Collections.Generic.List[Int32]]::new()
+        :NEXTPACKAGE for ($i = 0; $i -lt $PackageList.Count -and $i -notin $SkipList; $i++) {
+            if ($All) {
+                # If -All is specified we simply return every package
+                $PackageList[$i]
+            } else {
+                # Without -All, we only return packages that meet criteria and also filter any older version(s) of duplicate packages (issue #139)
+                if ($PackageList[$i].IsApplicable) {
+                    # We cannot skip comparing installed packages here because if the latest duplicate of a given package
+                    # is installed, all the older packages, whether installed or not, still have to be compared against it
+                    # in order to "lose" and be skipped over. Otherwise the next-newest package thinks it's the latest and
+                    # if that is detected as not-installed it would be returned which would be wrong.
+                    for ($j = $i + 1; $j -lt $PackageList.Count -and $j -notin $SkipList; $j++) {
+                        if ($PackageList[$j].IsApplicable) {
+                            if ($PackageList[$i].Name -eq $PackageList[$j].Name) {
+                                Write-Debug "DUPLICATE NAME $($PackageList[$i].Name) ->"
+                                Write-Debug "  idx $i : $($PackageList[$i].ID) - $($PackageList[$i].ReleaseDate) - $($PackageList[$i].Version)"
+                                Write-Debug "  idx $j : $($PackageList[$j].ID) - $($PackageList[$j].ReleaseDate) - $($PackageList[$j].Version)"
+                                if ($PackageList[$i].ReleaseDate -ge $PackageList[$j].ReleaseDate) {
+                                    Write-Debug "Package $($PackageList[$i].ID) is newer or equal, adding $($PackageList[$j].ID) to the SkipList"
+                                    $SkipList.Add($j)
+                                } else {
+                                    Write-Debug "Package $($PackageList[$i].ID) is older, skipping and waiting for $($PackageList[$j].ID)"
+                                    continue NEXTPACKAGE
+                                }
+                            }
+                        }
+                    }
+
+                    # After this package has run through the duplicate-detection logic without
+                    # triggering a skip / continue, if it is not yet installed then return it
+                    if (-not $PackageList[$i].IsInstalled) {
+                        $PackageList[$i]
+                    }
+                }
             }
         }
     }

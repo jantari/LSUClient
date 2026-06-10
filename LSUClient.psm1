@@ -161,9 +161,13 @@ class PackageXmlPointer : PackageFilePointer {
 
 # Private
 class PackageDependenciesInfo {
-    [string] $Version
     [System.Xml.XmlElement] $Dependencies
     [string] $LocalPackageRoot
+}
+
+# Private
+class PackageInstalledInfo {
+    [string] $Version
     [Nullable[bool]] $IsInstalled
 }
 

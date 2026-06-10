@@ -25,16 +25,20 @@
             return -1
         }
         '_Coreq' {
-            $DependencyPackage = $AllPackagesDependenciesInfo[$Dependency.name]
-            if ($DependencyPackage) {
-                if ($DependencyPackage.IsInstalled) {
-                    Write-Debug "$('- ' * $DebugIndent)[ Got: $($Dependency.name) $($DependencyPackage.Version), Expected: $($Dependency.Version) ]"
-                    return (Test-VersionPattern -LenovoString $Dependency.Version -SystemString $DependencyPackage.Version)
-                } else {
-                    Write-Debug "$('- ' * $DebugIndent)[ $($Dependency.name) is not installed yet, Expected: $($Dependency.Version) ]"
-                }
-            } else {
+            $PkgVersions = $AllPackagesInstalledVersionInfo[$Dependency.name]
+            if ($null -eq $PkgVersions) {
                 Write-Debug "$('- ' * $DebugIndent)[ $($Dependency.name) is not in the repository, Expected: $($Dependency.Version) ]"
+            } else {
+                foreach ($PkgVersion in $PkgVersions) {
+                    if ($PkgVersion.IsInstalled) {
+                        Write-Debug "$('- ' * $DebugIndent)[ Got: $($Dependency.name) version $($PkgVersion.Version), Expected: $($Dependency.Version) ]"
+                        if ((Test-VersionPattern -LenovoString $Dependency.Version -SystemString $InstalledVersion) -eq 0) {
+                            return 0
+                        }
+                    } else {
+                        Write-Debug "$('- ' * $DebugIndent)[ $($Dependency.name) version $($PkgVersion.Version) is not installed yet, Expected: $($Dependency.Version) ]"
+                    }
+                }
             }
             return -1
         }
