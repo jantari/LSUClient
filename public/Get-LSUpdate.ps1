@@ -292,7 +292,7 @@
                 'Title'        = $packageXML.Package.Title.Desc.'#text'
                 'Type'         = $packageXML.Package.PackageType.type
                 'Category'     = $Package.Category
-                'Version'      = if ([Version]::TryParse($packageXML.Package.version, [ref]$null)) { $packageXML.Package.version } else { '0.0.0.0' }
+                'Version'      = if ([Version]::TryParse($packageXML.Package.version -replace '^v', [ref]$null)) { $packageXML.Package.version -replace '^v' } else { '0.0.0.0' }
                 'Severity'     = $PackageSeverity
                 'ReleaseDate'  = [DateTime]::ParseExact($packageXML.Package.ReleaseDate, 'yyyy-MM-dd', [CultureInfo]::InvariantCulture, 'None')
                 'RebootType'   = $packageXML.Package.Reboot.type
