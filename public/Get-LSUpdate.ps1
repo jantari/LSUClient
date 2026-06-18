@@ -360,14 +360,12 @@
                     for ($j = $i + 1; $j -lt $PackageList.Count -and $j -notin $SkipList; $j++) {
                         if ($PackageList[$j].IsApplicable) {
                             if ($PackageList[$i].Name -eq $PackageList[$j].Name) {
-                                Write-Debug "DUPLICATE NAME $($PackageList[$i].Name) ->"
-                                Write-Debug "  idx $i : $($PackageList[$i].ID) - $($PackageList[$i].ReleaseDate) - $($PackageList[$i].Version)"
-                                Write-Debug "  idx $j : $($PackageList[$j].ID) - $($PackageList[$j].ReleaseDate) - $($PackageList[$j].Version)"
+                                Write-Debug "Duplicate applicable package $($PackageList[$i].Name): $($PackageList[$i].ID) and $($PackageList[$j].ID)"
                                 if ($PackageList[$i].ReleaseDate -ge $PackageList[$j].ReleaseDate) {
-                                    Write-Debug "Package $($PackageList[$i].ID) is newer or equal, adding $($PackageList[$j].ID) to the SkipList"
+                                    Write-Debug "Package $($PackageList[$i].ID) is newer or equal, skipping $($PackageList[$j].ID)"
                                     $SkipList.Add($j)
                                 } else {
-                                    Write-Debug "Package $($PackageList[$i].ID) is older, skipping and waiting for $($PackageList[$j].ID)"
+                                    Write-Debug "Package $($PackageList[$i].ID) is older, skipping it"
                                     continue NEXTPACKAGE
                                 }
                             }
