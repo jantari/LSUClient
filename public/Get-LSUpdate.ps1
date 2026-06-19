@@ -360,9 +360,9 @@
                     for ($j = $i + 1; $j -lt $PackageList.Count -and $j -notin $SkipList; $j++) {
                         if ($PackageList[$j].IsApplicable) {
                             if ($PackageList[$i].Name -eq $PackageList[$j].Name) {
-                                Write-Debug "Duplicate applicable package $($PackageList[$i].Name): $($PackageList[$i].ID) and $($PackageList[$j].ID)"
+                                Write-Debug "Multiple applicable packages with name $($PackageList[$i].Name): $($PackageList[$i].ID) and $($PackageList[$j].ID)"
                                 if ($PackageList[$i].ReleaseDate -ge $PackageList[$j].ReleaseDate) {
-                                    Write-Debug "Package $($PackageList[$i].ID) is newer or equal, skipping $($PackageList[$j].ID)"
+                                    Write-Debug "Package $($PackageList[$j].ID) is older, skipping it"
                                     $SkipList.Add($j)
                                 } else {
                                     Write-Debug "Package $($PackageList[$i].ID) is older, skipping it"
